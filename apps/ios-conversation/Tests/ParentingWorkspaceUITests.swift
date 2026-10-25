@@ -356,12 +356,11 @@ final class ParentingWorkspaceUITests: XCTestCase {
         // Scroll the page under the floating bars: content must still be visible through the glass and the last item reachable.
         let bar = app.otherElements["parenting.tabBar"]
         XCTAssertTrue(bar.exists, app.debugDescription)
-        // The composer chips are also a (horizontal) scroll view; the page is the tallest one.
-        let scroll = app.scrollViews.allElementsBoundByIndex.max { $0.frame.height < $1.frame.height } ?? app.scrollViews.firstMatch
+        // Coordinates are taken from the app window: the composer chips are also a (horizontal) scroll view.
         // Drag from the upper part of the page: the lower part is covered by the floating bars (and the keyboard, if open).
         func dragPageUp() {
-            let from = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.34))
-            from.press(forDuration: 0.05, thenDragTo: scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.08)))
+            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.34))
+            from.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.08)))
         }
         for _ in 0..<2 { dragPageUp() }
         capture(app, "Interaction-v05-4-scrolled-under-glass")
