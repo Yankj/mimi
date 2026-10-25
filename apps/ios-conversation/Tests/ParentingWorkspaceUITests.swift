@@ -774,7 +774,9 @@ final class ParentingWorkspaceUITests: XCTestCase {
             }
             let appFrame = app.frame
             // The natural-input bar sits above the tab bar; content behind it is not reachable.
-            let composerTop = app.otherElements["parenting.natural.bar"].exists ? app.otherElements["parenting.natural.bar"].frame.minY : nil
+            let bar = app.otherElements["parenting.natural.bar"]
+            // A sheet covers the bar without removing it; only a reachable bar clips the viewport.
+            let composerTop: CGFloat? = (bar.exists && bar.isHittable) ? bar.frame.minY : nil
             let tabTop = (app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "parenting.tab."))
                 .allElementsBoundByIndex.filter { $0.isHittable }.map { $0.frame.minY } + [composerTop].compactMap { $0 }).min()
             let bounds = ViewportBounds(appFrame: appFrame, navigationFrames: navigationFrames,

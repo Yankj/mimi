@@ -10,6 +10,7 @@ import SwiftUI
     let busy: Bool
     let onSubmit: () -> Void
     @Environment(\.locale) private var locale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @FocusState private var focused: Bool
 
     private func ui(_ key: String) -> String { AppLanguage(locale: locale).ui(key) }
@@ -25,6 +26,8 @@ import SwiftUI
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // At accessibility sizes the bar keeps only the field: chips and the read-back would cover most of the screen.
+            if !dynamicTypeSize.isAccessibilitySize {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(starters) { starter in
@@ -43,7 +46,8 @@ import SwiftUI
                     }
                 }
             }
-            if let line = understanding {
+            }
+            if let line = understanding, !dynamicTypeSize.isAccessibilitySize {
                 Button(action: onSubmit) {
                     HStack(spacing: 6) {
                         Image(systemName: "sparkles").accessibilityHidden(true)
@@ -61,7 +65,7 @@ import SwiftUI
             }
             HStack(alignment: .bottom, spacing: 10) {
                 TextField(ui("说说想让小咪记的事，例如：团团周五游泳改到六点了"), text: $input.draft, axis: .vertical)
-                    .lineLimit(1...3)
+                    .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 1 : 3))
                     .focused($focused)
                     .submitLabel(.send)
                     .onSubmit { if input.canSubmit && !busy { onSubmit() } }

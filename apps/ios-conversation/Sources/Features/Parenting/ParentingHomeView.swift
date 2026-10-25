@@ -11,6 +11,7 @@ import Combine
     @Environment(\.locale) private var locale
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var tab: ParentingTab = .today
     @State private var selectedChildID: UUID?
     @State private var selectedGoalID: UUID?
@@ -232,7 +233,7 @@ import Combine
                 BrandMark(size: 53, style: .fill).padding(12)
                     .background(catColors.action.opacity(0.09), in: RoundedRectangle(cornerRadius: 24))
             }
-            if !workspace.children.isEmpty {
+            if !workspace.children.isEmpty && !dynamicTypeSize.isAccessibilitySize {
                 Text(ui("在下面直接说想让小咪记的事；小咪会先给你一张确认卡，确认后才会保存。"))
                     .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -247,6 +248,12 @@ import Combine
             childFilter
             arrangementSection("待确认", items: timeline.pending,
                                empty: "还没有待确认的事。直接说一件事，小咪会先给你一张确认卡。")
+            Button { sheet = .newArrangement(selectedChildID, nil) } label: {
+                Label(ui("手动填写一件事"), systemImage: "square.and.pencil").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(ParentingSecondaryButtonStyle())
+            .disabled(model.busy)
+            .accessibilityIdentifier("parenting.addArrangement")
             todayTimeline(timeline)
             if !timeline.overdue.isEmpty {
                 arrangementSection("待重新安排", items: timeline.overdue,
@@ -256,12 +263,6 @@ import Combine
             historySection
             todayGrowthPreview
             if workspace.suggestionsEnabled { suggestions }
-            Button { sheet = .newArrangement(selectedChildID, nil) } label: {
-                Label(ui("手动填写一件事"), systemImage: "square.and.pencil").frame(maxWidth: .infinity)
-            }
-            .buttonStyle(ParentingSecondaryButtonStyle())
-            .disabled(model.busy)
-            .accessibilityIdentifier("parenting.addArrangement")
         }
     }
 
@@ -558,7 +559,7 @@ import Combine
                         Spacer()
                         Button { sheet = .newGoal(child.id) } label: {
                             Label(ui("添加目标"), systemImage: "plus")
-                                .font(.subheadline).frame(minWidth: 44, minHeight: 44)
+                                .font(.subheadline).frame(minWidth: 46, minHeight: 46)
                                 .contentShape(Rectangle())
                         }
                             .buttonStyle(.plain).disabled(model.busy)
