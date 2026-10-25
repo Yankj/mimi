@@ -595,9 +595,12 @@ final class ParentingWorkspaceUITests: XCTestCase {
     /// the 成长 tab's timeline, and "growth" means its goals view.
     private func tab(_ app: XCUIApplication, _ name: String) {
         let target = (name == "records" || name == "growth") ? "growth" : name
+        // The tab bar floats as a glass capsule over the page; it must stay reachable above scrolled content.
         let button = app.buttons["parenting.tab." + target]
         XCTAssertTrue(button.waitForExistence(timeout: 5), app.debugDescription)
+        wait { button.isHittable }
         button.tap()
+        wait { button.isSelected }
         if name == "records" || name == "growth" {
             let mode = app.buttons["parenting.growth.mode." + (name == "records" ? "timeline" : "goals")]
             XCTAssertTrue(mode.waitForExistence(timeout: 5), app.debugDescription)
@@ -777,6 +780,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
             let bar = app.otherElements["parenting.natural.bar"]
             // A sheet covers the bar without removing it; only a reachable bar clips the viewport.
             let composerTop: CGFloat? = (bar.exists && bar.isHittable) ? bar.frame.minY : nil
+            // The floating bars overlay the scroller, so everything under their top edge is covered.
             let tabTop = (app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "parenting.tab."))
                 .allElementsBoundByIndex.filter { $0.isHittable }.map { $0.frame.minY } + [composerTop].compactMap { $0 }).min()
             let bounds = ViewportBounds(appFrame: appFrame, navigationFrames: navigationFrames,

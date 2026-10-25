@@ -1,5 +1,30 @@
 import SwiftUI
 
+// MARK: - Floating glass chrome
+
+struct ParentingFloatingBarHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+/// iOS 26 Liquid Glass when available; an ultra-thin material with a hairline and soft shadow before that.
+struct ParentingGlassSurface<S: InsettableShape>: ViewModifier {
+    let shape: S
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content
+                .background(.ultraThinMaterial, in: shape)
+                .overlay(shape.stroke(catColors.hairline, lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.10), radius: 14, y: 4)
+        }
+    }
+}
+extension View {
+    func parentingGlass<S: InsettableShape>(in shape: S) -> some View { modifier(ParentingGlassSurface(shape: shape)) }
+}
+
 // MARK: - Bottom composer (Today / Growth)
 
 /// One input box. The parent says what is on their mind; sorting it into 录入 / 规划 / 复盘 happens behind the scenes.
@@ -83,8 +108,9 @@ import SwiftUI
                 .accessibilityIdentifier("parenting.natural.send")
             }
         }
-        .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 8)
-        .background(catColors.background)
+        .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 10)
+        .parentingGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .frame(maxWidth: 520)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("parenting.natural.bar")
     }

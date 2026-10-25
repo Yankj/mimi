@@ -30,6 +30,7 @@ import Combine
     @State private var cancelledExpanded = false
     @State private var recordFilter: ParentingRecordFilter = .all
     @State private var now = Date()
+    @State private var floatingBarHeight: CGFloat = 0
 
     init(model: ConversationFirstModel, workspaceModel: ParentingWorkspaceModel? = nil, accountLabel: String? = nil,
          onSignOut: (() -> Void)? = nil, isAnonymousAccount: Bool = false) {
@@ -77,6 +78,9 @@ import Combine
                         .frame(maxWidth: 680)
                         .frame(maxWidth: .infinity)
                     }
+                    // The bars float over the page: content scrolls under the glass, and these margins keep the last item reachable.
+                    .contentMargins(.bottom, floatingBarHeight + 8, for: .scrollContent)
+                    .contentMargins(.bottom, floatingBarHeight, for: .scrollIndicators)
                     .refreshable { await model.load() }
                 }
             }
@@ -99,12 +103,15 @@ import Combine
                     .accessibilityIdentifier("parenting.settings")
                 }
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                VStack(spacing: 0) {
+            .overlay(alignment: .bottom) {
+                VStack(spacing: 8) {
                     if model.loaded && !workspace.children.isEmpty && (tab == .today || tab == .growth) { composerBar }
                     tabBar
                 }
+                .padding(.horizontal, 12).padding(.bottom, 2)
+                .background(GeometryReader { Color.clear.preference(key: ParentingFloatingBarHeightKey.self, value: $0.size.height) })
             }
+            .onPreferenceChange(ParentingFloatingBarHeightKey.self) { floatingBarHeight = $0 }
             .overlay(alignment: .top) {
                 if model.loaded && model.busy {
                     ProgressView(ui("正在保存"))
@@ -174,28 +181,34 @@ import Combine
         .modifier(catPrivacyShield(lockedText: ui("解锁后查看育儿记录"), identifier: "parenting.privacyShield"))
     }
 
+    /// Floating 今天｜成长｜我们家: a glass capsule (Liquid Glass on iOS 26, ultra-thin material before) above the scrolling page.
     private var tabBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
             ForEach(ParentingTab.allCases) { item in
                 Button {
                     tab = item
                 } label: {
-                    VStack(spacing: 5) {
+                    VStack(spacing: 3) {
                         Image(systemName: item.icon).font(.title3.weight(tab == item ? .semibold : .regular))
                         Text(ui(item.title)).font(catTypography.Role.caption.font.weight(tab == item ? .semibold : .regular))
                     }
-                    .foregroundStyle(tab == item ? catColors.actionText : catColors.calmSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 56)
-                    .background(tab == item ? catColors.action.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 16))
+                    // Labels stop growing at the first accessibility size so the floating bar never swallows the page.
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                    .foregroundStyle(tab == item ? catColors.actionText : catColors.ink.opacity(0.72))
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(tab == item ? catColors.action.opacity(0.16) : .clear, in: Capsule())
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(tab == item ? [.isSelected] : [])
                 .accessibilityIdentifier("parenting.tab.\(item.rawValue)")
             }
         }
-        .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 6)
-        .background(catColors.background)
-        .overlay(alignment: .top) { Rectangle().fill(catColors.hairline).frame(height: 0.5) }
+        .padding(5)
+        .parentingGlass(in: Capsule())
+        .frame(maxWidth: 520)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("parenting.tabBar")
     }
 
     private var loadState: some View {
