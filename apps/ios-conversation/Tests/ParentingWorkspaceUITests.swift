@@ -591,10 +591,18 @@ final class ParentingWorkspaceUITests: XCTestCase {
         // A missing sheet is a presentation failure, not a field to find by scrolling the Home screen.
         wait { app.textFields["parenting.goal.title"].exists }
     }
+    /// Navigation is 今天｜成长｜我们家. Older journeys say "records" for the observation/completion list; that list is now
+    /// the 成长 tab's timeline, and "growth" means its goals view.
     private func tab(_ app: XCUIApplication, _ name: String) {
-        let button = app.buttons["parenting.tab." + name]
+        let target = (name == "records" || name == "growth") ? "growth" : name
+        let button = app.buttons["parenting.tab." + target]
         XCTAssertTrue(button.waitForExistence(timeout: 5), app.debugDescription)
         button.tap()
+        if name == "records" || name == "growth" {
+            let mode = app.buttons["parenting.growth.mode." + (name == "records" ? "timeline" : "goals")]
+            XCTAssertTrue(mode.waitForExistence(timeout: 5), app.debugDescription)
+            mode.tap()
+        }
         // reveal() locates the next target without pulling the refreshable Home past its top edge.
     }
     private func requestAndAllow(_ app: XCUIApplication) {
@@ -765,8 +773,10 @@ final class ParentingWorkspaceUITests: XCTestCase {
                 }
             }
             let appFrame = app.frame
-            let tabTop = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "parenting.tab."))
-                .allElementsBoundByIndex.filter { $0.isHittable }.map { $0.frame.minY }.min()
+            // The natural-input bar sits above the tab bar; content behind it is not reachable.
+            let composerTop = app.otherElements["parenting.natural.bar"].exists ? app.otherElements["parenting.natural.bar"].frame.minY : nil
+            let tabTop = (app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "parenting.tab."))
+                .allElementsBoundByIndex.filter { $0.isHittable }.map { $0.frame.minY } + [composerTop].compactMap { $0 }).min()
             let bounds = ViewportBounds(appFrame: appFrame, navigationFrames: navigationFrames,
                                         tabTop: tabTop, inputPanelTop: inputPanelTop(app, appFrame: appFrame))
             let scroll = scrollingElement(app, bounds: bounds)

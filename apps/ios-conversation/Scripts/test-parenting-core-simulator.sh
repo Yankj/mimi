@@ -104,6 +104,7 @@ env -u CATPAW_SUPABASE_PROJECT_URL -u CATPAW_SUPABASE_PUBLISHABLE_KEY \
     -only-testing:catTests/ParentingIntakeTests \
     -only-testing:catTests/ParentingInlineIntakeTests \
     -only-testing:catTests/ParentingAccountLifecycleTests \
+    -only-testing:catTests/ParentingNaturalInputTests \
     -only-testing:catTests/ParentingReminderPlannerTests \
     -only-testing:catTests/ParentingReminderSchedulerTests \
     -only-testing:catTests/ParentingReminderModelTests \

@@ -1,0 +1,98 @@
+import Foundation
+import Combine
+
+/// State of one natural-input exchange: words -> understanding -> (one question at a time) -> confirm card -> saved.
+/// Nothing here writes until `confirm` runs the commands through the ledger model and each one returns saved.
+@MainActor
+final class ParentingNaturalInputModel: ObservableObject {
+    enum Phase: Equatable {
+        case idle, asking, confirming, saving
+        /// A receipt resource key. Only set after the ledger reported the write as saved.
+        case saved(String)
+        case failed(String)
+    }
+
+    @Published var draft = ""
+    @Published var reply = ""
+    @Published private(set) var proposal: ParentingNaturalProposal?
+    @Published private(set) var phase: Phase = .idle
+
+    private var recordID = UUID()
+    private var operationIDs = [UUID(), UUID()]
+    private var completedSteps = 0
+
+    var trimmedDraft: String { draft.trimmingCharacters(in: .whitespacesAndNewlines) }
+    var canSubmit: Bool { !trimmedDraft.isEmpty && trimmedDraft.count <= ParentingNaturalInput.maxLength }
+
+    /// Cheap live read of the draft: the grey "Tab-style" suggestion under the input box. Never saved, never sent anywhere.
+    func preview(context: ParentingNaturalContext, now: Date) -> ParentingNaturalProposal? {
+        guard canSubmit else { return nil }
+        let p = ParentingNaturalInput.classify(trimmedDraft, context: context, now: now)
+        return p.kind == .unknown ? nil : p
+    }
+
+    func submit(context: ParentingNaturalContext, now: Date) {
+        guard canSubmit else { return }
+        startOver()
+        adopt(ParentingNaturalInput.classify(trimmedDraft, context: context, now: now))
+    }
+
+    func answer(_ answer: ParentingNaturalAnswer, context: ParentingNaturalContext, now: Date) {
+        guard let current = proposal, phase == .asking else { return }
+        reply = ""
+        adopt(ParentingNaturalInput.applying(answer, to: current, context: context, now: now))
+    }
+
+    func answerWithReply(context: ParentingNaturalContext, now: Date) {
+        let text = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        answer(.text(text), context: context, now: now)
+    }
+
+    /// Back to the question or card the parent last saw, e.g. after a failed save.
+    func dismissFailure() { if case .failed = phase { phase = .confirming } }
+
+    func reset() { startOver(); draft = "" }
+
+    func card(workspace: ParentingWorkspace, remindersEnabled: Bool?, now: Date) -> ParentingConfirmCard? {
+        proposal.flatMap { ParentingConfirmCard.make($0, workspace: workspace, remindersEnabled: remindersEnabled, now: now) }
+    }
+
+    /// Runs the confirmed card. A step that already saved is never repeated on retry.
+    func confirm(model: ParentingWorkspaceModel) async {
+        guard let proposal, proposal.isReadyToConfirm, proposal.kind.writes, phase == .confirming || isFailed else { return }
+        guard !model.busy else { return }
+        phase = .saving
+        let commands = ParentingNaturalInput.commands(for: proposal, workspace: model.workspace, ids: .init(record: recordID))
+        guard !commands.isEmpty else { phase = .failed("这张卡已经过期，请重新说一次。"); return }
+        var index = completedSteps
+        // After a partial save the first command (create) is already in the ledger and must not run again.
+        let pending = Array(commands.dropFirst(index))
+        for command in pending {
+            let ok = await model.apply(command, operationID: operationIDs[min(index, operationIDs.count - 1)])
+            guard ok else {
+                phase = .failed(index > 0 ? "已先存为待确认，还没有进入安排。请在今天页确认，或重试。" : (model.error ?? "没有保存成功。已填写的内容保留，可以重试。"))
+                return
+            }
+            index += 1; completedSteps = index
+        }
+        switch proposal.kind {
+        case .newArrangement: phase = .saved("已安排好了")
+        case .reschedule: phase = .saved("已改期")
+        case .observation: phase = .saved("已保存这条观察")
+        default: break
+        }
+    }
+
+    private var isFailed: Bool { if case .failed = phase { return true } else { return false } }
+
+    private func adopt(_ p: ParentingNaturalProposal) {
+        proposal = p
+        phase = p.missing.isEmpty && p.kind != .unknown ? .confirming : .asking
+    }
+
+    private func startOver() {
+        proposal = nil; phase = .idle; reply = ""
+        recordID = UUID(); operationIDs = [UUID(), UUID()]; completedSteps = 0
+    }
+}
