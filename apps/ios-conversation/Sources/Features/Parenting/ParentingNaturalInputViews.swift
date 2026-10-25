@@ -41,6 +41,9 @@ extension View {
     private func ui(_ key: String) -> String { AppLanguage(locale: locale).ui(key) }
     private func ui(_ key: String, _ arguments: [String]) -> String { AppLanguage(locale: locale).ui(key, arguments: arguments) }
 
+    /// The keyboard goes away when the words are handed to the card sheet, so the page and floating bars are visible again afterwards.
+    private func handOver() { focused = false; onSubmit() }
+
     private struct Starter: Identifiable { let id: String; let label: String; let text: String; let sendsNow: Bool }
     private var starters: [Starter] {
         [.init(id: "reschedule", label: "调课", text: "游泳改到", sendsNow: false),
@@ -58,7 +61,7 @@ extension View {
                     ForEach(starters) { starter in
                         Button {
                             input.draft = starter.text
-                            if starter.sendsNow { onSubmit() } else { focused = true }
+                            if starter.sendsNow { handOver() } else { focused = true }
                         } label: {
                             Text(ui(starter.label)).font(catTypography.Role.caption.font.weight(.medium))
                                 .padding(.horizontal, 12).frame(minHeight: 36)
@@ -73,7 +76,7 @@ extension View {
             }
             }
             if let line = understanding, !dynamicTypeSize.isAccessibilitySize {
-                Button(action: onSubmit) {
+                Button(action: handOver) {
                     HStack(spacing: 6) {
                         Image(systemName: "sparkles").accessibilityHidden(true)
                         Text(verbatim: line).lineLimit(1)
@@ -93,12 +96,12 @@ extension View {
                     .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 1 : 3))
                     .focused($focused)
                     .submitLabel(.send)
-                    .onSubmit { if input.canSubmit && !busy { onSubmit() } }
+                    .onSubmit { if input.canSubmit && !busy { handOver() } }
                     .padding(.horizontal, 14).padding(.vertical, 11)
                     .background(catColors.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(catColors.hairline, lineWidth: 0.5))
                     .accessibilityIdentifier("parenting.natural.field")
-                Button(action: onSubmit) {
+                Button(action: handOver) {
                     Image(systemName: "arrow.up").frame(width: 44, height: 44)
                         .foregroundStyle(catColors.calmGlyph)
                         .background(input.canSubmit && !busy ? catColors.calmCTATop : catColors.fillSelected, in: Circle())

@@ -80,6 +80,7 @@ import Combine
                     }
                     // The bars float over the page: content scrolls under the glass, and these margins keep the last item reachable.
                     .contentMargins(.bottom, floatingBarHeight + 8, for: .scrollContent)
+                    .scrollDismissesKeyboard(.interactively)
                     .contentMargins(.bottom, floatingBarHeight, for: .scrollIndicators)
                     .refreshable { await model.load() }
                 }
@@ -151,7 +152,7 @@ import Combine
                                   onNavigate: { kind in navigate(kind) },
                                   onManual: { proposal in pendingSheet = manualSheet(for: proposal) },
                                   onAddChild: { pendingSheet = .newChild })
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $chatPresented) {
@@ -273,7 +274,7 @@ import Combine
                                    explanation: "时间已经过去，仍未标记完成。可调整时间或取消，不会自动算作完成。")
             }
             if !timeline.upcoming.isEmpty { arrangementSection("以后的安排", items: timeline.upcoming) }
-            historySection
+            historySection(excluding: Set(timeline.entries.map(\.id)))
             todayGrowthPreview
             if workspace.suggestionsEnabled { suggestions }
         }
@@ -390,11 +391,13 @@ import Combine
         }
     }
 
-    private var historySection: some View {
+    /// Items already on today's timeline are not listed a second time (a card has one identity on screen).
+    private func historySection(excluding onTimeline: Set<UUID>) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             DisclosureGroup(isExpanded: $completedExpanded) {
-                let items = arrangements.filter { $0.state == .completed }.reversed()
-                if items.isEmpty { Text(ui("还没有完成的安排。" )).font(.subheadline).foregroundStyle(catColors.calmSecondary).padding(.top, 12) }
+                let items = arrangements.filter { $0.state == .completed && !onTimeline.contains($0.id) }.reversed()
+                let finishedToday = arrangements.contains { $0.state == .completed && onTimeline.contains($0.id) }
+                if items.isEmpty && !finishedToday { Text(ui("还没有完成的安排。" )).font(.subheadline).foregroundStyle(catColors.calmSecondary).padding(.top, 12) }
                 ForEach(Array(items)) { item in arrangementCard(item).padding(.top, 10) }
             } label: { Label(ui("已完成的安排"), systemImage: "checkmark.circle").font(.subheadline.weight(.medium)) }
             .accessibilityElement(children: .contain)
