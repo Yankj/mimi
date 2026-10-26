@@ -70,7 +70,7 @@ struct catInAppBanner: Identifiable, Equatable, Sendable {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(.regularMaterial, in: Capsule())
+        .catGlass(in: Capsule())
         .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)

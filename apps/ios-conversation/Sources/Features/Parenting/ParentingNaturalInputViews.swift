@@ -7,22 +7,56 @@ struct ParentingFloatingBarHeightKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
-/// iOS 26 Liquid Glass when available; an ultra-thin material with a hairline and soft shadow before that.
+/// Floating chrome surface: Liquid Glass on iOS 26, a material with hairline and soft shadow before that.
 struct ParentingGlassSurface<S: InsettableShape>: ViewModifier {
     let shape: S
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content.glassEffect(.regular, in: shape)
-        } else {
-            content
-                .background(.ultraThinMaterial, in: shape)
-                .overlay(shape.stroke(catColors.hairline, lineWidth: 0.5))
-                .shadow(color: .black.opacity(0.10), radius: 14, y: 4)
-        }
-    }
+    func body(content: Content) -> some View { content.catGlass(in: shape, fallback: .ultraThinMaterial, shadowed: true) }
 }
 extension View {
     func parentingGlass<S: InsettableShape>(in shape: S) -> some View { modifier(ParentingGlassSurface(shape: shape)) }
+}
+
+// MARK: - Voice hook (the composer owns the layout; a voice feature plugs in here)
+
+/// Live state the composer shows while a voice session runs: `parenting.composer.listening` and `parenting.composer.transcript`.
+@MainActor final class ParentingComposerVoiceState: ObservableObject {
+    @Published var isListening = false
+    @Published var transcript = ""
+}
+
+/// Install with `.environment(\.parentingComposerAccessory, impl)` on the parenting home. `micControl` replaces the hold-to-talk
+/// placeholder capsule (give it identifier `parenting.composer.mic`); `finish` receives the final transcript, which the
+/// composer hands to the same confirm-card flow as typed text. Nothing is recorded or saved by the composer itself.
+@MainActor protocol ParentingComposerAccessory {
+    var voiceState: ParentingComposerVoiceState { get }
+    func micControl(finish: @escaping (String) -> Void) -> AnyView
+}
+struct ParentingComposerAccessoryKey: EnvironmentKey { static let defaultValue: (any ParentingComposerAccessory)? = nil }
+extension EnvironmentValues {
+    var parentingComposerAccessory: (any ParentingComposerAccessory)? {
+        get { self[ParentingComposerAccessoryKey.self] }
+        set { self[ParentingComposerAccessoryKey.self] = newValue }
+    }
+}
+
+private struct ParentingVoiceStrip: View {
+    @ObservedObject var state: ParentingComposerVoiceState
+    @Environment(\.locale) private var locale
+    var body: some View {
+        if state.isListening {
+            VStack(alignment: .leading, spacing: 4) {
+                Label(AppLanguage(locale: locale).ui("正在听…"), systemImage: "waveform")
+                    .font(catTypography.Role.caption.font.weight(.medium)).foregroundStyle(catColors.actionText)
+                    .accessibilityIdentifier("parenting.composer.listening")
+                if !state.transcript.isEmpty {
+                    Text(verbatim: state.transcript).font(.body).foregroundStyle(catColors.ink).lineLimit(3)
+                        .accessibilityIdentifier("parenting.composer.transcript")
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
 }
 
 // MARK: - Bottom composer (Today / Growth)
@@ -34,9 +68,14 @@ extension View {
     let now: Date
     let busy: Bool
     let onSubmit: () -> Void
+    /// Escape hatches to the manual forms (the "+" menu lists them last).
+    var onManualArrangement: (() -> Void)?
+    var onManualObservation: (() -> Void)?
     @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.parentingComposerAccessory) private var accessory
     @FocusState private var focused: Bool
+    @State private var keyboardMode = false
 
     private func ui(_ key: String) -> String { AppLanguage(locale: locale).ui(key) }
     private func ui(_ key: String, _ arguments: [String]) -> String { AppLanguage(locale: locale).ui(key, arguments: arguments) }
@@ -52,70 +91,170 @@ extension View {
          .init(id: "today", label: "今天有什么", text: "今天有什么安排", sendsNow: true)]
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // At accessibility sizes the bar keeps only the field: chips and the read-back would cover most of the screen.
-            if !dynamicTypeSize.isAccessibilitySize {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(starters) { starter in
-                        Button {
-                            input.draft = starter.text
-                            if starter.sendsNow { handOver() } else { focused = true }
-                        } label: {
-                            Text(ui(starter.label)).font(catTypography.Role.caption.font.weight(.medium))
-                                .padding(.horizontal, 12).frame(minHeight: 36)
-                                .background(catColors.fillSelected, in: Capsule())
-                                .foregroundStyle(catColors.ink)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(busy)
-                        .accessibilityIdentifier("parenting.natural.chip." + starter.id)
+    // MARK: Pieces
+
+    private var chipsRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(starters) { starter in
+                    Button {
+                        input.draft = starter.text
+                        if starter.sendsNow { handOver() } else { focused = true }
+                    } label: {
+                        Text(ui(starter.label)).font(catTypography.Role.caption.font.weight(.medium))
+                            .padding(.horizontal, 12).frame(minHeight: 36)
+                            .foregroundStyle(catColors.ink)
+                            .background(catColors.fillSelected, in: Capsule())
                     }
+                    .buttonStyle(.plain)
+                    .disabled(busy)
+                    .accessibilityIdentifier("parenting.natural.chip." + starter.id)
                 }
-            }
-            }
-            if let line = understanding, !dynamicTypeSize.isAccessibilitySize {
-                Button(action: handOver) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles").accessibilityHidden(true)
-                        Text(verbatim: line).lineLimit(1)
-                        Spacer(minLength: 0)
-                        Text(ui("点这里继续")).font(catTypography.Role.caption.font.weight(.medium))
-                    }
-                    .font(catTypography.Role.caption.font)
-                    .foregroundStyle(catColors.calmSecondary)
-                    .frame(minHeight: 32)
-                }
-                .buttonStyle(.plain)
-                .disabled(busy)
-                .accessibilityIdentifier("parenting.natural.suggestion")
-            }
-            HStack(alignment: .bottom, spacing: 10) {
-                TextField(ui("说说想让小咪记的事，例如：团团周五游泳改到六点了"), text: $input.draft, axis: .vertical)
-                    .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 1 : 3))
-                    .focused($focused)
-                    .submitLabel(.send)
-                    .onSubmit { if input.canSubmit && !busy { handOver() } }
-                    .padding(.horizontal, 14).padding(.vertical, 11)
-                    .background(catColors.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(catColors.hairline, lineWidth: 0.5))
-                    .accessibilityIdentifier("parenting.natural.field")
-                Button(action: handOver) {
-                    Image(systemName: "arrow.up").frame(width: 44, height: 44)
-                        .foregroundStyle(catColors.calmGlyph)
-                        .background(input.canSubmit && !busy ? catColors.calmCTATop : catColors.fillSelected, in: Circle())
-                }
-                .disabled(!input.canSubmit || busy)
-                .accessibilityLabel(ui("交给小咪"))
-                .accessibilityIdentifier("parenting.natural.send")
             }
         }
-        .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 10)
-        .parentingGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+    }
+    @ViewBuilder private var suggestionRow: some View {
+        if let line = understanding, !dynamicTypeSize.isAccessibilitySize {
+            Button(action: handOver) {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles").accessibilityHidden(true)
+                    Text(verbatim: line).lineLimit(1)
+                    Spacer(minLength: 0)
+                    Text(ui("点这里继续")).font(catTypography.Role.caption.font.weight(.medium))
+                }
+                .font(catTypography.Role.caption.font)
+                .foregroundStyle(catColors.calmSecondary)
+                .frame(minHeight: 32)
+            }
+            .buttonStyle(.plain)
+            .disabled(busy)
+            .accessibilityIdentifier("parenting.natural.suggestion")
+        }
+    }
+    private var textField: some View {
+        TextField(ui("说说想让小咪记的事，例如：团团周五游泳改到六点了"), text: $input.draft, axis: .vertical)
+            .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 1 : 3))
+            .focused($focused)
+            .submitLabel(.send)
+            .onSubmit { if input.canSubmit && !busy { handOver() } }
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .accessibilityIdentifier("parenting.natural.field")
+    }
+
+    // MARK: Layout: one glass card; idle is a single line (+ · hold-to-talk · keyboard)
+
+    private var keyboardActive: Bool { keyboardMode || dynamicTypeSize.isAccessibilitySize }
+    private var expanded: Bool { keyboardActive && (focused || !input.draft.isEmpty) && !dynamicTypeSize.isAccessibilitySize }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let accessory { ParentingVoiceStrip(state: accessory.voiceState) }
+            if expanded {
+                chipsRow
+                suggestionRow
+            }
+            HStack(alignment: .center, spacing: 6) {
+                plusMenu
+                if keyboardActive {
+                    textField
+                        .background(catColors.fillSelected.opacity(0.7), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    trailingButton
+                } else {
+                    holdToTalk
+                    keyboardToggle
+                }
+            }
+        }
+        .padding(.horizontal, 8).padding(.vertical, 8)
+        .catGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous), fallback: .ultraThinMaterial, shadowed: true)
+        .animation(.snappy(duration: 0.22), value: expanded)
+        .animation(.snappy(duration: 0.22), value: keyboardActive)
         .frame(maxWidth: 520)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("parenting.natural.bar")
+    }
+
+    private func switchMode(toKeyboard: Bool) {
+        keyboardMode = toKeyboard
+        if toKeyboard { DispatchQueue.main.async { focused = true } } else { focused = false }
+    }
+
+    private var plusMenu: some View {
+        Menu {
+            ForEach(starters) { starter in
+                Button(ui(starter.label)) {
+                    input.draft = starter.text
+                    if starter.sendsNow { handOver() } else { switchMode(toKeyboard: true) }
+                }
+                .accessibilityIdentifier("parenting.natural.chip." + starter.id)
+            }
+            // Manual forms come last: the natural input is the default path, the forms are the escape hatch.
+            Divider()
+            Button { onManualArrangement?() } label: { Label(ui("手动添加安排"), systemImage: "calendar.badge.plus") }
+                .accessibilityIdentifier("parenting.plus.manualArrangement")
+            Button { onManualObservation?() } label: { Label(ui("手动记一笔"), systemImage: "square.and.pencil") }
+                .accessibilityIdentifier("parenting.plus.manualObservation")
+        } label: {
+            Image(systemName: "plus").font(.title3.weight(.semibold)).foregroundStyle(catColors.ink)
+                .frame(width: 44, height: 44).contentShape(Circle())
+        }
+        .disabled(busy)
+        .accessibilityLabel(ui("更多"))
+        .accessibilityIdentifier("parenting.plus.menu")
+    }
+
+    /// Voice-first layout. Until a voice accessory is installed the capsule only opens the keyboard (nothing is recorded).
+    @ViewBuilder private var holdToTalk: some View {
+        if let accessory {
+            accessory.micControl { text in
+                input.draft = text
+                if input.canSubmit && !busy { handOver() }
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
+        } else {
+            Button { switchMode(toKeyboard: true) } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "mic.fill")
+                    Text(ui("按住说话")).font(.body.weight(.semibold))
+                }
+                .foregroundStyle(catColors.ink)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(catColors.fillSelected.opacity(0.7), in: Capsule())
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(busy)
+            .accessibilityHint(ui("语音输入暂未开放，点这里改用键盘"))
+            .accessibilityIdentifier("parenting.composer.mic")
+        }
+    }
+
+    private var keyboardToggle: some View {
+        Button { switchMode(toKeyboard: !keyboardActive) } label: {
+            Image(systemName: keyboardActive ? "mic" : "keyboard").font(.title3).foregroundStyle(catColors.ink)
+                .frame(width: 44, height: 44).contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(ui(keyboardActive ? "切换到语音" : "切换到键盘"))
+        .accessibilityIdentifier("parenting.composer.keyboardToggle")
+    }
+
+    /// Send while there are words; otherwise the way back to voice.
+    @ViewBuilder private var trailingButton: some View {
+        if input.canSubmit || dynamicTypeSize.isAccessibilitySize {
+            Button(action: handOver) {
+                Image(systemName: "arrow.up").font(.body.weight(.semibold)).frame(width: 40, height: 40)
+                    .foregroundStyle(catColors.calmGlyph)
+                    .background(input.canSubmit && !busy ? catColors.calmCTATop : catColors.fillSelected, in: Circle())
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .disabled(!input.canSubmit || busy)
+            .accessibilityLabel(ui("交给小咪"))
+            .accessibilityIdentifier("parenting.natural.send")
+        } else {
+            keyboardToggle
+        }
     }
 
     /// Grey, Tab-style read-back of what the draft would become. It is a suggestion only; nothing is saved until the card is confirmed.
@@ -143,6 +282,7 @@ extension View {
     @Environment(\.locale) private var locale
 
     private func ui(_ key: String) -> String { AppLanguage(locale: locale).ui(key) }
+    private var savedReceipt: String? { if case .saved(let receipt) = input.phase { return receipt } else { return nil } }
 
     var body: some View {
         NavigationStack {
@@ -161,7 +301,8 @@ extension View {
                 .padding(20)
                 .frame(maxWidth: 680).frame(maxWidth: .infinity)
             }
-            .background(catColors.background.ignoresSafeArea())
+            .catBottomBar { confirmActions }
+            .catSheetCanvas()
             .foregroundStyle(catColors.ink)
             .navigationTitle(ui("小咪来整理"))
             .navigationBarTitleDisplayMode(.inline)
@@ -173,6 +314,14 @@ extension View {
             }
         }
         .tint(catColors.actionText)
+        // Saved: the receipt shows briefly and the sheet closes itself (never under VoiceOver or in UI tests that tap 好的).
+        .task(id: savedReceipt) {
+            guard savedReceipt != nil, !UIAccessibility.isVoiceOverRunning,
+                  ProcessInfo.processInfo.environment["CF_UI_TEST_NO_AUTODISMISS"] != "1" else { return }
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            guard !Task.isCancelled else { return }
+            input.reset(); dismiss()
+        }
         .accessibilityIdentifier("parenting.natural.sheet")
     }
 
@@ -225,12 +374,12 @@ extension View {
                 }
                 if ask.field == .child && ask.options.isEmpty {
                     Button(ui("添加孩子")) { dismiss(); onAddChild() }
-                        .buttonStyle(ParentingPrimaryButtonStyle())
+                        .parentingPrimaryButton()
                         .accessibilityIdentifier("parenting.natural.addChild")
                 }
                 if ask.field == .target && ask.options.isEmpty {
                     Button(ui("改为记一件安排")) { input.answer(.intent(.newArrangement), context: context, now: now) }
-                        .buttonStyle(ParentingSecondaryButtonStyle())
+                        .parentingSecondaryButton()
                 }
                 if ask.allowsText {
                     HStack(spacing: 10) {
@@ -242,7 +391,7 @@ extension View {
                             .onSubmit { input.answerWithReply(context: context, now: now) }
                             .accessibilityIdentifier("parenting.natural.reply")
                         Button(ui("好")) { input.answerWithReply(context: context, now: now) }
-                            .buttonStyle(ParentingPrimaryButtonStyle())
+                            .parentingPrimaryButton()
                             .disabled(input.reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             .accessibilityIdentifier("parenting.natural.replySend")
                     }
@@ -273,22 +422,38 @@ extension View {
                     .foregroundStyle(catColors.failure).frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("parenting.natural.failure")
             }
-            let saving = input.phase == .saving
-            VStack(spacing: 10) {
-                Button {
-                    if card.writes { Task { await input.confirm(model: workspaceModel) } }
-                    else { let kind = p.kind; input.reset(); dismiss(); onNavigate(kind) }
-                } label: {
-                    HStack { if saving { ProgressView() }; Text(ui(card.confirmTitle)) }.frame(maxWidth: .infinity)
+        }
+    }
+
+    private var currentCard: ParentingConfirmCard? {
+        input.card(workspace: workspaceModel.workspace, remindersEnabled: workspaceModel.remindersAvailable ? workspaceModel.reminderSettings.enabled : nil, now: now)
+    }
+    /// Confirm / manual actions stay pinned at the bottom of the sheet so they are visible at the medium detent.
+    @ViewBuilder private var confirmActions: some View {
+        if let p = input.proposal, let card = currentCard {
+            switch input.phase {
+            case .confirming, .saving, .failed:
+                let saving = input.phase == .saving
+                VStack(spacing: 10) {
+                    Button {
+                        if card.writes { Task { await input.confirm(model: workspaceModel) } }
+                        else { let kind = p.kind; input.reset(); dismiss(); onNavigate(kind) }
+                    } label: {
+                        HStack { if saving { ProgressView() }; Text(ui(card.confirmTitle)) }.frame(maxWidth: .infinity)
+                    }
+                    .parentingPrimaryButton()
+                    .disabled(saving || workspaceModel.busy)
+                    .accessibilityIdentifier("parenting.natural.confirm")
+                    if card.writes {
+                        Button(ui("手动调整")) { onManual(p); dismiss() }
+                            .parentingSecondaryButton().disabled(saving)
+                            .accessibilityIdentifier("parenting.natural.manual")
+                    }
                 }
-                .buttonStyle(ParentingPrimaryButtonStyle())
-                .disabled(saving || workspaceModel.busy)
-                .accessibilityIdentifier("parenting.natural.confirm")
-                if card.writes {
-                    Button(ui("手动调整")) { onManual(p); dismiss() }
-                        .buttonStyle(ParentingSecondaryButtonStyle()).disabled(saving)
-                        .accessibilityIdentifier("parenting.natural.manual")
-                }
+                .padding(.horizontal, 20).padding(.vertical, 10)
+                .frame(maxWidth: 680).frame(maxWidth: .infinity)
+                .background(.bar)
+            default: EmptyView()
             }
         }
     }
@@ -300,7 +465,7 @@ extension View {
                 .accessibilityIdentifier("parenting.natural.receipt")
             Text(ui("已保存在这台设备上；今天页和成长页会同步显示。")).font(.subheadline).foregroundStyle(catColors.calmSecondary)
             Button(ui("好的")) { input.reset(); dismiss() }
-                .buttonStyle(ParentingPrimaryButtonStyle())
+                .parentingPrimaryButton()
                 .accessibilityIdentifier("parenting.natural.done")
         }
         .parentingCard()

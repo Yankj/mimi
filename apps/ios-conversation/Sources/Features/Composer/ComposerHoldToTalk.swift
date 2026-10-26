@@ -120,7 +120,7 @@ import SwiftUI
         }
         .padding(.horizontal, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .catGlass(in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         .overlay(alignment: .topTrailing) {
             if hold {
                 Label(ui("向上滑动发送"), systemImage: "chevron.up")
