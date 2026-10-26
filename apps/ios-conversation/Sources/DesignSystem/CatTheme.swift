@@ -82,6 +82,12 @@ struct CatRGBA: Equatable, Sendable {
 // MARK: - Tokens
 
 /// Every named colour of one palette in one appearance.
+///
+/// Deliberate deviations from `mimi-brand-themes-tokens.json` (accessibility / user decisions), all covered by tests:
+///   • `ink3` is darker (day) / lighter (night) than the proposal so tertiary text is ≥ 4.5:1 on canvas, card AND surface.
+///     Proposal → shipped:  C-day #8A8782→#6F6D69 · C-night #76746F→#8F8E89 · B-day #94857A→#73655A · B-night #9A8C80→#9C8E82.
+///   • C-day default button tint is 20 % (JSON 16 %).
+///   • Pressed button tint is 30 % in all four combinations (JSON day: 26 %).
 enum CatColorRole: String, CaseIterable, Sendable {
     case canvas, card, surface, hairline, track
     case ink, ink2, ink3
@@ -94,7 +100,7 @@ enum CatColorRole: String, CaseIterable, Sendable {
     case success, successFill, attention, attentionFill, danger, dangerFill
 }
 
-/// Tinted-glass primary button parameters (proposal §2). Alphas are 0…1.
+/// Tinted-glass primary button parameters (proposal §2, with the deviations listed on `CatColorRole`). Alphas are 0…1.
 struct CatTintedButtonSpec: Equatable, Sendable {
     var fill: Double
     var fillPressed: Double
@@ -220,16 +226,17 @@ struct CatThemeTokens: Equatable, Sendable {
         palette: .inkWhite,
         light: CatColorSet(
             canvas: 0xFAF9F7, card: 0xFFFFFF, surface: 0xF2F0EC, hairline: 0xE6E3DE, track: 0xE6E3DE,
-            ink: 0x111111, ink2: 0x5A5853, ink3: 0x8A8782,
+            ink: 0x111111, ink2: 0x5A5853, ink3: 0x6F6D69,
             accent: 0xE85D1A, accentOn: 0xD15C22, accentOnPressed: 0xAE4F1F, orangeText: 0x111111,
             success: 0x1E7B46, successFill: 0xE7F4EC, attention: 0x8A5A00, attentionFill: 0xFFF3D6, danger: 0xC0352B, dangerFill: 0xFDECEA,
             kids: [0x3C3C43, 0x3E7CB1, 0x4A8A5F, 0x7566C2, 0xC2527A],
-            // Day tint is 20 % here (proposal §7 risk 3, user decision) — the JSON has 16 %.
-            button: CatTintedButtonSpec(fill: 0.20, fillPressed: 0.26, border: 0.38, borderPressed: 0.55, baseAlpha: 0.85),
+            // Day tint is 20 % here (proposal §7 risk 3, user decision) — the JSON has 16 %. Pressed is 30 % in every
+            // combination (JSON day: 26 %; deliberate, deeper press feedback).
+            button: CatTintedButtonSpec(fill: 0.20, fillPressed: 0.30, border: 0.38, borderPressed: 0.55, baseAlpha: 0.85),
             tabSelectedFill: CatRGBA(0x111111, alpha: 0.07), wash: nil),
         dark: CatColorSet(
             canvas: 0x0B0B0C, card: 0x1A1A1C, surface: 0x262628, hairline: 0x3A3A3D, track: 0x3A3A3D,
-            ink: 0xF5F4F2, ink2: 0xA9A7A2, ink3: 0x76746F,
+            ink: 0xF5F4F2, ink2: 0xA9A7A2, ink3: 0x8F8E89,
             accent: 0xFF702A, accentOn: 0xFF702A, accentOnPressed: 0xFF945F, orangeText: 0xF5F4F2,
             success: 0x6FCF97, successFill: 0x16281D, attention: 0xF2C14E, attentionFill: 0x2B2412, danger: 0xFF8A80, dangerFill: 0x331A18,
             kids: [0xD1D1D6, 0x6FA8DC, 0x6BB586, 0xA395E8, 0xE887A9],
@@ -242,11 +249,11 @@ struct CatThemeTokens: Equatable, Sendable {
         palette: .softBlush,
         light: CatColorSet(
             canvas: 0xFCF3EF, card: 0xFFFCFA, surface: 0xF2E6DC, hairline: 0xEADBD0, track: 0xF1E3D3,
-            ink: 0x33261D, ink2: 0x6E5C4F, ink3: 0x94857A,
+            ink: 0x33261D, ink2: 0x6E5C4F, ink3: 0x73655A,
             accent: 0xFF702A, accentOn: 0xC95821, accentOnPressed: 0xAE4F20, orangeText: 0xB8410A,
             success: 0x3F6B3A, successFill: 0xE6EFDA, attention: 0x8F5200, attentionFill: 0xFFEFCB, danger: 0xB23B34, dangerFill: 0xFBE0DC,
             kids: [0xE6AAA2, 0xA9C48E, 0x9CC4D8, 0xBDB1E6, 0xFFB48A],
-            button: CatTintedButtonSpec(fill: 0.16, fillPressed: 0.26, border: 0.38, borderPressed: 0.55, baseAlpha: 0.85),
+            button: CatTintedButtonSpec(fill: 0.16, fillPressed: 0.30, border: 0.38, borderPressed: 0.55, baseAlpha: 0.85),
             tabSelectedFill: CatRGBA(0xFF702A, alpha: 0.12),
             wash: CatCanvasWash(topHex: 0xFAE6E1, fadeEnd: 0.40, spots: [
                 .init(hex: 0xE6AAA2, alpha: 0.55, centerX: 0.90, centerY: 0.00, radiusX: 1.20, radiusY: 0.55),
@@ -254,7 +261,7 @@ struct CatThemeTokens: Equatable, Sendable {
                 .init(hex: 0xD5E4C6, alpha: 0.50, centerX: 1.00, centerY: 0.88, radiusX: 0.90, radiusY: 0.40)])),
         dark: CatColorSet(
             canvas: 0x1C1714, card: 0x2F2721, surface: 0x261F1A, hairline: 0x3E342B, track: 0x3E342B,
-            ink: 0xF7EEE5, ink2: 0xCDBFB2, ink3: 0x9A8C80,
+            ink: 0xF7EEE5, ink2: 0xCDBFB2, ink3: 0x9C8E82,
             accent: 0xFF8A52, accentOn: 0xFF8A52, accentOnPressed: 0xFFA77D, orangeText: 0xFFB48A,
             success: 0xA9D49A, successFill: 0x2C3A2A, attention: 0xF0C46A, attentionFill: 0x3C3018, danger: 0xFF9C93, dangerFill: 0x432522,
             kids: [0xE6AAA2, 0xA9C48E, 0x9CC4D8, 0xBDB1E6, 0xFFB48A],

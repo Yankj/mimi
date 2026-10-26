@@ -4,7 +4,7 @@ import SwiftUI
 //   system glass / material  →  85 % card-coloured base  →  logo-orange tint (16–20 %)  →  1 pt orange stroke,
 // text in the theme's ink colour, icon in `accentOn` (via `.tint`). No orange shadow, no orange text, no white-on-orange.
 //
-// States: normal · pressed (deeper tint + stroke) · disabled (no tint, hairline stroke, ink3) · voice-hold
+// States: normal · pressed (30 % tint, 55–60 % stroke) · disabled (no tint, hairline stroke, ink3) · voice-hold
 // (press-and-hold dictation: 28 % tint, 65 % stroke, 14 % halo ring that pulses unless Reduce Motion is on).
 // iOS 26+: `glassEffect` tinted with the orange. Earlier: `.regularMaterial` + the same layers.
 // Reduce Transparency: the opaque colour the layers composite to (`CatColorSet.tintedButtonFill`) — no material, no glass.

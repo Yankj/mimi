@@ -21,7 +21,7 @@ enum catColors {
     static let onInk = adaptive(light: 0xFFFFFF, dark: 0x151515)
     /// Brand Grey #929298 — secondary text / captions
     static let secondary = CatTheme.color(.ink2)
-    static let tertiary = CatTheme.color(.ink3)  // decorative / placeholder only: below 4.5:1 in the proposal tokens
+    static let tertiary = CatTheme.color(.ink3)  // tertiary text: ink3 is ≥4.5:1 on canvas, card and surface (adjusted from the proposal)
     static let groupedBackground = CatTheme.color(.canvas)
     static let card = CatTheme.color(.card)
     static let fillSelected = CatTheme.color(.track)

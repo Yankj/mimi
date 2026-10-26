@@ -65,7 +65,12 @@ final class CatThemeTokenTests: XCTestCase {
         XCTAssertEqual(CatTheme.hex(.canvas, mode: .dark), 0x1C1714)
     }
 
-    // MARK: token values equal the proposal JSON (mimi-brand-themes-tokens.json)
+    // MARK: token values equal the proposal JSON (mimi-brand-themes-tokens.json) — except ink3
+    /// INTENTIONAL DEVIATION from the proposal JSON, for accessibility: the proposal's `ink3` misses 4.5:1 on at least one
+    /// surface in every combination, so tertiary text (placeholders, captions) would fail WCAG AA. The shipped values are
+    /// the nearest greys that pass 4.5:1 on canvas, card AND surface. Every other role must equal the JSON.
+    private static let ink3ProposalToShipped: [String: (proposal: UInt32, shipped: UInt32)] = [
+        "C-day": (0x8A8782, 0x6F6D69), "C-night": (0x76746F, 0x8F8E89), "B-day": (0x94857A, 0x73655A), "B-night": (0x9A8C80, 0x9C8E82)]
     private static let proposal: [String: [CatColorRole: UInt32]] = [
         "C-day": [.canvas: 0xFAF9F7, .card: 0xFFFFFF, .surface: 0xF2F0EC, .hairline: 0xE6E3DE, .track: 0xE6E3DE, .ink: 0x111111, .ink2: 0x5A5853, .ink3: 0x8A8782, .accentOn: 0xD15C22, .accentOnPressed: 0xAE4F1F, .orangeText: 0x111111, .success: 0x1E7B46, .successFill: 0xE7F4EC, .attention: 0x8A5A00, .attentionFill: 0xFFF3D6, .danger: 0xC0352B, .dangerFill: 0xFDECEA, .accent: 0xE85D1A],
         "C-night": [.canvas: 0x0B0B0C, .card: 0x1A1A1C, .surface: 0x262628, .hairline: 0x3A3A3D, .track: 0x3A3A3D, .ink: 0xF5F4F2, .ink2: 0xA9A7A2, .ink3: 0x76746F, .accentOn: 0xFF702A, .accentOnPressed: 0xFF945F, .orangeText: 0xF5F4F2, .success: 0x6FCF97, .successFill: 0x16281D, .attention: 0xF2C14E, .attentionFill: 0x2B2412, .danger: 0xFF8A80, .dangerFill: 0x331A18, .accent: 0xFF702A],
@@ -82,6 +87,12 @@ final class CatThemeTokenTests: XCTestCase {
             let expected = Self.proposal[combo.name]!
             XCTAssertEqual(expected.count, CatColorRole.allCases.count, "\(combo.name): proposal table must cover every role")
             for role in CatColorRole.allCases {
+                if role == .ink3 {
+                    let pair = Self.ink3ProposalToShipped[combo.name]!
+                    XCTAssertEqual(expected[.ink3], pair.proposal, "\(combo.name): the JSON table in this test holds the proposal ink3")
+                    XCTAssertEqual(s.hex(.ink3), pair.shipped, "\(combo.name) ink3 is the deliberate accessibility override, not the JSON value")
+                    continue
+                }
                 XCTAssertEqual(s.hex(role), expected[role], "\(combo.name) \(role.rawValue): \(hexString(s.hex(role)))")
             }
             XCTAssertEqual(s.kids, Self.proposalKids[combo.name], "\(combo.name) kid colours")
@@ -89,12 +100,12 @@ final class CatThemeTokenTests: XCTestCase {
     }
 
     // MARK: contrast — text ≥ 4.5:1 over all four combinations
-    /// Text colour / background pairs of one combination. ink3 is excluded on purpose (see testInk3…): it fails 4.5 in the proposal.
+    /// Text colour / background pairs of one combination (ink3 included: tertiary text must pass AA too).
     private func textPairs(_ s: CatColorSet) -> [(String, UInt32, UInt32)] {
         var pairs: [(String, UInt32, UInt32)] = []
         let surfaces: [(String, UInt32)] = [("canvas", s.canvas), ("card", s.card), ("surface", s.surface)]
         for (bgName, bg) in surfaces {
-            pairs += [("ink/\(bgName)", s.ink, bg), ("ink2/\(bgName)", s.ink2, bg), ("orangeText/\(bgName)", s.orangeText, bg),
+            pairs += [("ink/\(bgName)", s.ink, bg), ("ink2/\(bgName)", s.ink2, bg), ("ink3/\(bgName)", s.ink3, bg), ("orangeText/\(bgName)", s.orangeText, bg),
                       ("success/\(bgName)", s.success, bg), ("attention/\(bgName)", s.attention, bg), ("danger/\(bgName)", s.danger, bg)]
         }
         pairs += [("success/successFill", s.success, s.successFill), ("attention/attentionFill", s.attention, s.attentionFill),
@@ -136,16 +147,17 @@ final class CatThemeTokenTests: XCTestCase {
         }
     }
 
-    // MARK: ink3 — proposal value, known to miss 4.5:1; the actual ratios are pinned so a change is noticed
-    func testInk3ActualContrastIsPinnedAndBelowTextThreshold() {
-        // (combination, canvas, card, surface) measured from the proposal hex values.
-        let measured: [String: [Double]] = [
-            "C-day": [3.40, 3.58, 3.14], "C-night": [4.21, 3.72, 3.24], "B-day": [3.26, 3.49, 2.91], "B-night": [5.45, 4.49, 4.98]]
+    // MARK: ink3 — shipped value passes AA; the proposal value did not (why it was overridden)
+    func testInk3IsAtLeast4_5OnEverySurfaceAndTheProposalValueWasNot() {
         for combo in Self.combos {
             let s = set(combo.palette, combo.mode)
-            let actual = [contrast(s.ink3, s.canvas), contrast(s.ink3, s.card), contrast(s.ink3, s.surface)]
-            for (a, e) in zip(actual, measured[combo.name]!) { XCTAssertEqual(a, e, accuracy: 0.01, "\(combo.name) ink3 ratio") }
-            XCTAssertTrue(actual.contains { $0 < 4.5 }, "\(combo.name): ink3 is decorative-only; if this starts passing, move it into the text pairs")
+            for (surface, bg) in [("canvas", s.canvas), ("card", s.card), ("surface", s.surface)] {
+                let ratio = contrast(s.ink3, bg)
+                XCTAssertGreaterThanOrEqual(ratio, 4.5, "\(combo.name) ink3 \(hexString(s.ink3)) on \(surface) = \(String(format: "%.3f", ratio))")
+            }
+            let proposal = Self.ink3ProposalToShipped[combo.name]!.proposal
+            let worst = [s.canvas, s.card, s.surface].map { contrast(proposal, $0) }.min()!
+            XCTAssertLessThan(worst, 4.5, "\(combo.name): the proposal ink3 \(hexString(proposal)) fails 4.5 (worst \(worst)); that is the reason for the override")
         }
     }
 
@@ -153,8 +165,9 @@ final class CatThemeTokenTests: XCTestCase {
     func testButtonAlphasPerState() {
         let cDay = set(.inkWhite, .light).button
         XCTAssertEqual(cDay.fillAlpha(.normal), 0.20, "C day default tint is 20 %")
-        XCTAssertEqual(cDay.fillAlpha(.pressed), 0.26)
+        XCTAssertEqual(cDay.fillAlpha(.pressed), 0.30, "pressed tint is 30 % in every combination (JSON day: 26 %)")
         XCTAssertEqual(set(.softBlush, .light).button.fillAlpha(.normal), 0.16)
+        XCTAssertEqual(set(.softBlush, .light).button.fillAlpha(.pressed), 0.30)
         for palette in CatPalette.allCases {
             let night = set(palette, .dark).button
             XCTAssertEqual(night.fillAlpha(.normal), 0.20); XCTAssertEqual(night.fillAlpha(.pressed), 0.30)
@@ -166,18 +179,19 @@ final class CatThemeTokenTests: XCTestCase {
             XCTAssertEqual(b.fillAlpha(.disabled), 0, "disabled has no tint")
             XCTAssertEqual(b.borderAlpha(.disabled), 0, "disabled has no orange stroke (hairline instead)")
             XCTAssertEqual(b.haloAlpha(.disabled), 0); XCTAssertEqual(b.haloAlpha(.normal), 0); XCTAssertEqual(b.haloAlpha(.pressed), 0)
-            XCTAssertEqual(b.fillAlpha(.voiceHold), 0.28); XCTAssertEqual(b.borderAlpha(.voiceHold), 0.65); XCTAssertEqual(b.haloAlpha(.voiceHold), 0.14)
+            XCTAssertEqual(b.fillAlpha(.voiceHold), 0.28, "voice-hold stays at the proposal 28 % (now slightly below the 30 % pressed tint — reported, not changed)"); XCTAssertEqual(b.borderAlpha(.voiceHold), 0.65); XCTAssertEqual(b.haloAlpha(.voiceHold), 0.14)
             XCTAssertGreaterThanOrEqual(b.fillAlpha(.normal), 0.16); XCTAssertLessThanOrEqual(b.fillAlpha(.normal), 0.20)
             XCTAssertLessThan(b.fillAlpha(.normal), b.fillAlpha(.pressed))
         }
     }
 
     func testCompositedButtonColoursMatchTheProposalTable() {
-        // From compositedButtonFill in the proposal JSON. C day default is recomputed at 20 % (JSON: #FEE7DC / #FFE8DD).
+        // From compositedButtonFill in the proposal JSON, except: C day default recomputed at 20 % (JSON #FEE7DC / #FFE8DD) and the
+        // day pressed fills recomputed at 30 % (JSON 26 %: B #FFD7C2/#FFD8C4, C #FED9C7/#FFDAC8). Night values are the JSON's.
         let expected: [String: (canvas: [UInt32], card: [UInt32])] = [   // [default, pressed, border]
-            "B-day": ([0xFFE5D7, 0xFFD7C2, 0xFFC6AA], [0xFFE6D9, 0xFFD8C4, 0xFFC7AB]),
+            "B-day": ([0xFFE5D7, 0xFFD1BA, 0xFFC6AA], [0xFFE6D9, 0xFFD2BC, 0xFFC7AB]),
             "B-night": ([0x563421, 0x6B3C22, 0x804323], [0x593623, 0x6D3D24, 0x824425]),
-            "C-day": ([0xFEE2D4, 0xFED9C7, 0xFEC8AD], [0xFFE2D4, 0xFFDAC8, 0xFFC9AE]),
+            "C-day": ([0xFEE2D4, 0xFED3BE, 0xFEC8AD], [0xFFE2D4, 0xFFD4BF, 0xFFC9AE]),
             "C-night": ([0x462A1D, 0x5D321F, 0x743B20], [0x482B1F, 0x5F3420, 0x763C22])]
         for combo in Self.combos {
             let s = set(combo.palette, combo.mode)

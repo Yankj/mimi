@@ -61,9 +61,69 @@ Proposal: `mimi-brand-themes-proposal.md` + `mimi-brand-themes-tokens.json` (4 c
 | Tokens | `CatThemeTokens` → `CatColorSet` (light/dark) | canvas, card, surface, hairline, track, ink/ink2/ink3, accent, accentOn(+Pressed), orangeText, success/attention/danger (+fills), kid colours, tinted-button alphas, tab fill, B wash |
 | Current theme | `CatTheme.palette` / `CatTheme.colors` / `CatTheme.color(_:)` | Dynamic colours re-read the palette each time they resolve; rebuild the view tree on `CatTheme.paletteDidChange` |
 | Legacy names | `catColors.background/panel/input/drawer/ink/secondary/tertiary/card/hairline/separator/fillSelected/success/attention/failure/destructive/userMessage*/calm{Page,Secondary,Surface}` | Same names, now theme-driven. Orange action roles (`action`, `actionText`, `onInk`, `send*`, `voice*`, calm accents) are unchanged until the call-site PR. |
-| Button | `CatTintedGlassButtonStyle` / `.catTintedGlass(in:state:)` in `CatButtonStyles.swift` | Orange 16–20 % tint over glass + 1 pt orange stroke, ink text; pressed / disabled / voice-hold; iOS 26 `glassEffect`, material fallback, opaque under Reduce Transparency |
+| Button | `CatTintedGlassButtonStyle` / `.catTintedGlass(in:state:)` in `CatButtonStyles.swift` | Orange 16–20 % tint (30 % pressed) over glass + 1 pt orange stroke, ink text; pressed / disabled / voice-hold; iOS 26 `glassEffect`, material fallback, opaque under Reduce Transparency |
 
-Contrast: `Tests/CatThemeTokenTests.swift` asserts every text pair ≥ 4.5:1 and icon pairs ≥ 3:1 for all four combinations (WCAG formula implemented in the test). `ink3` is the proposal's decorative grey and is **below 4.5:1** on at least one surface in every combination; its measured ratios are pinned in the test. Do not use it for required text.
+Contrast: `Tests/CatThemeTokenTests.swift` asserts every text pair (including `ink3`) ≥ 4.5:1 and icon pairs ≥ 3:1 for all four combinations (the WCAG formula is implemented in the test).
+
+### Deliberate deviations from the proposal JSON
+
+| What | Proposal | Shipped | Why |
+| --- | --- | --- | --- |
+| `ink3` C-day | `#8A8782` | `#6F6D69` | accessibility: the proposal grey misses 4.5:1 on at least one surface in every combination (min 2.91:1), so tertiary text / placeholders would fail AA |
+| `ink3` C-night | `#76746F` | `#8F8E89` | same |
+| `ink3` B-day | `#94857A` | `#73655A` | same |
+| `ink3` B-night | `#9A8C80` | `#9C8E82` | same (proposal 4.49 on card) |
+| C-day default tint | 16 % | 20 % | user decision (proposal §7 risk 3) |
+| Pressed tint, all four combinations | day 26 % / night 30 % | **30 %** | deeper press feedback; night was already 30 % |
+
+Voice-hold stays at the proposal's 28 % tint, which is now slightly **below** the 30 % pressed tint (unchanged on purpose; revisit if the held state should read stronger than a tap).
+
+Pressed button colours (30 % orange over the 85 % card base): C-day `#FED3BE` canvas / `#FFD4BF` card · C-night `#5D321F` / `#5F3420` · B-day `#FFD1BA` / `#FFD2BC` · B-night `#6B3C22` / `#6D3D24`.
+
+### Contrast table (WCAG 2.x ratios; text ≥ 4.5, icons ≥ 3)
+
+| Pair | C-day | C-night | B-day | B-night |
+|---|---|---|---|---|
+| ink/canvas | 17.95 | 17.90 | 13.38 | 15.50 |
+| ink2/canvas | 6.75 | 8.18 | 5.81 | 9.89 |
+| ink3/canvas | 4.91 | 5.99 | 5.14 | 5.59 |
+| orangeText/canvas | 17.95 | 17.90 | 5.06 | 10.28 |
+| success/canvas | 5.02 | 10.35 | 5.69 | 10.64 |
+| attention/canvas | 5.63 | 11.72 | 5.69 | 10.84 |
+| danger/canvas | 5.27 | 8.62 | 5.38 | 8.82 |
+| ink/card | 18.88 | 15.81 | 14.32 | 12.78 |
+| ink2/card | 7.11 | 7.23 | 6.22 | 8.16 |
+| ink3/card | 5.16 | 5.29 | 5.50 | 4.61 |
+| orangeText/card | 18.88 | 15.81 | 5.41 | 8.48 |
+| success/card | 5.28 | 9.14 | 6.09 | 8.77 |
+| attention/card | 5.93 | 10.35 | 6.09 | 8.94 |
+| danger/card | 5.55 | 7.61 | 5.76 | 7.28 |
+| ink/surface | 16.59 | 13.74 | 11.93 | 14.16 |
+| ink2/surface | 6.24 | 6.28 | 5.18 | 9.04 |
+| ink3/surface | 4.54 | 4.60 | 4.58 | 5.11 |
+| orangeText/surface | 16.59 | 13.74 | 4.51 | 9.39 |
+| success/surface | 4.64 | 7.95 | 5.07 | 9.72 |
+| attention/surface | 5.21 | 9.00 | 5.08 | 9.90 |
+| danger/surface | 4.87 | 6.62 | 4.80 | 8.06 |
+| success/successFill | 4.66 | 8.15 | 5.25 | 7.20 |
+| attention/attentionFill | 5.37 | 9.18 | 5.47 | 7.87 |
+| danger/dangerFill | 4.85 | 7.07 | 4.71 | 6.83 |
+| ink/button-normal-on-canvas | 15.33 | 11.87 | 12.15 | 9.60 |
+| icon accentOn/button-normal-on-canvas (>=3) | 3.24 | 4.72 | 3.56 | 4.72 |
+| ink/button-pressed-on-canvas | 13.74 | 9.84 | 10.50 | 7.98 |
+| icon accentOnPressed/button-pressed-on-canvas (>=3) | 3.88 | 4.97 | 3.83 | 4.83 |
+| ink/button-voiceHold-on-canvas | 14.05 | 10.15 | 10.74 | 8.31 |
+| ink/button-normal-on-card | 15.36 | 11.64 | 12.24 | 9.27 |
+| icon accentOn/button-normal-on-card (>=3) | 3.24 | 4.63 | 3.59 | 4.56 |
+| ink/button-pressed-on-card | 13.87 | 9.56 | 10.58 | 7.82 |
+| icon accentOnPressed/button-pressed-on-card (>=3) | 3.92 | 4.83 | 3.86 | 4.73 |
+| ink/button-voiceHold-on-card | 14.17 | 9.99 | 10.82 | 8.13 |
+| ink/selected-tab-on-canvas | 15.56 | 13.40 | 11.92 | 12.24 |
+| icon accentOn/selected-tab-on-canvas (>=3) | 3.29 | 5.33 | 3.49 | 6.02 |
+| ink/selected-tab-on-card | 16.28 | 11.13 | 12.69 | 9.97 |
+| icon accentOn/selected-tab-on-card (>=3) | 3.44 | 4.43 | 3.72 | 4.90 |
+
+Lowest text ratio 4.51 (B-day orangeText on surface); lowest icon ratio 3.24 (C-day accentOn on the default tinted button). Raw numbers: `contrast-table.txt` next to the patches.
 
 ## How to swap the palette later
 
