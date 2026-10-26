@@ -212,8 +212,7 @@ struct catPrimaryButtonStyle: ButtonStyle {
             .fixedSize(horizontal:false,vertical:true)
             .frame(minHeight: 24).padding(.horizontal, 20).padding(.vertical, 14)
             .foregroundStyle(isEnabled ? catColors.onInk : catColors.secondary)
-            .background(isEnabled ? catColors.ink : catColors.input,
-                        in: RoundedRectangle(cornerRadius: catLayout.controlRadius, style: .continuous))
+            .modifier(catGlassButtonBackground(enabled: isEnabled, shape: RoundedRectangle(cornerRadius: catLayout.controlRadius, style: .continuous)))
             // Press-down answers in the touch frame with scale + soft haptic; release springs back.
             .modifier(catPressEffect(pressed: configuration.isPressed && isEnabled, scale: catInteractionMotion.primaryPressScale, dimmed: 0.86))
     }
@@ -294,7 +293,7 @@ struct catSheetPrimaryButtonStyle: ButtonStyle {
         configuration.label.font(.headline)
             .frame(maxWidth: .infinity, minHeight: 52)
             .foregroundStyle(isEnabled ? catColors.onInk : catColors.secondary)
-            .background(isEnabled ? catColors.ink : catColors.input, in: Capsule())
+            .modifier(catGlassButtonBackground(enabled: isEnabled, shape: Capsule()))
             .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.78 : 1)
     }
@@ -307,5 +306,57 @@ struct catSheetSecondaryButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Rectangle())
             .opacity(configuration.isPressed ? 0.6 : 1)
+    }
+}
+
+
+// MARK: - Liquid Glass (iOS 26+) with a material fallback
+
+/// One place for glass surfaces. iOS 26+ uses the system `glassEffect` (the system also handles Reduce Transparency);
+/// earlier systems get a material with a hairline, or an opaque card when Reduce Transparency is on.
+struct catGlassSurface<S: InsettableShape>: ViewModifier {
+    let shape: S
+    var interactive = false
+    var tint: Color?
+    var fallback: Material = .regularMaterial
+    var shadowed = false
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(glass, in: shape)
+        } else {
+            content
+                .background(reduceTransparency ? AnyShapeStyle(catColors.card) : AnyShapeStyle(fallback), in: shape)
+                .overlay(shape.stroke(catColors.hairline, lineWidth: 0.5))
+                .shadow(color: .black.opacity(shadowed ? 0.10 : 0), radius: 14, y: 4)
+        }
+    }
+    @available(iOS 26.0, *)
+    private var glass: Glass {
+        var g = Glass.regular
+        if let tint { g = g.tint(tint) }
+        return interactive ? g.interactive() : g
+    }
+}
+
+extension View {
+    /// Liquid Glass surface (iOS 26+) with material fallback. Use for floating controls only, never on top of other glass.
+    func catGlass<S: InsettableShape>(in shape: S, interactive: Bool = false, tint: Color? = nil,
+                                      fallback: Material = .regularMaterial, shadowed: Bool = false) -> some View {
+        modifier(catGlassSurface(shape: shape, interactive: interactive, tint: tint, fallback: fallback, shadowed: shadowed))
+    }
+}
+
+/// Primary action background: tinted interactive Liquid Glass on iOS 26+, the solid ink fill before that.
+struct catGlassButtonBackground<S: InsettableShape>: ViewModifier {
+    let enabled: Bool
+    let shape: S
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), enabled {
+            content.glassEffect(.regular.tint(catColors.ink).interactive(), in: shape)
+        } else {
+            content.background(enabled ? catColors.ink : catColors.input, in: shape)
+        }
     }
 }

@@ -58,70 +58,7 @@ import Combine
     private var selectedGoal: ParentingGoal? { childGoals.first { $0.id == selectedGoalID } }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if !model.loaded { loadState }
-                else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 26) {
-                            if let error = model.error { errorBanner(error) }
-                            switch tab {
-                            case .today: todayContent
-                            case .growth: growthTabContent
-                            case .family: familyContent
-                            }
-                            localStorageNote
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 14)
-                        .padding(.bottom, 24)
-                        .frame(maxWidth: 680)
-                        .frame(maxWidth: .infinity)
-                    }
-                    // The bars float over the page: content scrolls under the glass, and these margins keep the last item reachable.
-                    .contentMargins(.bottom, floatingBarHeight + 8, for: .scrollContent)
-                    .scrollDismissesKeyboard(.interactively)
-                    .contentMargins(.bottom, floatingBarHeight, for: .scrollIndicators)
-                    .refreshable { await model.load() }
-                }
-            }
-            .background(catColors.background.ignoresSafeArea())
-            .foregroundStyle(catColors.ink)
-            .navigationTitle(ui(tab.title))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    HStack(spacing: 7) {
-                        BrandMark(size: 25, style: .fill)
-                        Text(ui("小咪育儿")).font(.subheadline.weight(.semibold))
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { settingsPresented = true } label: {
-                        Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel(ui("育儿工作区设置"))
-                    .accessibilityIdentifier("parenting.settings")
-                }
-            }
-            .overlay(alignment: .bottom) {
-                VStack(spacing: 8) {
-                    if model.loaded && !workspace.children.isEmpty && (tab == .today || tab == .growth) { composerBar }
-                    tabBar
-                }
-                .padding(.horizontal, 12).padding(.bottom, 2)
-                .background(GeometryReader { Color.clear.preference(key: ParentingFloatingBarHeightKey.self, value: $0.size.height) })
-            }
-            .onPreferenceChange(ParentingFloatingBarHeightKey.self) { floatingBarHeight = $0 }
-            .overlay(alignment: .top) {
-                if model.loaded && model.busy {
-                    ProgressView(ui("正在保存"))
-                        .font(catTypography.Role.caption.font).padding(10)
-                        .background(catColors.card, in: Capsule())
-                        .accessibilityIdentifier("parenting.saving")
-                }
-            }
-        }
+        rootContainer
         .tint(catColors.actionText)
         .task {
             openPendingRoute()
@@ -182,6 +119,112 @@ import Combine
         .modifier(catPrivacyShield(lockedText: ui("解锁后查看育儿记录"), identifier: "parenting.privacyShield"))
     }
 
+    private func showsComposer(on item: ParentingTab) -> Bool {
+        model.loaded && !workspace.children.isEmpty && (item == .today || item == .growth)
+    }
+
+    @ViewBuilder private var rootContainer: some View {
+        if #available(iOS 26.0, *) { nativeTabs } else { page(for: tab, floatingBars: true) }
+    }
+
+    /// iOS 26+: the system `TabView` (floating Liquid Glass bar, collapses on scroll down). Earlier systems keep the custom floating bar.
+    @available(iOS 26.0, *)
+    private var nativeTabs: some View {
+        TabView(selection: $tab) {
+            ForEach(ParentingTab.allCases) { item in
+                Tab(ui(item.title), systemImage: item.icon, value: item) {
+                    page(for: item, floatingBars: false)
+                }
+            }
+        }
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .accessibilityIdentifier("parenting.tabBar")
+    }
+
+    @ToolbarContentBuilder private var pageToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            // The brand mark is a logo, not a control: keep it off the shared glass bubble that system toolbar items get.
+            ToolbarItem(placement: .topBarLeading) { brandLabel }.sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) { brandLabel }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button { settingsPresented = true } label: {
+                Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44)
+            }
+            .accessibilityLabel(ui("育儿工作区设置"))
+            .accessibilityIdentifier("parenting.settings")
+        }
+    }
+    private var brandLabel: some View {
+        HStack(spacing: 7) {
+            BrandMark(size: 25, style: .fill)
+            Text(ui("小咪育儿")).font(.subheadline.weight(.semibold))
+        }
+    }
+
+    private func page(for item: ParentingTab, floatingBars: Bool) -> some View {
+        NavigationStack {
+            Group {
+                if !model.loaded { loadState }
+                else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 26) {
+                            if let error = model.error { errorBanner(error) }
+                            switch item {
+                            case .today: todayContent
+                            case .growth: growthTabContent
+                            case .family: familyContent
+                            }
+                            localStorageNote
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 14)
+                        .padding(.bottom, 24)
+                        .frame(maxWidth: 680)
+                        .frame(maxWidth: .infinity)
+                    }
+                    // The bars float over the page: content scrolls under the glass, and these margins keep the last item reachable.
+                    .contentMargins(.bottom, floatingBars ? floatingBarHeight + 8 : 0, for: .scrollContent)
+                    .scrollDismissesKeyboard(.interactively)
+                    .contentMargins(.bottom, floatingBars ? floatingBarHeight : 0, for: .scrollIndicators)
+                    .refreshable { await model.load() }
+                }
+            }
+            .background(catColors.background.ignoresSafeArea())
+            .foregroundStyle(catColors.ink)
+            .navigationTitle(ui(item.title))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { pageToolbar }
+            .overlay(alignment: .bottom) {
+                if floatingBars {
+                    VStack(spacing: 8) {
+                        if showsComposer(on: item) { composerBar }
+                        tabBar
+                    }
+                    .padding(.horizontal, 12).padding(.bottom, 2)
+                    .background(GeometryReader { Color.clear.preference(key: ParentingFloatingBarHeightKey.self, value: $0.size.height) })
+                }
+            }
+            .onPreferenceChange(ParentingFloatingBarHeightKey.self) { floatingBarHeight = $0 }
+            // iOS 26: the system tab bar floats and the composer is a bottom safe-area inset above it, so content scrolls under both.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if !floatingBars && showsComposer(on: item) {
+                    composerBar.padding(.horizontal, 12).padding(.bottom, 4)
+                }
+            }
+            .overlay(alignment: .top) {
+                if model.loaded && model.busy {
+                    ProgressView(ui("正在保存"))
+                        .font(catTypography.Role.caption.font).padding(10)
+                        .background(catColors.card, in: Capsule())
+                        .accessibilityIdentifier("parenting.saving")
+                }
+            }
+        
+        }
+    }
+
     /// Floating 今天｜成长｜我们家: a glass capsule (Liquid Glass on iOS 26, ultra-thin material before) above the scrolling page.
     private var tabBar: some View {
         HStack(spacing: 4) {
@@ -220,7 +263,7 @@ import Combine
                 Text(ui(error)).font(.subheadline).foregroundStyle(catColors.calmSecondary)
                     .multilineTextAlignment(.center)
                 Button(ui("重试")) { Task { await model.load() } }
-                    .buttonStyle(ParentingPrimaryButtonStyle())
+                    .parentingPrimaryButton()
                     .disabled(model.busy)
                     .accessibilityIdentifier("parenting.load.retry")
             } else {
@@ -265,7 +308,7 @@ import Combine
             Button { sheet = .newArrangement(selectedChildID, nil) } label: {
                 Label(ui("手动填写一件事"), systemImage: "square.and.pencil").frame(maxWidth: .infinity)
             }
-            .buttonStyle(ParentingSecondaryButtonStyle())
+            .parentingSecondaryButton()
             .disabled(model.busy)
             .accessibilityIdentifier("parenting.addArrangement")
             todayTimeline(timeline)
@@ -370,7 +413,7 @@ import Combine
             Text(ui("不用填写生日和健康信息。添加昵称后，就能记录安排、观察与成长目标。"))
                 .font(.subheadline).foregroundStyle(catColors.calmSecondary)
             Button(ui("添加孩子")) { sheet = .newChild }
-                .buttonStyle(ParentingPrimaryButtonStyle()).disabled(model.busy)
+                .parentingPrimaryButton().disabled(model.busy)
                 .accessibilityIdentifier("parenting.firstChild")
         }
         .parentingCard()
@@ -531,17 +574,17 @@ import Combine
 
     private func arrangementConfirm(_ item: ParentingArrangement) -> some View {
         Button(ui("确认安排")) { perform(.confirmArrangement(id: item.id), key: "confirm.\(item.id)") }
-            .buttonStyle(ParentingPrimaryButtonStyle()).disabled(model.busy)
+            .parentingPrimaryButton().disabled(model.busy)
             .accessibilityIdentifier("parenting.confirm.\(item.id)")
     }
     private func arrangementEdit(_ item: ParentingArrangement) -> some View {
         Button(ui("调整安排")) { sheet = .editArrangement(item) }
-            .buttonStyle(ParentingSecondaryButtonStyle()).disabled(model.busy)
+            .parentingSecondaryButton().disabled(model.busy)
             .accessibilityIdentifier("parenting.adjust.\(item.id)")
     }
     private func arrangementComplete(_ item: ParentingArrangement) -> some View {
         Button(ui("完成并记录")) { sheet = .complete(item) }
-            .buttonStyle(ParentingPrimaryButtonStyle()).disabled(model.busy)
+            .parentingPrimaryButton().disabled(model.busy)
             .accessibilityIdentifier("parenting.complete.\(item.id)")
     }
 
@@ -655,12 +698,12 @@ import Combine
             arrangementSection("计划与待确认", items: plans, empty: "这个范围内还没有安排。")
             Button { sheet = .newArrangement(child.id, selectedGoal?.id) } label: {
                 Label(ui(selectedGoal == nil ? "记一件事" : "为这个目标记一件事"), systemImage: "plus").frame(maxWidth: .infinity)
-            }.buttonStyle(ParentingSecondaryButtonStyle()).disabled(model.busy)
+            }.parentingSecondaryButton().disabled(model.busy)
             reviewRecordSection("日常观察", records: observations, empty: "这个范围内还没有观察。")
             reviewRecordSection("家长完成记录", records: completions, empty: "这个范围内还没有完成记录。")
             Button { sheet = .newObservation(child.id, selectedGoal?.id) } label: {
                 Label(ui("记下观察"), systemImage: "square.and.pencil").frame(maxWidth: .infinity)
-            }.buttonStyle(ParentingSecondaryButtonStyle()).disabled(model.busy)
+            }.parentingSecondaryButton().disabled(model.busy)
                 .accessibilityIdentifier("parenting.addObservation.forGoal")
         }
     }
@@ -676,7 +719,7 @@ import Combine
         else {
             Button { sheet = .newObservation(selectedChildID, nil) } label: {
                 Label(ui("手动记下观察"), systemImage: "square.and.pencil").frame(maxWidth: .infinity)
-            }.buttonStyle(ParentingSecondaryButtonStyle()).disabled(model.busy)
+            }.parentingSecondaryButton().disabled(model.busy)
                 .accessibilityIdentifier("parenting.addObservation")
             childFilter
             Picker(ui("记录类型"), selection: $recordFilter) {
@@ -956,7 +999,7 @@ import Combine
                         .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Button(ui("开启提醒")) { Task { await model.setReminders(enabled: true) } }
-                        .buttonStyle(ParentingSecondaryButtonStyle()).disabled(model.busy)
+                        .parentingSecondaryButton().disabled(model.busy)
                         .accessibilityIdentifier("parenting.reminders.enable")
                 }
                 .parentingCard()
@@ -970,7 +1013,7 @@ import Combine
                     Button(ui("打开系统设置")) {
                         if let url = URL(string: "app-settings:") { openURL(url) }
                     }
-                    .buttonStyle(ParentingSecondaryButtonStyle())
+                    .parentingSecondaryButton()
                     .accessibilityIdentifier("parenting.reminders.openSettings")
                 }
                 .foregroundStyle(catColors.failure).parentingCard()
@@ -1083,7 +1126,7 @@ import Combine
 }
 
 /// 今天｜成长｜我们家. Records now live inside the growth timeline; the old office chat sits under 我们家 > 高级与历史.
-private enum ParentingTab: String, CaseIterable, Identifiable {
+private enum ParentingTab: String, CaseIterable, Identifiable, Hashable {
     case today, growth, family
     var id: String { rawValue }
     var title: String {
@@ -1151,6 +1194,18 @@ struct ParentingCardModifier: ViewModifier {
 }
 extension View {
     func parentingCard() -> some View { modifier(ParentingCardModifier()) }
+}
+extension View {
+    /// Primary action: system `.glassProminent` on iOS 26+, the brand-gradient style before that.
+    @ViewBuilder func parentingPrimaryButton() -> some View {
+        if #available(iOS 26.0, *) { self.buttonStyle(.glassProminent).tint(catColors.calmCTATop).controlSize(.large) }
+        else { self.buttonStyle(ParentingPrimaryButtonStyle()) }
+    }
+    /// Secondary action: system `.glass` on iOS 26+.
+    @ViewBuilder func parentingSecondaryButton() -> some View {
+        if #available(iOS 26.0, *) { self.buttonStyle(.glass).controlSize(.large) }
+        else { self.buttonStyle(ParentingSecondaryButtonStyle()) }
+    }
 }
 struct ParentingPrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
@@ -1629,7 +1684,7 @@ struct ParentingSecondaryButtonStyle: ButtonStyle {
                 Button {
                     beginIntake()
                 } label: { Label(ui(arrangement == nil ? "让小咪整理" : "让小咪整理改动"), systemImage: "sparkles").frame(maxWidth: .infinity) }
-                .buttonStyle(ParentingPrimaryButtonStyle()).disabled(!canRequestIntake)
+                .parentingPrimaryButton().disabled(!canRequestIntake)
                 .accessibilityIdentifier("parenting.arrangement.aiIntake")
                 if intake.phase == .cancelled {
                     Text(ui("已停止等待，本次结果不会填入。已经发出的请求不保证在服务端停止。"))
@@ -1767,7 +1822,7 @@ struct ParentingSecondaryButtonStyle: ButtonStyle {
                 fillCandidate(candidate)
                 intake.consumeCandidate()
             }
-            .buttonStyle(ParentingSecondaryButtonStyle())
+            .parentingSecondaryButton()
             .disabled(!matchesCurrentCandidate(candidate) || (editTarget != nil && candidate.dueAt == nil) || intakeCallID != nil || saving || model.busy)
             .accessibilityIdentifier("parenting.inline.adopt")
         }
@@ -1981,7 +2036,7 @@ private struct ParentingRecoveredInput {
                     Text(verbatim: selected.formatted(date: .complete, time: .shortened))
                         .font(.headline).accessibilityIdentifier("parenting.timePreview")
                     Button(ui("使用这个时间")) { onChoose(selected); dismiss() }
-                        .buttonStyle(ParentingPrimaryButtonStyle())
+                        .parentingPrimaryButton()
                         .accessibilityIdentifier("parenting.time.confirm")
                 }
             }

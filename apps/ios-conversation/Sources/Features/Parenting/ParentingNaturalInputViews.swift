@@ -7,19 +7,10 @@ struct ParentingFloatingBarHeightKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
-/// iOS 26 Liquid Glass when available; an ultra-thin material with a hairline and soft shadow before that.
+/// Floating chrome surface: Liquid Glass on iOS 26, a material with hairline and soft shadow before that.
 struct ParentingGlassSurface<S: InsettableShape>: ViewModifier {
     let shape: S
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content.glassEffect(.regular, in: shape)
-        } else {
-            content
-                .background(.ultraThinMaterial, in: shape)
-                .overlay(shape.stroke(catColors.hairline, lineWidth: 0.5))
-                .shadow(color: .black.opacity(0.10), radius: 14, y: 4)
-        }
-    }
+    func body(content: Content) -> some View { content.catGlass(in: shape, fallback: .ultraThinMaterial, shadowed: true) }
 }
 extension View {
     func parentingGlass<S: InsettableShape>(in shape: S) -> some View { modifier(ParentingGlassSurface(shape: shape)) }
@@ -52,55 +43,113 @@ extension View {
          .init(id: "today", label: "今天有什么", text: "今天有什么安排", sendsNow: true)]
     }
 
-    var body: some View {
+    @ViewBuilder var body: some View {
+        if #available(iOS 26.0, *) { glassBody } else { legacyBody }
+    }
+
+    // MARK: Pieces shared by both looks
+
+    private var chipsRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(starters) { starter in
+                    Button {
+                        input.draft = starter.text
+                        if starter.sendsNow { handOver() } else { focused = true }
+                    } label: { chipLabel(starter) }
+                    .modifier(ChipButtonStyle())
+                    .disabled(busy)
+                    .accessibilityIdentifier("parenting.natural.chip." + starter.id)
+                }
+            }
+        }
+    }
+    private func chipLabel(_ starter: Starter) -> some View {
+        Text(ui(starter.label)).font(catTypography.Role.caption.font.weight(.medium))
+            .padding(.horizontal, 12).frame(minHeight: 36)
+            .foregroundStyle(catColors.ink)
+    }
+    /// Chips: system `.glass` buttons on iOS 26+, flat fills before that.
+    private struct ChipButtonStyle: ViewModifier {
+        @ViewBuilder func body(content: Content) -> some View {
+            if #available(iOS 26.0, *) { content.buttonStyle(.glass).buttonBorderShape(.capsule) }
+            else { content.background(catColors.fillSelected, in: Capsule()).buttonStyle(.plain) }
+        }
+    }
+    @ViewBuilder private var suggestionRow: some View {
+        if let line = understanding, !dynamicTypeSize.isAccessibilitySize {
+            Button(action: handOver) {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles").accessibilityHidden(true)
+                    Text(verbatim: line).lineLimit(1)
+                    Spacer(minLength: 0)
+                    Text(ui("点这里继续")).font(catTypography.Role.caption.font.weight(.medium))
+                }
+                .font(catTypography.Role.caption.font)
+                .foregroundStyle(catColors.calmSecondary)
+                .frame(minHeight: 32)
+            }
+            .buttonStyle(.plain)
+            .disabled(busy)
+            .accessibilityIdentifier("parenting.natural.suggestion")
+        }
+    }
+    private func textField(plain: Bool) -> some View {
+        TextField(ui("说说想让小咪记的事，例如：团团周五游泳改到六点了"), text: $input.draft, axis: .vertical)
+            .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 1 : 3))
+            .focused($focused)
+            .submitLabel(.send)
+            .onSubmit { if input.canSubmit && !busy { handOver() } }
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .accessibilityIdentifier("parenting.natural.field")
+    }
+
+    // MARK: iOS 26+: one glass field + one glass send button, merged by a GlassEffectContainer
+
+    @available(iOS 26.0, *)
+    private var glassBody: some View {
+        GlassEffectContainer(spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
+                // At accessibility sizes the bar keeps only the field: chips and the read-back would cover most of the screen.
+                if !dynamicTypeSize.isAccessibilitySize { chipsRow }
+                if understanding != nil && !dynamicTypeSize.isAccessibilitySize {
+                    suggestionRow
+                        .padding(.horizontal, 14)
+                        .glassEffect(.regular, in: Capsule())
+                }
+                HStack(alignment: .bottom, spacing: 10) {
+                    textField(plain: true)
+                        .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .glassEffectID("field", in: glassNamespace)
+                    Button(action: handOver) {
+                        Image(systemName: "arrow.up").font(.body.weight(.semibold)).frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .buttonBorderShape(.circle)
+                    .tint(catColors.calmCTATop)
+                    .disabled(!input.canSubmit || busy)
+                    .accessibilityLabel(ui("交给小咪"))
+                    .accessibilityIdentifier("parenting.natural.send")
+                    .glassEffectID("send", in: glassNamespace)
+                }
+            }
+        }
+        .frame(maxWidth: 520)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("parenting.natural.bar")
+    }
+    @Namespace private var glassNamespace
+
+    // MARK: iOS 17–25 fallback (unchanged look)
+
+    private var legacyBody: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // At accessibility sizes the bar keeps only the field: chips and the read-back would cover most of the screen.
-            if !dynamicTypeSize.isAccessibilitySize {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(starters) { starter in
-                        Button {
-                            input.draft = starter.text
-                            if starter.sendsNow { handOver() } else { focused = true }
-                        } label: {
-                            Text(ui(starter.label)).font(catTypography.Role.caption.font.weight(.medium))
-                                .padding(.horizontal, 12).frame(minHeight: 36)
-                                .background(catColors.fillSelected, in: Capsule())
-                                .foregroundStyle(catColors.ink)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(busy)
-                        .accessibilityIdentifier("parenting.natural.chip." + starter.id)
-                    }
-                }
-            }
-            }
-            if let line = understanding, !dynamicTypeSize.isAccessibilitySize {
-                Button(action: handOver) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles").accessibilityHidden(true)
-                        Text(verbatim: line).lineLimit(1)
-                        Spacer(minLength: 0)
-                        Text(ui("点这里继续")).font(catTypography.Role.caption.font.weight(.medium))
-                    }
-                    .font(catTypography.Role.caption.font)
-                    .foregroundStyle(catColors.calmSecondary)
-                    .frame(minHeight: 32)
-                }
-                .buttonStyle(.plain)
-                .disabled(busy)
-                .accessibilityIdentifier("parenting.natural.suggestion")
-            }
+            if !dynamicTypeSize.isAccessibilitySize { chipsRow }
+            suggestionRow
             HStack(alignment: .bottom, spacing: 10) {
-                TextField(ui("说说想让小咪记的事，例如：团团周五游泳改到六点了"), text: $input.draft, axis: .vertical)
-                    .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 1 : 3))
-                    .focused($focused)
-                    .submitLabel(.send)
-                    .onSubmit { if input.canSubmit && !busy { handOver() } }
-                    .padding(.horizontal, 14).padding(.vertical, 11)
+                textField(plain: false)
                     .background(catColors.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(catColors.hairline, lineWidth: 0.5))
-                    .accessibilityIdentifier("parenting.natural.field")
                 Button(action: handOver) {
                     Image(systemName: "arrow.up").frame(width: 44, height: 44)
                         .foregroundStyle(catColors.calmGlyph)
@@ -225,12 +274,12 @@ extension View {
                 }
                 if ask.field == .child && ask.options.isEmpty {
                     Button(ui("添加孩子")) { dismiss(); onAddChild() }
-                        .buttonStyle(ParentingPrimaryButtonStyle())
+                        .parentingPrimaryButton()
                         .accessibilityIdentifier("parenting.natural.addChild")
                 }
                 if ask.field == .target && ask.options.isEmpty {
                     Button(ui("改为记一件安排")) { input.answer(.intent(.newArrangement), context: context, now: now) }
-                        .buttonStyle(ParentingSecondaryButtonStyle())
+                        .parentingSecondaryButton()
                 }
                 if ask.allowsText {
                     HStack(spacing: 10) {
@@ -242,7 +291,7 @@ extension View {
                             .onSubmit { input.answerWithReply(context: context, now: now) }
                             .accessibilityIdentifier("parenting.natural.reply")
                         Button(ui("好")) { input.answerWithReply(context: context, now: now) }
-                            .buttonStyle(ParentingPrimaryButtonStyle())
+                            .parentingPrimaryButton()
                             .disabled(input.reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             .accessibilityIdentifier("parenting.natural.replySend")
                     }
@@ -281,12 +330,12 @@ extension View {
                 } label: {
                     HStack { if saving { ProgressView() }; Text(ui(card.confirmTitle)) }.frame(maxWidth: .infinity)
                 }
-                .buttonStyle(ParentingPrimaryButtonStyle())
+                .parentingPrimaryButton()
                 .disabled(saving || workspaceModel.busy)
                 .accessibilityIdentifier("parenting.natural.confirm")
                 if card.writes {
                     Button(ui("手动调整")) { onManual(p); dismiss() }
-                        .buttonStyle(ParentingSecondaryButtonStyle()).disabled(saving)
+                        .parentingSecondaryButton().disabled(saving)
                         .accessibilityIdentifier("parenting.natural.manual")
                 }
             }
@@ -300,7 +349,7 @@ extension View {
                 .accessibilityIdentifier("parenting.natural.receipt")
             Text(ui("已保存在这台设备上；今天页和成长页会同步显示。")).font(.subheadline).foregroundStyle(catColors.calmSecondary)
             Button(ui("好的")) { input.reset(); dismiss() }
-                .buttonStyle(ParentingPrimaryButtonStyle())
+                .parentingPrimaryButton()
                 .accessibilityIdentifier("parenting.natural.done")
         }
         .parentingCard()
