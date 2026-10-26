@@ -44,8 +44,17 @@ opens the keyboard. A voice feature plugs in through `ParentingComposerAccessory
 
 ## Tests (iOS 27.0 simulator, iPhone 18 Pro, ad-hoc signed with SimulatorFixtureAcceptance.entitlements)
 
-See the PR description for the latest run. UI tests find the system tab bar by position (`tabButton`) and the composer through
-`showKeyboardComposer`; `CF_UI_TEST_NO_AUTODISMISS=1` is set by default so tests can tap 好的.
+Run on 2026-10-26 (UTC+8) on a Mac under load average 100+ (other agents building), so long journeys time out for environmental reasons.
+
+- Build for testing (Debug, simulator): succeeded.
+- Unit: `ParentingNaturalInputTests` and `ParentingWorkspaceTests` all passed (run before the last UI-only edits; no domain code touched).
+- UI passed: `testComposerIsVoiceFirstWithPlusMenuAndAutoDismissingConfirmCard` (new: idle layout, + menu with manual items, auto-dismiss),
+  `testInteractionScreenshotsConfirmCardTimelineAndFloatingTabBar`, `testSyntheticDarkLargeTextEmptyAndEditorSmoke`,
+  `testInteractionFloatingTabBarAtLargestAccessibilityText` (earlier run, before the composer rewrite).
+- UI not verified: `testSyntheticParentingJourneyPersistsAcrossColdRelaunch` timed out (snapshot timeout after 607 s, load 107); the rest of
+  `ParentingWorkspaceUITests` was not re-run to completion after the composer rewrite. No baseline of main on the iOS 27 simulator was taken.
+- iOS 26 behaviour is unverified: only iOS 27.0 simulator was available. The iOS 17-25 fallback path compiles but was not run.
+- Phone: Kunjie的iPhone was `unavailable` to devicectl, so no install was attempted.
 
 ## Not done / follow-ups
 
