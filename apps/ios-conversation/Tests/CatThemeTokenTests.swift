@@ -1,4 +1,8 @@
 import XCTest
+#if canImport(UIKit)
+import SwiftUI
+import UIKit
+#endif
 @testable import cat
 
 /// Token tests for the selectable themes (CatTheme.swift). Pure value maths: no views, no UIKit rendering.
