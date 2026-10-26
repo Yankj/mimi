@@ -8974,5 +8974,133 @@
   "新安排": {
     "en": "New arrangement",
     "zh-Hans": "新安排"
+  },
+  "{0} 个目标": {
+    "en": "{0} goals",
+    "zh-Hans": "{0} 个目标"
+  },
+  "{0} 天前": {
+    "en": "{0} days ago",
+    "zh-Hans": "{0} 天前"
+  },
+  "{0} 条": {
+    "en": "{0}",
+    "zh-Hans": "{0} 条"
+  },
+  "{0} 条记录": {
+    "en": "{0} entries",
+    "zh-Hans": "{0} 条记录"
+  },
+  "{0} 条记录 · {1} 天有记录": {
+    "en": "{0} entries · {1} active days",
+    "zh-Hans": "{0} 条记录 · {1} 天有记录"
+  },
+  "一句话就够，也可以直接对下面的小咪说。": {
+    "en": "One sentence is enough — or just tell Mimi below.",
+    "zh-Hans": "一句话就够，也可以直接对下面的小咪说。"
+  },
+  "上一条记录是 {0} 天前。": {
+    "en": "The last entry was {0} days ago.",
+    "zh-Hans": "上一条记录是 {0} 天前。"
+  },
+  "下一件 {0}": {
+    "en": "Next: {0}",
+    "zh-Hans": "下一件 {0}"
+  },
+  "不用填写生日和健康信息。": {
+    "en": "No birthday or health details needed.",
+    "zh-Hans": "不用填写生日和健康信息。"
+  },
+  "今天有什么想留下的小事？": {
+    "en": "Anything from today worth keeping?",
+    "zh-Hans": "今天有什么想留下的小事？"
+  },
+  "今天有新记录": {
+    "en": "New entry today",
+    "zh-Hans": "今天有新记录"
+  },
+  "先从这里开始": {
+    "en": "Start here",
+    "zh-Hans": "先从这里开始"
+  },
+  "先添加孩子的昵称": {
+    "en": "Start with your child's nickname",
+    "zh-Hans": "先添加孩子的昵称"
+  },
+  "已经 {0} 天没有新记录了。": {
+    "en": "No new entry for {0} days.",
+    "zh-Hans": "已经 {0} 天没有新记录了。"
+  },
+  "已经记下 {0} 条观察，可以给它们起个名字。": {
+    "en": "You've written {0} observations — give them a name.",
+    "zh-Hans": "已经记下 {0} 条观察，可以给它们起个名字。"
+  },
+  "已记 {0} 条": {
+    "en": "{0} entries",
+    "zh-Hans": "已记 {0} 条"
+  },
+  "开始了目标「{0}」": {
+    "en": "Started the goal “{0}”",
+    "zh-Hans": "开始了目标「{0}」"
+  },
+  "成长时间线": {
+    "en": "Growth timeline",
+    "zh-Hans": "成长时间线"
+  },
+  "把这些观察变成一个小目标": {
+    "en": "Turn these observations into a small goal",
+    "zh-Hans": "把这些观察变成一个小目标"
+  },
+  "最近 7 天": {
+    "en": "Last 7 days",
+    "zh-Hans": "最近 7 天"
+  },
+  "最近没有需要补记的事，翻翻这几天吧。": {
+    "en": "Nothing to catch up on — look back over the last few days.",
+    "zh-Hans": "最近没有需要补记的事，翻翻这几天吧。"
+  },
+  "有一阵没记了": {
+    "en": "Quiet for a while",
+    "zh-Hans": "有一阵没记了"
+  },
+  "留下了第一条记录": {
+    "en": "The first entry",
+    "zh-Hans": "留下了第一条记录"
+  },
+  "看时间线": {
+    "en": "Open timeline",
+    "zh-Hans": "看时间线"
+  },
+  "第 {0} 条记录": {
+    "en": "Entry #{0}",
+    "zh-Hans": "第 {0} 条记录"
+  },
+  "给「{0}」添一笔": {
+    "en": "Add a note to “{0}”",
+    "zh-Hans": "给「{0}」添一笔"
+  },
+  "记下今天的第一条观察": {
+    "en": "Write down today's first observation",
+    "zh-Hans": "记下今天的第一条观察"
+  },
+  "记录节点 {0}/{1}": {
+    "en": "Entry milestones {0}/{1}",
+    "zh-Hans": "记录节点 {0}/{1}"
+  },
+  "还没有目标": {
+    "en": "No goals yet",
+    "zh-Hans": "还没有目标"
+  },
+  "这 7 天还没有记录": {
+    "en": "Nothing written in the last 7 days",
+    "zh-Hans": "这 7 天还没有记录"
+  },
+  "这一周的轨迹": {
+    "en": "This week at a glance",
+    "zh-Hans": "这一周的轨迹"
+  },
+  "这个目标还没有记录。": {
+    "en": "Nothing has been written for this goal yet.",
+    "zh-Hans": "这个目标还没有记录。"
   }
 }
