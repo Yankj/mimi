@@ -9,7 +9,7 @@
 4. 提醒子页：原来在设置 sheet 里的提醒设置（到点提醒、提醒时间、锁屏隐藏内容、系统通知状态）原样挪到这里。每天最多 2 条、晚 9 点到早 8 点不提醒的规则没有改（`ParentingReminderPlanner` 未动）。
 5. 今天页的「手动填写一件事」按钮、成长时间线页的「手动记下观察」按钮已移除。手动入口以后放到「＋」菜单最后一项，那部分归输入栏那条线，本分支不碰。
 6. 只用原生 SwiftUI：`NavigationStack` push、大标题、`Form` / `LabeledContent` / `ProgressView` 默认样式。没有自绘玻璃，颜色全部来自 `catColors`，没有新色值。
-7. 「启航 n/3」的真实清单在尚未合入 main 的 `ParentingStartAction.launchChecklist`（today-start-action 分支）。本分支只留接口 `FamilyLaunchChecklistProviding`，默认实现是占位 `PlaceholderFamilyLaunchChecklist`，不依赖那条分支。
+7. 「启航 n/3」读 `ParentingStartAction.launchChecklist`（#132，已在 integration/v06 接上）：添加孩子、记下第一件事、到点提醒；「跳过提醒步骤」的持久化尚未接入（后续事项）。
 
 ## 改动文件
 新增：

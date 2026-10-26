@@ -182,17 +182,25 @@ struct ParentingGoalMarksTrack: View {
     }
 }
 
-/// Round avatar: initial inside a ring in the child's accent.
-struct ParentingChildRingAvatar: View {
-    let name: String
+/// The one child avatar (今天, 成长, 我们家): the existing plush cat in a circular mask on a faint wash of the child's accent,
+/// with a ring in that accent. Only the mask and the ring differ between children; the cat image is the same asset.
+struct ParentingChildAvatar: View {
     let accent: Color
     var size: CGFloat = 44
+    var pose: PlushMascotPose = .idle
+    private var ring: CGFloat { max(2, size * 0.065) }
     var body: some View {
-        Circle()
-            .stroke(accent, lineWidth: 3)
-            .frame(width: size, height: size)
-            .overlay { Text(verbatim: String(name.prefix(1))).font((size >= 44 ? Font.title3 : Font.subheadline).weight(.semibold)).foregroundStyle(catColors.ink) }
-            .accessibilityHidden(true)
+        ZStack {
+            Circle().fill(catColors.card)
+            Circle().fill(accent.opacity(0.18))
+            Image(pose.assetName)
+                .resizable().interpolation(.high).scaledToFit()
+                .padding(size * 0.14)
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .overlay(Circle().strokeBorder(accent, lineWidth: ring))
+        .accessibilityHidden(true)
     }
 }
 

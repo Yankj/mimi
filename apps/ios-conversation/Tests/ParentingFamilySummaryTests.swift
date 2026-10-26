@@ -22,18 +22,15 @@ final class ParentingFamilySummaryTests: XCTestCase {
                              goalID: nil, state: .planned, sourceText: "", createdAt: day, updatedAt: day)
     }
 
-    func testAvatarToneIsStableAndInRange() {
-        let first = UUID(uuidString: "07000000-0000-0000-0000-000000000000")!
-        let second = UUID(uuidString: "FF000000-0000-0000-0000-000000000000")!
-        let third = UUID(uuidString: "04000000-0000-0000-0000-000000000000")!
-        XCTAssertEqual(ParentingFamilySummary.avatarToneIndex(for: first), 3)
-        XCTAssertEqual(ParentingFamilySummary.avatarToneIndex(for: second), 3)
-        XCTAssertEqual(ParentingFamilySummary.avatarToneIndex(for: third), 0)
-        XCTAssertEqual(ParentingFamilySummary.avatarToneIndex(for: first), ParentingFamilySummary.avatarToneIndex(for: first))
-        for _ in 0..<64 {
-            let index = ParentingFamilySummary.avatarToneIndex(for: UUID())
-            XCTAssertTrue((0..<ParentingFamilySummary.avatarToneCount).contains(index))
-        }
+    func testAccentSlotFollowsCreationOrderAndIsStable() {
+        let older = ParentingChild(id: UUID(uuidString: "FF000000-0000-0000-0000-000000000000")!, name: "A", createdAt: day)
+        let newer = ParentingChild(id: UUID(uuidString: "01000000-0000-0000-0000-000000000000")!, name: "B",
+                                   createdAt: day.addingTimeInterval(60))
+        let workspace = ParentingWorkspace(children: [newer, older])
+        let slots = ParentingFamilySummary.children(in: workspace).map(\.accentSlot)
+        XCTAssertEqual(slots, [1, 0], "the older child is slot 0 whatever the array order")
+        XCTAssertEqual(ParentingFamilySummary.children(in: workspace).map(\.accentSlot), slots)
+        XCTAssertTrue(slots.allSatisfy { (0..<ParentingGrowthInsights.accentSlotCount).contains($0) })
     }
 
     func testInitialUsesTheFirstCharacterOfTheTrimmedNickname() {
@@ -70,37 +67,27 @@ final class ParentingFamilySummaryTests: XCTestCase {
         XCTAssertTrue(ParentingFamilySummary.children(in: .empty).isEmpty)
     }
 
-    func testPlaceholderChecklistFollowsTheSavedLedger() {
-        let provider = PlaceholderFamilyLaunchChecklist()
-        let empty = provider.checklist(for: .empty)
+    private func launch(_ workspace: ParentingWorkspace, reminders: Bool = false) -> FamilyLaunchChecklist {
+        FamilyLaunchChecklist.current(workspace: workspace, remindersEnabled: reminders)
+    }
+
+    func testLaunchChecklistFollowsTheStartActionRules() {
+        let empty = launch(.empty)
         XCTAssertEqual(empty.totalCount, 3)
         XCTAssertEqual(empty.doneCount, 0)
 
         let a = child("00000000-0000-0000-0000-0000000000A1", "Synthetic A")
-        let withChild = ParentingWorkspace(children: [a])
-        XCTAssertEqual(provider.checklist(for: withChild).doneCount, 1)
-
-        let withObservation = ParentingWorkspace(
-            children: [a], records: [record("00000000-0000-0000-0000-0000000000E1", child: a, kind: .observation)])
-        XCTAssertEqual(provider.checklist(for: withObservation).doneCount, 2)
+        XCTAssertEqual(launch(ParentingWorkspace(children: [a])).doneCount, 1)
 
         let withArrangement = ParentingWorkspace(
             children: [a], arrangements: [arrangement("00000000-0000-0000-0000-0000000000D1", child: a)])
-        XCTAssertEqual(provider.checklist(for: withArrangement).doneCount, 2)
+        XCTAssertEqual(launch(withArrangement).doneCount, 2)
+        XCTAssertEqual(launch(withArrangement, reminders: true).doneCount, 3)
 
-        let complete = ParentingWorkspace(
-            children: [a], goals: [goal("00000000-0000-0000-0000-0000000000C1", child: a)],
-            arrangements: [arrangement("00000000-0000-0000-0000-0000000000D1", child: a)])
-        let finished = provider.checklist(for: complete)
-        XCTAssertEqual(finished.doneCount, 3)
-        XCTAssertEqual(finished.doneCount, finished.totalCount)
-    }
-
-    func testCompletionRecordAloneDoesNotCountAsAFirstObservation() {
-        let a = child("00000000-0000-0000-0000-0000000000A1", "Synthetic A")
-        let workspace = ParentingWorkspace(
-            children: [a], records: [record("00000000-0000-0000-0000-0000000000E2", child: a, kind: .completion)])
-        XCTAssertEqual(PlaceholderFamilyLaunchChecklist().checklist(for: workspace).doneCount, 1)
+        let withObservation = ParentingWorkspace(
+            children: [a], records: [record("00000000-0000-0000-0000-0000000000E1", child: a, kind: .observation)])
+        XCTAssertEqual(launch(withObservation).doneCount, 2)
+        XCTAssertEqual(launch(withObservation).steps.map(\.id), ["child", "first-record", "reminders"])
     }
 
     func testRoutesAreHashableAndDistinct() {

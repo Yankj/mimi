@@ -1,31 +1,5 @@
 import SwiftUI
 
-/// Round avatar: the first character of the nickname on a tone taken from existing colour tokens.
-/// Every tone is a token (or a token with opacity), so light and dark mode follow the palette and no new colour is introduced.
-struct ParentingFamilyAvatar: View {
-    let initial: String
-    let toneIndex: Int
-    @ScaledMetric(relativeTo: .title3) private var diameter: CGFloat = 48
-
-    static func tone(_ index: Int) -> Color {
-        let count = ParentingFamilySummary.avatarToneCount
-        switch ((index % count) + count) % count {
-        case 0: return catColors.action.opacity(0.18)
-        case 1: return catColors.fillSelected
-        case 2: return catColors.success.opacity(0.18)
-        default: return catColors.send.opacity(0.18)
-        }
-    }
-
-    var body: some View {
-        Circle()
-            .fill(Self.tone(toneIndex))
-            .frame(width: diameter, height: diameter)
-            .overlay { Text(verbatim: initial).font(.title3.weight(.semibold)).foregroundStyle(catColors.ink) }
-            .accessibilityHidden(true)
-    }
-}
-
 /// The face of one child card on the 我们家 page. The card itself is a `NavigationLink` built by the caller.
 struct ParentingFamilyChildRow: View {
     let summary: ParentingFamilyChildSummary
@@ -33,7 +7,7 @@ struct ParentingFamilyChildRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ParentingFamilyAvatar(initial: summary.initial, toneIndex: summary.avatarToneIndex)
+            ParentingChildAvatar(accent: ParentingChildAccent.color(slot: summary.accentSlot), size: 48)
             VStack(alignment: .leading, spacing: 4) {
                 Text(verbatim: summary.name).font(.headline)
                 Text(verbatim: AppLanguage(locale: locale).ui(
@@ -72,7 +46,7 @@ struct ParentingFamilyEntryRow: View {
     }
 }
 
-/// 启航 n/3. Display only; the steps come from a `FamilyLaunchChecklistProviding` (a placeholder until the real one lands).
+/// 启航 n/3. Display only; the steps come from `ParentingStartAction.launchChecklist`.
 struct ParentingFamilyLaunchCard: View {
     let checklist: FamilyLaunchChecklist
     @Environment(\.locale) private var locale
@@ -132,7 +106,7 @@ struct ParentingFamilyLaunchCard: View {
         return Form {
             Section {
                 HStack(spacing: 16) {
-                    ParentingFamilyAvatar(initial: summary.initial, toneIndex: summary.avatarToneIndex)
+                    ParentingChildAvatar(accent: ParentingChildAccent.color(slot: summary.accentSlot), size: 48)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(verbatim: summary.name).font(.title3.weight(.semibold))
                         Text(verbatim: ui("开始记录于") + " " + summary.startedAt.formatted(date: .abbreviated, time: .omitted))

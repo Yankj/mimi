@@ -8,7 +8,6 @@ import Combine
     private let accountLabel: String?
     private let onSignOut: (() -> Void)?
     private let isAnonymousAccount: Bool
-    private let launchChecklist: any FamilyLaunchChecklistProviding
     @Environment(\.locale) private var locale
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
@@ -34,15 +33,13 @@ import Combine
     @State private var floatingBarHeight: CGFloat = 0
 
     init(model: ConversationFirstModel, workspaceModel: ParentingWorkspaceModel? = nil, accountLabel: String? = nil,
-         onSignOut: (() -> Void)? = nil, isAnonymousAccount: Bool = false,
-         launchChecklist: any FamilyLaunchChecklistProviding = PlaceholderFamilyLaunchChecklist()) {
+         onSignOut: (() -> Void)? = nil, isAnonymousAccount: Bool = false) {
         _conversationModel = ObservedObject(wrappedValue: model)
         _model = StateObject(wrappedValue: workspaceModel ?? ParentingWorkspaceModel(
             repository: model.repository, scope: model.scope, subjectID: model.trustedSubjectID))
         self.accountLabel = accountLabel
         self.onSignOut = onSignOut
         self.isAnonymousAccount = isAnonymousAccount
-        self.launchChecklist = launchChecklist
     }
 
     private func ui(_ key: String) -> String { AppLanguage(locale: locale).ui(key) }
@@ -727,7 +724,7 @@ import Combine
                 }
             }
         }
-        ParentingFamilyLaunchCard(checklist: launchChecklist.checklist(for: workspace))
+        ParentingFamilyLaunchCard(checklist: FamilyLaunchChecklist.current(workspace: workspace, remindersEnabled: model.remindersAvailable && model.reminderSettings.enabled))
         NavigationLink(value: ParentingFamilyRoute.reminders) {
             ParentingFamilyEntryRow(icon: "bell.badge", title: ui("提醒"), subtitle: reminderRowSubtitle)
         }

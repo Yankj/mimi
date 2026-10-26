@@ -14,8 +14,9 @@ struct ParentingFamilyChildSummary: Identifiable, Equatable {
     let name: String
     /// First character of the nickname, shown on the avatar. "•" when the nickname is empty.
     let initial: String
-    /// Index into the avatar background tones (see `ParentingFamilySummary.avatarToneCount`).
-    let avatarToneIndex: Int
+    /// The child's accent slot (creation order, wrapped). The same slot colours the avatar ring on 今天, 成长 and 我们家
+    /// through `ParentingChildAccent.color(slot:)`.
+    let accentSlot: Int
     let goalCount: Int
     /// Observations only. Completion records are a different kind and are not counted here.
     let observationCount: Int
@@ -24,14 +25,6 @@ struct ParentingFamilyChildSummary: Identifiable, Equatable {
 
 /// Pure projections of the saved ledger for the 我们家 page. No storage, no network, no new fields.
 enum ParentingFamilySummary {
-    /// The avatar has no stored colour. A background tone is derived from the child id so it never changes between launches.
-    static let avatarToneCount = 4
-
-    static func avatarToneIndex(for id: UUID) -> Int {
-        // `uuid.0` is the first byte of the identifier. `hashValue` is not used: it changes on every launch.
-        Int(id.uuid.0) % avatarToneCount
-    }
-
     static func initial(of name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let first = trimmed.first else { return "•" }
@@ -43,7 +36,7 @@ enum ParentingFamilySummary {
             id: child.id,
             name: child.name,
             initial: initial(of: child.name),
-            avatarToneIndex: avatarToneIndex(for: child.id),
+            accentSlot: ParentingGrowthInsights.accentSlot(for: child.id, in: workspace),
             goalCount: workspace.goals.filter { $0.childID == child.id }.count,
             observationCount: workspace.records.filter { $0.childID == child.id && $0.kind == .observation }.count,
             startedAt: child.createdAt)
@@ -68,22 +61,19 @@ struct FamilyLaunchChecklist: Equatable {
     var totalCount: Int { steps.count }
 }
 
-/// Where the 启航 n/3 card gets its steps. The real checklist (`ParentingStartAction.launchChecklist`) lives on the
-/// unmerged today-start-action branch. This seam lets 我们家 ship without depending on that branch: once it merges,
-/// add a provider that wraps it and pass it to `ParentingHomeView(launchChecklist:)`.
-protocol FamilyLaunchChecklistProviding {
-    func checklist(for workspace: ParentingWorkspace) -> FamilyLaunchChecklist
-}
-
-/// Placeholder used until the real checklist is available. It reads only what the local ledger already holds and
-/// makes no claim about the final 启航 rules.
-struct PlaceholderFamilyLaunchChecklist: FamilyLaunchChecklistProviding {
-    func checklist(for workspace: ParentingWorkspace) -> FamilyLaunchChecklist {
-        FamilyLaunchChecklist(steps: [
-            FamilyLaunchStep(id: "child", title: "添加孩子的昵称", isDone: !workspace.children.isEmpty),
-            FamilyLaunchStep(id: "first-record", title: "记下第一件安排或观察",
-                             isDone: !workspace.arrangements.isEmpty || workspace.records.contains { $0.kind == .observation }),
-            FamilyLaunchStep(id: "goal", title: "写下一个成长目标", isDone: !workspace.goals.isEmpty),
+/// 启航 n/3 is `ParentingStartAction.launchChecklist` (#132): the same rules that decide the 我们家 start action. Only the
+/// wording of the three steps lives here.
+extension FamilyLaunchChecklist {
+    init(_ checklist: ParentingLaunchChecklist) {
+        self.init(steps: [
+            FamilyLaunchStep(id: "child", title: "添加孩子的昵称", isDone: checklist.done.contains(.addChild)),
+            FamilyLaunchStep(id: "first-record", title: "记下第一件安排或观察", isDone: checklist.done.contains(.recordFirstThing)),
+            FamilyLaunchStep(id: "reminders", title: "到点提醒", isDone: checklist.done.contains(.enableReminders)),
         ])
+    }
+
+    static func current(workspace: ParentingWorkspace, remindersEnabled: Bool) -> FamilyLaunchChecklist {
+        FamilyLaunchChecklist(ParentingStartAction.launchChecklist(
+            workspace: workspace, context: ParentingStartContext(remindersEnabled: remindersEnabled)))
     }
 }

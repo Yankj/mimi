@@ -53,7 +53,7 @@ struct ParentingGrowthHomeView: View {
                 ForEach(workspace.children) { child in
                     Button { actions.selectChild(child.id) } label: {
                         HStack(spacing: 8) {
-                            ParentingChildRingAvatar(name: child.name, accent: accent(child.id), size: 28)
+                            ParentingChildAvatar(accent: accent(child.id), size: 28)
                             Text(verbatim: child.name).font(.subheadline.weight(selected == child.id ? .semibold : .regular))
                         }
                         .padding(.horizontal, 12).frame(minHeight: 44)
@@ -74,7 +74,7 @@ struct ParentingGrowthHomeView: View {
 
     private func header(_ child: ParentingChild) -> some View {
         HStack(alignment: .center, spacing: 12) {
-            ParentingChildRingAvatar(name: child.name, accent: accent(child.id), size: 48)
+            ParentingChildAvatar(accent: accent(child.id), size: 48)
             VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: child.name).font(.title3.weight(.semibold))
                 Text(verbatim: ui("开始记录于") + " " + child.createdAt.formatted(date: .abbreviated, time: .omitted))
