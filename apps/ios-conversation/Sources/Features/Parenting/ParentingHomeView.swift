@@ -164,7 +164,7 @@ import Combine
                         VStack(alignment: .leading, spacing: 26) {
                             if let error = model.error { errorBanner(error) }
                             switch item {
-                            case .today: todayContent
+                            case .today: todayPage
                             case .growth: growthTabContent
                             case .family: familyContent
                             }
@@ -268,28 +268,42 @@ import Combine
         .accessibilityIdentifier("parenting.loadState")
     }
 
-    @ViewBuilder private var todayContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(verbatim: now.formatted(.dateTime.month(.wide).day().weekday(.wide)))
-                        .font(catTypography.Role.caption.font.weight(.medium)).foregroundStyle(catColors.calmSecondary)
-                    Text(ui("把今天的照顾，留给以后回看"))
-                        .font(.title2.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
-                    Text(ui("记下安排和观察，慢慢看见孩子的变化。"))
-                        .font(.subheadline).foregroundStyle(catColors.calmSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                BrandMark(size: 53, style: .fill).padding(12)
-                    .background(catColors.action.opacity(0.09), in: RoundedRectangle(cornerRadius: 24))
+    /// 今天: the recommended start action as one hero card and a short rail (ParentingTodayUI.swift).
+    /// Everything that used to be on this page is one level down, in 「全部安排」 (`allArrangementsPage`).
+    private var todayPage: some View {
+        ParentingTodayView(model: model, now: now, childID: selectedChildID,
+                           onAddChild: { sheet = .newChild },
+                           onAdjust: { sheet = .editArrangement($0) },
+                           onFillDraft: { natural.draft = $0 },
+                           onSelectChild: { selectedChildID = $0 },
+                           allPage: { allArrangementsPage })
+    }
+
+    /// 全部安排 (pushed from 今天): the previous Today body plus 「上次周复盘时间」.
+    private var allArrangementsPage: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 26) {
+                if let error = model.error { errorBanner(error) }
+                ParentingWeeklyReviewRow(workspace: workspace, subjectID: conversationModel.trustedSubjectID,
+                                         childID: selectedChildID, now: now)
+                todayContent
+                localStorageNote
             }
-            if !workspace.children.isEmpty && !dynamicTypeSize.isAccessibilitySize {
-                Text(ui("在下面直接说想让小咪记的事；小咪会先给你一张确认卡，确认后才会保存。"))
-                    .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("parenting.natural.hint")
-            }
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 24)
+            .frame(maxWidth: 680)
+            .frame(maxWidth: .infinity)
         }
+        .refreshable { await model.load() }
+        .background(catColors.background.ignoresSafeArea())
+        .foregroundStyle(catColors.ink)
+        .navigationTitle(ui("全部安排"))
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("parenting.today.allPage")
+    }
+
+    @ViewBuilder private var todayContent: some View {
         if workspace.children.isEmpty { firstChildEmpty }
         else {
             let timeline = ParentingTodayTimeline.build(workspace: workspace, childID: selectedChildID, now: now)
@@ -298,12 +312,7 @@ import Combine
             childFilter
             arrangementSection("待确认", items: timeline.pending,
                                empty: "还没有待确认的事。直接说一件事，小咪会先给你一张确认卡。")
-            Button { sheet = .newArrangement(selectedChildID, nil) } label: {
-                Label(ui("手动填写一件事"), systemImage: "square.and.pencil").frame(maxWidth: .infinity)
-            }
-            .parentingSecondaryButton()
-            .disabled(model.busy)
-            .accessibilityIdentifier("parenting.addArrangement")
+            ParentingTodayManualEntry(busy: model.busy) { sheet = .newArrangement(selectedChildID, nil) }
             todayTimeline(timeline)
             if !timeline.overdue.isEmpty {
                 arrangementSection("待重新安排", items: timeline.overdue,
