@@ -11,11 +11,17 @@ import Combine
     @Environment(\.locale) private var locale
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var tab: ParentingTab = .today
     @State private var selectedChildID: UUID?
     @State private var selectedGoalID: UUID?
     @State private var sheet: ParentingSheet?
     @State private var chatPresented = false
+    @StateObject private var natural = ParentingNaturalInputModel()
+    @State private var naturalPresented = false
+    @State private var pendingSheet: ParentingSheet?
+    @State private var growthMode: ParentingGrowthMode = .timeline
+    @State private var expandedEntryIDs: Set<UUID> = []
     @State private var settingsPresented = false
     @State private var deletion: ParentingDeletion?
     @State private var undoReview: ParentingUndoReview?
@@ -24,6 +30,7 @@ import Combine
     @State private var cancelledExpanded = false
     @State private var recordFilter: ParentingRecordFilter = .all
     @State private var now = Date()
+    @State private var floatingBarHeight: CGFloat = 0
 
     init(model: ConversationFirstModel, workspaceModel: ParentingWorkspaceModel? = nil, accountLabel: String? = nil,
          onSignOut: (() -> Void)? = nil, isAnonymousAccount: Bool = false) {
@@ -60,8 +67,8 @@ import Combine
                             if let error = model.error { errorBanner(error) }
                             switch tab {
                             case .today: todayContent
-                            case .growth: growthContent
-                            case .records: recordsContent
+                            case .growth: growthTabContent
+                            case .family: familyContent
                             }
                             localStorageNote
                         }
@@ -71,6 +78,10 @@ import Combine
                         .frame(maxWidth: 680)
                         .frame(maxWidth: .infinity)
                     }
+                    // The bars float over the page: content scrolls under the glass, and these margins keep the last item reachable.
+                    .contentMargins(.bottom, floatingBarHeight + 8, for: .scrollContent)
+                    .scrollDismissesKeyboard(.interactively)
+                    .contentMargins(.bottom, floatingBarHeight, for: .scrollIndicators)
                     .refreshable { await model.load() }
                 }
             }
@@ -86,13 +97,6 @@ import Combine
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { chatPresented = true } label: {
-                        Image(systemName: "bubble.left.and.bubble.right").frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel(ui("打开辅助对话"))
-                    .accessibilityIdentifier("parenting.chatHelper")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
                     Button { settingsPresented = true } label: {
                         Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44)
                     }
@@ -100,7 +104,15 @@ import Combine
                     .accessibilityIdentifier("parenting.settings")
                 }
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) { tabBar }
+            .overlay(alignment: .bottom) {
+                VStack(spacing: 8) {
+                    if model.loaded && !workspace.children.isEmpty && (tab == .today || tab == .growth) { composerBar }
+                    tabBar
+                }
+                .padding(.horizontal, 12).padding(.bottom, 2)
+                .background(GeometryReader { Color.clear.preference(key: ParentingFloatingBarHeightKey.self, value: $0.size.height) })
+            }
+            .onPreferenceChange(ParentingFloatingBarHeightKey.self) { floatingBarHeight = $0 }
             .overlay(alignment: .top) {
                 if model.loaded && model.busy {
                     ProgressView(ui("正在保存"))
@@ -132,6 +144,17 @@ import Combine
         .sheet(item: $sheet, onDismiss: openPendingRoute) { destination in
             ParentingEditorSheet(model: model, chat: conversationModel, destination: destination)
         }
+        .sheet(isPresented: $naturalPresented, onDismiss: {
+            if case .saved = natural.phase { natural.reset() }
+            if let next = pendingSheet { pendingSheet = nil; sheet = next } else { openPendingRoute() }
+        }) {
+            ParentingNaturalSheet(input: natural, workspaceModel: model, context: naturalContext, now: now,
+                                  onNavigate: { kind in navigate(kind) },
+                                  onManual: { proposal in pendingSheet = manualSheet(for: proposal) },
+                                  onAddChild: { pendingSheet = .newChild })
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
         .sheet(isPresented: $chatPresented) {
             ConversationFirstView(model: conversationModel, accountLabel: accountLabel,
                                   onSignOut: onSignOut, isAnonymousAccount: isAnonymousAccount)
@@ -159,28 +182,34 @@ import Combine
         .modifier(catPrivacyShield(lockedText: ui("解锁后查看育儿记录"), identifier: "parenting.privacyShield"))
     }
 
+    /// Floating 今天｜成长｜我们家: a glass capsule (Liquid Glass on iOS 26, ultra-thin material before) above the scrolling page.
     private var tabBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
             ForEach(ParentingTab.allCases) { item in
                 Button {
                     tab = item
                 } label: {
-                    VStack(spacing: 5) {
+                    VStack(spacing: 3) {
                         Image(systemName: item.icon).font(.title3.weight(tab == item ? .semibold : .regular))
                         Text(ui(item.title)).font(catTypography.Role.caption.font.weight(tab == item ? .semibold : .regular))
                     }
-                    .foregroundStyle(tab == item ? catColors.actionText : catColors.calmSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 56)
-                    .background(tab == item ? catColors.action.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 16))
+                    // Labels stop growing at the first accessibility size so the floating bar never swallows the page.
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                    .foregroundStyle(tab == item ? catColors.actionText : catColors.ink.opacity(0.72))
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(tab == item ? catColors.action.opacity(0.16) : .clear, in: Capsule())
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(tab == item ? [.isSelected] : [])
                 .accessibilityIdentifier("parenting.tab.\(item.rawValue)")
             }
         }
-        .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 6)
-        .background(catColors.background)
-        .overlay(alignment: .top) { Rectangle().fill(catColors.hairline).frame(height: 0.5) }
+        .padding(5)
+        .parentingGlass(in: Capsule())
+        .frame(maxWidth: 520)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("parenting.tabBar")
     }
 
     private var loadState: some View {
@@ -218,37 +247,109 @@ import Combine
                 BrandMark(size: 53, style: .fill).padding(12)
                     .background(catColors.action.opacity(0.09), in: RoundedRectangle(cornerRadius: 24))
             }
-            if !workspace.children.isEmpty {
-                Button { sheet = .newArrangement(selectedChildID, nil) } label: {
-                    Label(ui("记一件事"), systemImage: "plus").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(ParentingPrimaryButtonStyle())
-                .disabled(model.busy)
-                .accessibilityIdentifier("parenting.addArrangement")
-                Text(ui("先存为待确认，确认后才进入安排。"))
+            if !workspace.children.isEmpty && !dynamicTypeSize.isAccessibilitySize {
+                Text(ui("在下面直接说想让小咪记的事；小咪会先给你一张确认卡，确认后才会保存。"))
                     .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("parenting.natural.hint")
             }
         }
         if workspace.children.isEmpty { firstChildEmpty }
         else {
+            let timeline = ParentingTodayTimeline.build(workspace: workspace, childID: selectedChildID, now: now)
+            ParentingTodaySummaryView(summary: timeline.summary, childName: { childName($0) })
             reminderPrompt
             childFilter
-            arrangementSection("待确认", items: arrangements.filter { $0.state == .draft },
-                               empty: "还没有待确认的事。记下一件事后，可以在这里核对。")
-            arrangementSection("今天的安排", items: arrangements.filter { $0.state == .planned && Calendar.autoupdatingCurrent.isDate($0.dueAt, inSameDayAs: now) },
-                               empty: "今天没有已确认的安排。可以留白，也可以记下一件事。")
-            let overdue = arrangements.filter { $0.state == .planned && $0.dueAt < Calendar.autoupdatingCurrent.startOfDay(for: now) }
-            if !overdue.isEmpty {
-                arrangementSection("待重新安排", items: overdue,
+            arrangementSection("待确认", items: timeline.pending,
+                               empty: "还没有待确认的事。直接说一件事，小咪会先给你一张确认卡。")
+            Button { sheet = .newArrangement(selectedChildID, nil) } label: {
+                Label(ui("手动填写一件事"), systemImage: "square.and.pencil").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(ParentingSecondaryButtonStyle())
+            .disabled(model.busy)
+            .accessibilityIdentifier("parenting.addArrangement")
+            todayTimeline(timeline)
+            if !timeline.overdue.isEmpty {
+                arrangementSection("待重新安排", items: timeline.overdue,
                                    explanation: "时间已经过去，仍未标记完成。可调整时间或取消，不会自动算作完成。")
             }
-            let tomorrow = Calendar.autoupdatingCurrent.date(byAdding: .day, value: 1, to: Calendar.autoupdatingCurrent.startOfDay(for: now)) ?? now
-            let future = arrangements.filter { $0.state == .planned && $0.dueAt >= tomorrow }
-            if !future.isEmpty { arrangementSection("以后的安排", items: future) }
-            historySection
+            if !timeline.upcoming.isEmpty { arrangementSection("以后的安排", items: timeline.upcoming) }
+            historySection(excluding: Set(timeline.entries.map(\.id)))
             todayGrowthPreview
             if workspace.suggestionsEnabled { suggestions }
-            helperEntry
+        }
+    }
+
+    /// 今天时间轴: today's confirmed items and observations on one rail, with a "now" line and same-minute flags.
+    @ViewBuilder private func todayTimeline(_ timeline: ParentingTodayTimeline) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(ui("今天的时间轴")).font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
+            if timeline.entries.isEmpty {
+                Text(ui("今天没有已确认的安排。可以留白，也可以直接说一件事。"))
+                    .font(.subheadline).foregroundStyle(catColors.calmSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading).parentingCard()
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(timeline.entries.enumerated()), id: \.element.id) { index, entry in
+                        if index == timeline.nowIndex { ParentingNowMarker(now: now) }
+                        ParentingTimelineRow(time: entry.time, style: rowStyle(entry), isLast: index == timeline.entries.count - 1) {
+                            switch entry.content {
+                            case .arrangement(let item):
+                                VStack(alignment: .leading, spacing: 8) {
+                                    if entry.sameTimeConflict {
+                                        Label(ui("同一时间还有别的安排，请核对"), systemImage: "exclamationmark.triangle")
+                                            .font(catTypography.Role.caption.font).foregroundStyle(catColors.attention)
+                                            .accessibilityIdentifier("parenting.today.conflict.\(item.id)")
+                                    }
+                                    arrangementCard(item)
+                                }
+                            case .observation(let record):
+                                ParentingTimelineObservation(record: record, childName: childName(record.childID))
+                            }
+                        }
+                    }
+                    if timeline.nowIndex >= timeline.entries.count { ParentingNowMarker(now: now).padding(.top, 10) }
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("parenting.today.timeline")
+            }
+        }
+    }
+    private func rowStyle(_ entry: ParentingTodayTimeline.Entry) -> ParentingTimelineRowStyle {
+        switch entry.content {
+        case .observation: return .observation
+        case .arrangement(let item):
+            if item.state == .completed { return .done }
+            return entry.sameTimeConflict ? .conflict : .upcoming
+        }
+    }
+
+    // MARK: Natural input
+    private var naturalContext: ParentingNaturalContext {
+        ParentingNaturalContext(workspace: workspace, activeChildID: selectedChildID)
+    }
+    private var composerBar: some View {
+        ParentingComposerBar(input: natural, context: naturalContext, now: now, busy: model.busy) {
+            guard natural.canSubmit, !model.busy else { return }
+            natural.submit(context: naturalContext, now: now)
+            naturalPresented = true
+        }
+    }
+    private func navigate(_ kind: ParentingIntentKind) {
+        switch kind {
+        case .reviewGrowth: growthMode = .timeline; tab = .growth
+        case .viewToday, .viewPlan: tab = .today
+        default: break
+        }
+    }
+    /// "手动调整" hands the parent to the existing form; nothing is prefilled or saved on the way.
+    private func manualSheet(for proposal: ParentingNaturalProposal) -> ParentingSheet? {
+        switch proposal.kind {
+        case .observation: return .newObservation(proposal.childID, nil)
+        case .reschedule:
+            if let id = proposal.targetID, let item = workspace.arrangements.first(where: { $0.id == id }) { return .editArrangement(item) }
+            return .newArrangement(proposal.childID, nil)
+        default: return .newArrangement(proposal.childID, nil)
         }
     }
 
@@ -290,11 +391,13 @@ import Combine
         }
     }
 
-    private var historySection: some View {
+    /// Items already on today's timeline are not listed a second time (a card has one identity on screen).
+    private func historySection(excluding onTimeline: Set<UUID>) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             DisclosureGroup(isExpanded: $completedExpanded) {
-                let items = arrangements.filter { $0.state == .completed }.reversed()
-                if items.isEmpty { Text(ui("还没有完成的安排。" )).font(.subheadline).foregroundStyle(catColors.calmSecondary).padding(.top, 12) }
+                let items = arrangements.filter { $0.state == .completed && !onTimeline.contains($0.id) }.reversed()
+                let finishedToday = arrangements.contains { $0.state == .completed && onTimeline.contains($0.id) }
+                if items.isEmpty && !finishedToday { Text(ui("还没有完成的安排。" )).font(.subheadline).foregroundStyle(catColors.calmSecondary).padding(.top, 12) }
                 ForEach(Array(items)) { item in arrangementCard(item).padding(.top, 10) }
             } label: { Label(ui("已完成的安排"), systemImage: "checkmark.circle").font(.subheadline.weight(.medium)) }
             .accessibilityElement(children: .contain)
@@ -376,7 +479,7 @@ import Combine
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("parenting.arrangement.completed.\(item.id)")
                 if let record = workspace.records.first(where: { $0.arrangementID == item.id }) {
-                    Button(ui("查看完成记录")) { tab = .records; selectedChildID = item.childID; recordFilter = .completion }
+                    Button(ui("查看完成记录")) { tab = .growth; growthMode = .timeline; selectedChildID = item.childID; recordFilter = .completion }
                         .font(.subheadline).frame(minHeight: 44)
                         .accessibilityIdentifier("parenting.completionRecord.\(record.id)")
                 } else {
@@ -472,7 +575,7 @@ import Combine
                         Spacer()
                         Button { sheet = .newGoal(child.id) } label: {
                             Label(ui("添加目标"), systemImage: "plus")
-                                .font(.subheadline).frame(minWidth: 44, minHeight: 44)
+                                .font(.subheadline).frame(minWidth: 46, minHeight: 46)
                                 .contentShape(Rectangle())
                         }
                             .buttonStyle(.plain).disabled(model.busy)
@@ -562,6 +665,7 @@ import Combine
         }
     }
 
+    /// 成长时间线: observations and completion records, newest day first. This replaces the old separate 记录 tab.
     @ViewBuilder private var recordsContent: some View {
         VStack(alignment: .leading, spacing: 9) {
             Text(ui("把发生过的事留住")).font(.title2.weight(.semibold))
@@ -571,22 +675,115 @@ import Combine
         if workspace.children.isEmpty { firstChildEmpty }
         else {
             Button { sheet = .newObservation(selectedChildID, nil) } label: {
-                Label(ui("记下观察"), systemImage: "square.and.pencil").frame(maxWidth: .infinity)
-            }.buttonStyle(ParentingPrimaryButtonStyle()).disabled(model.busy)
+                Label(ui("手动记下观察"), systemImage: "square.and.pencil").frame(maxWidth: .infinity)
+            }.buttonStyle(ParentingSecondaryButtonStyle()).disabled(model.busy)
+                .accessibilityIdentifier("parenting.addObservation")
             childFilter
             Picker(ui("记录类型"), selection: $recordFilter) {
                 ForEach(ParentingRecordFilter.allCases) { filter in Text(ui(filter.title)).tag(filter) }
             }.pickerStyle(.segmented)
-            let records = workspace.records.filter {
-                (selectedChildID == nil || $0.childID == selectedChildID) &&
-                (recordFilter == .all || (recordFilter == .observation ? $0.kind == .observation : $0.kind == .completion))
-            }.sorted { $0.createdAt > $1.createdAt }
-            if records.isEmpty {
+            let timeline = ParentingGrowthTimeline.build(
+                workspace: workspace, childID: selectedChildID,
+                filter: recordFilter == .all ? .all : (recordFilter == .observation ? .observation : .completion))
+            if timeline.isEmpty {
                 Text(ui("这里还没有记录。观察可以直接保存；安排完成后会生成独立的完成记录。"))
                     .font(.subheadline).foregroundStyle(catColors.calmSecondary).parentingCard()
             }
-            ForEach(records) { record in recordCard(record) }
+            ForEach(timeline.days) { day in
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Circle().fill(catColors.action).frame(width: 8, height: 8).accessibilityHidden(true)
+                        Text(verbatim: day.day.formatted(.dateTime.month().day().weekday(.wide)))
+                            .font(.subheadline.weight(.semibold)).accessibilityAddTraits(.isHeader)
+                    }
+                    ForEach(day.records) { record in recordCard(record) }
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("parenting.growth.day." + String(Int(day.day.timeIntervalSince1970)))
+            }
         }
+    }
+
+    /// 成长: one page, two ways to look. The timeline is the default; goals keep their review.
+    @ViewBuilder private var growthTabContent: some View {
+        HStack(spacing: 8) {
+            ForEach(ParentingGrowthMode.allCases) { mode in
+                Button { growthMode = mode } label: {
+                    Text(ui(mode.title)).font(.subheadline.weight(growthMode == mode ? .semibold : .regular))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(growthMode == mode ? catColors.action.opacity(0.12) : catColors.fillSelected.opacity(0.6),
+                                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .foregroundStyle(growthMode == mode ? catColors.actionText : catColors.ink)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(growthMode == mode ? [.isSelected] : [])
+                .accessibilityIdentifier("parenting.growth.mode." + mode.rawValue)
+            }
+        }
+        switch growthMode {
+        case .timeline: recordsContent
+        case .goals: growthContent
+        }
+    }
+
+    /// 我们家: the children, reminder and privacy settings, and the old office chat, kept as 高级与历史.
+    @ViewBuilder private var familyContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(ui("我们家")).font(.title2.weight(.semibold))
+            Text(ui("孩子、提醒和隐私都在这里。所有内容只加密保存在这台设备上。"))
+                .font(.subheadline).foregroundStyle(catColors.calmSecondary)
+        }
+        if workspace.children.isEmpty { firstChildEmpty }
+        else {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text(ui("孩子")).font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
+                    Spacer()
+                    addChildButton
+                }
+                ForEach(workspace.children) { child in
+                    HStack(alignment: .center, spacing: 12) {
+                        Image(systemName: "person.crop.circle").font(.title).foregroundStyle(catColors.actionText).accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(verbatim: child.name).font(.headline)
+                            Text(verbatim: familyCounts(child)).font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
+                        }
+                        Spacer(minLength: 0)
+                        Menu {
+                            Button(ui("修改昵称")) { sheet = .editChild(child) }
+                            Button(ui("删除孩子"), role: .destructive) { deletion = .child(child.id) }
+                        } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
+                        .accessibilityLabel(ui("孩子资料操作")).disabled(model.busy)
+                    }
+                    .parentingCard()
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("parenting.family.child." + child.id.uuidString)
+                }
+            }
+        }
+        reminderPrompt
+        Button { settingsPresented = true } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "bell.badge").font(.title3)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(ui("提醒与隐私设置")).font(.subheadline.weight(.medium))
+                    Text(ui("每天最多 2 条提醒，晚 9 点到早 8 点不打扰。"))
+                        .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(catTypography.Role.caption.font)
+            }
+            .foregroundStyle(catColors.ink).frame(minHeight: 50)
+        }
+        .buttonStyle(.plain).parentingCard()
+        .accessibilityIdentifier("parenting.family.settings")
+        advancedHistoryEntry
+    }
+
+    private func familyCounts(_ child: ParentingChild) -> String {
+        let plans = workspace.arrangements.filter { $0.childID == child.id && $0.state == .planned }.count
+        let records = workspace.records.filter { $0.childID == child.id }.count
+        return AppLanguage(locale: locale).ui("{0} 项安排 · {1} 条记录", arguments: [String(plans), String(records)])
     }
 
     private func reviewRecordSection(_ title: String, records: [ParentingRecord], empty: String) -> some View {
@@ -695,6 +892,7 @@ import Combine
                     Button {
                         selectedChildID = goal.childID
                         selectedGoalID = goal.id
+                        growthMode = .goals
                         tab = .growth
                     } label: {
                         VStack(alignment: .leading, spacing: 8) {
@@ -710,7 +908,8 @@ import Combine
                     Button {
                         selectedChildID = record.childID
                         recordFilter = .observation
-                        tab = .records
+                        growthMode = .timeline
+                        tab = .growth
                     } label: {
                         VStack(alignment: .leading, spacing: 8) {
                             Label(ui("最近的成长观察"), systemImage: "text.bubble").font(catTypography.Role.caption.font.weight(.medium))
@@ -726,13 +925,14 @@ import Combine
         }
     }
 
-    private var helperEntry: some View {
+    /// The earlier general chat is kept, but only here: it is not part of the daily path and never saves an arrangement.
+    private var advancedHistoryEntry: some View {
         Button { chatPresented = true } label: {
             HStack(spacing: 12) {
-                Image(systemName: "bubble.left.and.bubble.right").font(.title3)
+                Image(systemName: "clock.arrow.circlepath").font(.title3)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(ui("需要整理想法时，问问小咪")).font(.subheadline.weight(.medium))
-                    Text(ui("打开辅助对话；对话不会自动变成安排。"))
+                    Text(ui("高级与历史")).font(.subheadline.weight(.medium))
+                    Text(ui("打开原来的办公对话和历史；对话不会自动变成安排。"))
                         .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
                 }
                 Spacer(minLength: 0)
@@ -882,14 +1082,22 @@ import Combine
     }
 }
 
+/// 今天｜成长｜我们家. Records now live inside the growth timeline; the old office chat sits under 我们家 > 高级与历史.
 private enum ParentingTab: String, CaseIterable, Identifiable {
-    case today, growth, records
+    case today, growth, family
     var id: String { rawValue }
     var title: String {
-        switch self { case .today: "今天"; case .growth: "孩子与成长"; case .records: "记录" }
+        switch self { case .today: "今天"; case .growth: "成长"; case .family: "我们家" }
     }
     var icon: String {
-        switch self { case .today: "sun.max"; case .growth: "leaf"; case .records: "book.closed" }
+        switch self { case .today: "sun.max"; case .growth: "leaf"; case .family: "house" }
+    }
+}
+private enum ParentingGrowthMode: String, CaseIterable, Identifiable {
+    case timeline, goals
+    var id: String { rawValue }
+    var title: String {
+        switch self { case .timeline: "时间线"; case .goals: "目标与回顾" }
     }
 }
 private enum ParentingRecordFilter: String, CaseIterable, Identifiable {
@@ -934,17 +1142,17 @@ private enum ParentingSheet: Identifiable {
     }
 }
 
-private struct ParentingCardModifier: ViewModifier {
+struct ParentingCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content.padding(17).frame(maxWidth: .infinity, alignment: .leading)
             .background(catColors.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(catColors.hairline, lineWidth: 0.5))
     }
 }
-private extension View {
+extension View {
     func parentingCard() -> some View { modifier(ParentingCardModifier()) }
 }
-private struct ParentingPrimaryButtonStyle: ButtonStyle {
+struct ParentingPrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.font(.subheadline.weight(.semibold))
@@ -958,7 +1166,7 @@ private struct ParentingPrimaryButtonStyle: ButtonStyle {
             .scaleEffect(isEnabled && configuration.isPressed ? 0.98 : 1)
     }
 }
-private struct ParentingSecondaryButtonStyle: ButtonStyle {
+struct ParentingSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.font(.subheadline.weight(.semibold)).foregroundStyle(catColors.ink)
             .padding(.horizontal, 15).padding(.vertical, 12).frame(minHeight: 46)

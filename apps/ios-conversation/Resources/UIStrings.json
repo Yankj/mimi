@@ -8582,5 +8582,365 @@
   "提醒时间已到：{0}": {
     "en": "Reminder time reached: {0}",
     "zh-Hans": "提醒时间已到：{0}"
+  },
+  "{0} 项安排 · {1} 条记录": {
+    "en": "{0} plans · {1} records",
+    "zh-Hans": "{0} 项安排 · {1} 条记录"
+  },
+  "一句话就行，例如：游泳课": {
+    "en": "One line is enough, e.g. swimming class",
+    "zh-Hans": "一句话就行，例如：游泳课"
+  },
+  "下一件：{0}": {
+    "en": "Next: {0}",
+    "zh-Hans": "下一件：{0}"
+  },
+  "事项": {
+    "en": "What",
+    "zh-Hans": "事项"
+  },
+  "交给小咪": {
+    "en": "Hand to mimi",
+    "zh-Hans": "交给小咪"
+  },
+  "今天安排": {
+    "en": "Today",
+    "zh-Hans": "今天安排"
+  },
+  "今天有什么": {
+    "en": "What's today",
+    "zh-Hans": "今天有什么"
+  },
+  "今天有什么安排": {
+    "en": "What is on today",
+    "zh-Hans": "今天有什么安排"
+  },
+  "今天没有已确认的安排。可以留白，也可以直接说一件事。": {
+    "en": "Nothing confirmed today. Leave it open, or just say one thing.",
+    "zh-Hans": "今天没有已确认的安排。可以留白，也可以直接说一件事。"
+  },
+  "今天的时间轴": {
+    "en": "Today's timeline",
+    "zh-Hans": "今天的时间轴"
+  },
+  "你说的原话": {
+    "en": "What you said",
+    "zh-Hans": "你说的原话"
+  },
+  "例如：下午5点、18:30": {
+    "en": "e.g. 5 pm, 18:30",
+    "zh-Hans": "例如：下午5点、18:30"
+  },
+  "例如：今天他自己收好了书包": {
+    "en": "e.g. packed the school bag by himself today",
+    "zh-Hans": "例如：今天他自己收好了书包"
+  },
+  "例如：周五、明天、10月30日": {
+    "en": "e.g. Friday, tomorrow, Oct 30",
+    "zh-Hans": "例如：周五、明天、10月30日"
+  },
+  "保存观察": {
+    "en": "Save observation",
+    "zh-Hans": "保存观察"
+  },
+  "几点开始？": {
+    "en": "What time does it start?",
+    "zh-Hans": "几点开始？"
+  },
+  "只保存这条观察，不会写入长期记忆；之后可以修改或删除。": {
+    "en": "Only this observation is saved, not long-term memory; you can edit or delete it later.",
+    "zh-Hans": "只保存这条观察，不会写入长期记忆；之后可以修改或删除。"
+  },
+  "只改这一项安排，不影响其他安排。可以在安排里撤销这次调整。": {
+    "en": "Only this arrangement changes; others are untouched. You can undo this change from the arrangement.",
+    "zh-Hans": "只改这一项安排，不影响其他安排。可以在安排里撤销这次调整。"
+  },
+  "只问还缺的这一项；其余已经听明白的不会再问。": {
+    "en": "Only the one missing item is asked; what is already clear is not asked again.",
+    "zh-Hans": "只问还缺的这一项；其余已经听明白的不会再问。"
+  },
+  "同一时间已有安排，确认即表示已知悉": {
+    "en": "Another arrangement is at this time; confirming means you know",
+    "zh-Hans": "同一时间已有安排，确认即表示已知悉"
+  },
+  "同一时间已有安排，请核对": {
+    "en": "Another arrangement is at this time, please check",
+    "zh-Hans": "同一时间已有安排，请核对"
+  },
+  "同一时间还有别的安排，请核对": {
+    "en": "Another arrangement shares this time, please check",
+    "zh-Hans": "同一时间还有别的安排，请核对"
+  },
+  "周一要带": {
+    "en": "Monday bring ",
+    "zh-Hans": "周一要带"
+  },
+  "哪一天？": {
+    "en": "Which day?",
+    "zh-Hans": "哪一天？"
+  },
+  "在下面直接说想让小咪记的事；小咪会先给你一张确认卡，确认后才会保存。": {
+    "en": "Say what you want mimi to remember below. mimi shows a confirmation card first; nothing is saved until you confirm.",
+    "zh-Hans": "在下面直接说想让小咪记的事；小咪会先给你一张确认卡，确认后才会保存。"
+  },
+  "复盘": {
+    "en": "Review",
+    "zh-Hans": "复盘"
+  },
+  "好的": {
+    "en": "Got it",
+    "zh-Hans": "好的"
+  },
+  "孩子、提醒和隐私都在这里。所有内容只加密保存在这台设备上。": {
+    "en": "Children, reminders and privacy live here. Everything is encrypted on this device only.",
+    "zh-Hans": "孩子、提醒和隐私都在这里。所有内容只加密保存在这台设备上。"
+  },
+  "小咪来整理": {
+    "en": "mimi sorts it out",
+    "zh-Hans": "小咪来整理"
+  },
+  "小咪理解为：{0}": {
+    "en": "mimi understood: {0}",
+    "zh-Hans": "小咪理解为：{0}"
+  },
+  "小咪还没听明白": {
+    "en": "mimi did not quite get it",
+    "zh-Hans": "小咪还没听明白"
+  },
+  "已保存在这台设备上；今天页和成长页会同步显示。": {
+    "en": "Saved on this device; Today and Growth will show it.",
+    "zh-Hans": "已保存在这台设备上；今天页和成长页会同步显示。"
+  },
+  "已保存这条观察": {
+    "en": "Observation saved",
+    "zh-Hans": "已保存这条观察"
+  },
+  "已先存为待确认，还没有进入安排。请在今天页确认，或重试。": {
+    "en": "Saved as pending only, not yet scheduled. Confirm it on Today, or retry.",
+    "zh-Hans": "已先存为待确认，还没有进入安排。请在今天页确认，或重试。"
+  },
+  "已安排好了": {
+    "en": "Scheduled",
+    "zh-Hans": "已安排好了"
+  },
+  "已改期": {
+    "en": "Rescheduled",
+    "zh-Hans": "已改期"
+  },
+  "带什么": {
+    "en": "What to bring",
+    "zh-Hans": "带什么"
+  },
+  "带我去看": {
+    "en": "Take me there",
+    "zh-Hans": "带我去看"
+  },
+  "录入": {
+    "en": "Capture",
+    "zh-Hans": "录入"
+  },
+  "想记一件安排，还是记下一个观察？": {
+    "en": "A new arrangement, or an observation to note down?",
+    "zh-Hans": "想记一件安排，还是记下一个观察？"
+  },
+  "想记下什么？": {
+    "en": "What would you like to note?",
+    "zh-Hans": "想记下什么？"
+  },
+  "成长": {
+    "en": "Growth",
+    "zh-Hans": "成长"
+  },
+  "成长观察": {
+    "en": "Growth observation",
+    "zh-Hans": "成长观察"
+  },
+  "我们家": {
+    "en": "Our family",
+    "zh-Hans": "我们家"
+  },
+  "手动填写一件事": {
+    "en": "Fill in an arrangement by hand",
+    "zh-Hans": "手动填写一件事"
+  },
+  "手动记下观察": {
+    "en": "Add an observation by hand",
+    "zh-Hans": "手动记下观察"
+  },
+  "手动调整": {
+    "en": "Adjust by hand",
+    "zh-Hans": "手动调整"
+  },
+  "打开原来的办公对话和历史；对话不会自动变成安排。": {
+    "en": "Open the earlier office chat and history; chat never turns into an arrangement by itself.",
+    "zh-Hans": "打开原来的办公对话和历史；对话不会自动变成安排。"
+  },
+  "提醒与隐私设置": {
+    "en": "Reminders and privacy",
+    "zh-Hans": "提醒与隐私设置"
+  },
+  "提醒按你的设置发送：每天最多 2 条，21:00–08:00 不打扰。": {
+    "en": "Reminders follow your settings: at most 2 a day, quiet 21:00–08:00.",
+    "zh-Hans": "提醒按你的设置发送：每天最多 2 条，21:00–08:00 不打扰。"
+  },
+  "提醒没有开启；可以在“我们家”里打开。": {
+    "en": "Reminders are off; you can turn them on in Our family.",
+    "zh-Hans": "提醒没有开启；可以在“我们家”里打开。"
+  },
+  "改为记一件安排": {
+    "en": "Add a new arrangement instead",
+    "zh-Hans": "改为记一件安排"
+  },
+  "改到几点？": {
+    "en": "Move it to what time?",
+    "zh-Hans": "改到几点？"
+  },
+  "改期": {
+    "en": "Reschedule",
+    "zh-Hans": "改期"
+  },
+  "日期沿用原安排；不对可以点“手动调整”。": {
+    "en": "The day follows the original arrangement; if wrong, tap Adjust by hand.",
+    "zh-Hans": "日期沿用原安排；不对可以点“手动调整”。"
+  },
+  "时间线": {
+    "en": "Timeline",
+    "zh-Hans": "时间线"
+  },
+  "是上午还是下午？": {
+    "en": "Morning or afternoon?",
+    "zh-Hans": "是上午还是下午？"
+  },
+  "是什么事？": {
+    "en": "What is it?",
+    "zh-Hans": "是什么事？"
+  },
+  "每天最多 2 条提醒，晚 9 点到早 8 点不打扰。": {
+    "en": "At most 2 reminders a day; quiet from 9 pm to 8 am.",
+    "zh-Hans": "每天最多 2 条提醒，晚 9 点到早 8 点不打扰。"
+  },
+  "没有保存成功。已填写的内容保留，可以重试。": {
+    "en": "Not saved. What you entered is kept; you can retry.",
+    "zh-Hans": "没有保存成功。已填写的内容保留，可以重试。"
+  },
+  "没有时长信息，暂不能判断是否重叠或能否同时进行。": {
+    "en": "There is no duration, so overlap or doing both cannot be judged yet.",
+    "zh-Hans": "没有时长信息，暂不能判断是否重叠或能否同时进行。"
+  },
+  "游泳改到": {
+    "en": "Swimming moved to ",
+    "zh-Hans": "游泳改到"
+  },
+  "点这里继续": {
+    "en": "Tap to continue",
+    "zh-Hans": "点这里继续"
+  },
+  "现在": {
+    "en": "Now",
+    "zh-Hans": "现在"
+  },
+  "目标与回顾": {
+    "en": "Goals and review",
+    "zh-Hans": "目标与回顾"
+  },
+  "看今天": {
+    "en": "See today",
+    "zh-Hans": "看今天"
+  },
+  "看成长回顾": {
+    "en": "See growth review",
+    "zh-Hans": "看成长回顾"
+  },
+  "看计划": {
+    "en": "See the plan",
+    "zh-Hans": "看计划"
+  },
+  "确认后才进入今天的安排。": {
+    "en": "It joins today's arrangements only after you confirm.",
+    "zh-Hans": "确认后才进入今天的安排。"
+  },
+  "确认改期": {
+    "en": "Confirm change",
+    "zh-Hans": "确认改期"
+  },
+  "补充一句": {
+    "en": "Add a line",
+    "zh-Hans": "补充一句"
+  },
+  "要改哪一项安排？": {
+    "en": "Which arrangement to change?",
+    "zh-Hans": "要改哪一项安排？"
+  },
+  "规划": {
+    "en": "Plan",
+    "zh-Hans": "规划"
+  },
+  "记一下，": {
+    "en": "Note: ",
+    "zh-Hans": "记一下，"
+  },
+  "记一个观察": {
+    "en": "Note an observation",
+    "zh-Hans": "记一个观察"
+  },
+  "记一件安排": {
+    "en": "Add an arrangement",
+    "zh-Hans": "记一件安排"
+  },
+  "记一笔": {
+    "en": "Jot down",
+    "zh-Hans": "记一笔"
+  },
+  "记下的内容": {
+    "en": "What is noted",
+    "zh-Hans": "记下的内容"
+  },
+  "说说想让小咪记的事，例如：团团周五游泳改到六点了": {
+    "en": "Tell mimi what to remember, e.g. Tuantuan's Friday swim moved to six",
+    "zh-Hans": "说说想让小咪记的事，例如：团团周五游泳改到六点了"
+  },
+  "调课": {
+    "en": "Reschedule",
+    "zh-Hans": "调课"
+  },
+  "还不确定": {
+    "en": "Not sure yet",
+    "zh-Hans": "还不确定"
+  },
+  "还没有可以改期的安排。先记一件安排吧。": {
+    "en": "No arrangement to reschedule yet. Add one first.",
+    "zh-Hans": "还没有可以改期的安排。先记一件安排吧。"
+  },
+  "还没有孩子。请先添加孩子的昵称，再记这件事。": {
+    "en": "No child yet. Add a child's nickname first, then note this.",
+    "zh-Hans": "还没有孩子。请先添加孩子的昵称，再记这件事。"
+  },
+  "还没有待确认的事。直接说一件事，小咪会先给你一张确认卡。": {
+    "en": "Nothing pending. Say one thing and mimi shows a confirmation card first.",
+    "zh-Hans": "还没有待确认的事。直接说一件事，小咪会先给你一张确认卡。"
+  },
+  "这个时间已经过去，请确认。": {
+    "en": "This time has already passed, please confirm.",
+    "zh-Hans": "这个时间已经过去，请确认。"
+  },
+  "这张卡已经过期，请重新说一次。": {
+    "en": "This card is out of date, please say it again.",
+    "zh-Hans": "这张卡已经过期，请重新说一次。"
+  },
+  "这是哪位孩子的事？": {
+    "en": "Which child is this for?",
+    "zh-Hans": "这是哪位孩子的事？"
+  },
+  "这是查看，不会写入或修改任何内容。": {
+    "en": "This is view-only; nothing is written or changed.",
+    "zh-Hans": "这是查看，不会写入或修改任何内容。"
+  },
+  "高级与历史": {
+    "en": "Advanced and history",
+    "zh-Hans": "高级与历史"
+  },
+  "新安排": {
+    "en": "New arrangement",
+    "zh-Hans": "新安排"
   }
 }

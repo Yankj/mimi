@@ -326,6 +326,65 @@ final class ParentingWorkspaceUITests: XCTestCase {
         capture(app, "failure-cancel-created-no-arrangement")
     }
 
+    /// Evidence run for the natural-input flow and the floating glass tab bar. It asserts the card and the content-under-glass
+    /// geometry, and attaches screenshots named "Interaction-v05-*" (export them from the .xcresult).
+    func testInteractionScreenshotsConfirmCardTimelineAndFloatingTabBar() {
+        let app = launch("p0-ui-parenting-success")
+        addChild(app, name: "团团")
+        let field = app.textFields["parenting.natural.field"]
+        let entries = ["团团今天下午5点游泳", "团团今天晚上8点练钢琴", "团团今天晚上9点洗澡"]
+        for (index, text) in entries.enumerated() {
+            XCTAssertTrue(field.waitForExistence(timeout: 10), app.debugDescription)
+            wait { field.isHittable }
+            field.tap()
+            field.typeText(text)
+            let send = app.buttons["parenting.natural.send"]
+            wait { send.isEnabled }
+            if index == 0 { capture(app, "Interaction-v05-0-typed-input") }
+            send.tap()
+            let confirm = app.buttons["parenting.natural.confirm"]
+            XCTAssertTrue(confirm.waitForExistence(timeout: 10), "No confirm card for \(text)\n" + app.debugDescription)
+            if index == 0 { capture(app, "Interaction-v05-1-confirm-card") }
+            confirm.tap()
+            let done = app.buttons["parenting.natural.done"]
+            XCTAssertTrue(done.waitForExistence(timeout: 10), app.debugDescription)
+            if index == 0 { capture(app, "Interaction-v05-2-saved-receipt") }
+            done.tap()
+            wait { !done.exists }
+        }
+        capture(app, "Interaction-v05-3-today-timeline-top")
+        // Scroll the page under the floating bars: content must still be visible through the glass and the last item reachable.
+        let bar = app.otherElements["parenting.tabBar"]
+        XCTAssertTrue(bar.exists, app.debugDescription)
+        // Coordinates are taken from the app window: the composer chips are also a (horizontal) scroll view.
+        // Drag from the upper part of the page: the lower part is covered by the floating bars (and the keyboard, if open).
+        func dragPageUp() {
+            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.34))
+            from.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.08)))
+        }
+        for _ in 0..<2 { dragPageUp() }
+        capture(app, "Interaction-v05-4-scrolled-under-glass")
+        for _ in 0..<14 { dragPageUp() }
+        capture(app, "Interaction-v05-5-scrolled-to-end")
+        let last = app.staticTexts["parenting.storageBoundary"]
+        XCTAssertTrue(last.exists, app.debugDescription)
+        XCTAssertLessThanOrEqual(last.frame.maxY, bar.frame.minY + 1, "The last item must stop above the floating bars at the end of the page.")
+        tab(app, "growth")
+        capture(app, "Interaction-v05-6-growth-tab")
+        tab(app, "family")
+        capture(app, "Interaction-v05-7-family-tab")
+    }
+
+    func testInteractionFloatingTabBarAtLargestAccessibilityText() {
+        let app = launch("p0-ui-parenting-success", display: ["CATPAW_UI_TEST_TEXT_SIZE": "accessibility5"])
+        addChild(app, name: "团团")
+        XCTAssertTrue(app.buttons["parenting.tab.today"].isHittable, app.debugDescription)
+        XCTAssertTrue(app.textFields["parenting.natural.field"].isHittable, app.debugDescription)
+        capture(app, "Interaction-v05-8-accessibility5-floating-bars")
+        tab(app, "growth")
+        capture(app, "Interaction-v05-9-accessibility5-growth")
+    }
+
     func testSyntheticDarkLargeTextEmptyAndEditorSmoke() {
         let app = launch("p0-ui-parenting-success", display: [
             "CATPAW_UI_TEST_TEXT_SIZE": "accessibility5",
@@ -591,10 +650,21 @@ final class ParentingWorkspaceUITests: XCTestCase {
         // A missing sheet is a presentation failure, not a field to find by scrolling the Home screen.
         wait { app.textFields["parenting.goal.title"].exists }
     }
+    /// Navigation is 今天｜成长｜我们家. Older journeys say "records" for the observation/completion list; that list is now
+    /// the 成长 tab's timeline, and "growth" means its goals view.
     private func tab(_ app: XCUIApplication, _ name: String) {
-        let button = app.buttons["parenting.tab." + name]
+        let target = (name == "records" || name == "growth") ? "growth" : name
+        // The tab bar floats as a glass capsule over the page; it must stay reachable above scrolled content.
+        let button = app.buttons["parenting.tab." + target]
         XCTAssertTrue(button.waitForExistence(timeout: 5), app.debugDescription)
+        wait { button.isHittable }
         button.tap()
+        wait { button.isSelected }
+        if name == "records" || name == "growth" {
+            let mode = app.buttons["parenting.growth.mode." + (name == "records" ? "timeline" : "goals")]
+            XCTAssertTrue(mode.waitForExistence(timeout: 5), app.debugDescription)
+            mode.tap()
+        }
         // reveal() locates the next target without pulling the refreshable Home past its top edge.
     }
     private func requestAndAllow(_ app: XCUIApplication) {
@@ -765,8 +835,13 @@ final class ParentingWorkspaceUITests: XCTestCase {
                 }
             }
             let appFrame = app.frame
-            let tabTop = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "parenting.tab."))
-                .allElementsBoundByIndex.filter { $0.isHittable }.map { $0.frame.minY }.min()
+            // The natural-input bar sits above the tab bar; content behind it is not reachable.
+            let bar = app.otherElements["parenting.natural.bar"]
+            // A sheet covers the bar without removing it; only a reachable bar clips the viewport.
+            let composerTop: CGFloat? = (bar.exists && bar.isHittable) ? bar.frame.minY : nil
+            // The floating bars overlay the scroller, so everything under their top edge is covered.
+            let tabTop = (app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "parenting.tab."))
+                .allElementsBoundByIndex.filter { $0.isHittable }.map { $0.frame.minY } + [composerTop].compactMap { $0 }).min()
             let bounds = ViewportBounds(appFrame: appFrame, navigationFrames: navigationFrames,
                                         tabTop: tabTop, inputPanelTop: inputPanelTop(app, appFrame: appFrame))
             let scroll = scrollingElement(app, bounds: bounds)
@@ -837,7 +912,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
     }
     private func capture(_ app: XCUIApplication, _ stage: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "Synthetic-Parenting-M1-" + stage
+        attachment.name = stage.hasPrefix("Interaction-") ? stage : "Synthetic-Parenting-M1-" + stage
         attachment.lifetime = .keepAlways
         add(attachment)
     }
