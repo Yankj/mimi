@@ -16,49 +16,6 @@ extension View {
     func parentingGlass<S: InsettableShape>(in shape: S) -> some View { modifier(ParentingGlassSurface(shape: shape)) }
 }
 
-// MARK: - Voice hook (the composer owns the layout; a voice feature plugs in here)
-
-/// Live state the composer shows while a voice session runs: `parenting.composer.listening` and `parenting.composer.transcript`.
-@MainActor final class ParentingComposerVoiceState: ObservableObject {
-    @Published var isListening = false
-    @Published var transcript = ""
-}
-
-/// Install with `.environment(\.parentingComposerAccessory, impl)` on the parenting home. `micControl` replaces the hold-to-talk
-/// placeholder capsule (give it identifier `parenting.composer.mic`); `finish` receives the final transcript, which the
-/// composer hands to the same confirm-card flow as typed text. Nothing is recorded or saved by the composer itself.
-@MainActor protocol ParentingComposerAccessory {
-    var voiceState: ParentingComposerVoiceState { get }
-    func micControl(finish: @escaping (String) -> Void) -> AnyView
-}
-struct ParentingComposerAccessoryKey: EnvironmentKey { static let defaultValue: (any ParentingComposerAccessory)? = nil }
-extension EnvironmentValues {
-    var parentingComposerAccessory: (any ParentingComposerAccessory)? {
-        get { self[ParentingComposerAccessoryKey.self] }
-        set { self[ParentingComposerAccessoryKey.self] = newValue }
-    }
-}
-
-private struct ParentingVoiceStrip: View {
-    @ObservedObject var state: ParentingComposerVoiceState
-    @Environment(\.locale) private var locale
-    var body: some View {
-        if state.isListening {
-            VStack(alignment: .leading, spacing: 4) {
-                Label(AppLanguage(locale: locale).ui("正在听…"), systemImage: "waveform")
-                    .font(catTypography.Role.caption.font.weight(.medium)).foregroundStyle(catColors.actionText)
-                    .accessibilityIdentifier("parenting.composer.listening")
-                if !state.transcript.isEmpty {
-                    Text(verbatim: state.transcript).font(.body).foregroundStyle(catColors.ink).lineLimit(3)
-                        .accessibilityIdentifier("parenting.composer.transcript")
-                }
-            }
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
 // MARK: - Bottom composer (Today / Growth)
 
 /// One input box. The parent says what is on their mind; sorting it into 录入 / 规划 / 复盘 happens behind the scenes.
@@ -73,15 +30,15 @@ private struct ParentingVoiceStrip: View {
     var onManualObservation: (() -> Void)?
     @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.parentingComposerAccessory) private var accessory
     @FocusState private var focused: Bool
-    @State private var keyboardMode = false
+    /// Voice-first input (S1b): idle is hold-to-talk; see ParentingVoiceControls.swift.
+    @StateObject private var voice = ParentingVoiceState()
 
     private func ui(_ key: String) -> String { AppLanguage(locale: locale).ui(key) }
     private func ui(_ key: String, _ arguments: [String]) -> String { AppLanguage(locale: locale).ui(key, arguments: arguments) }
 
     /// The keyboard goes away when the words are handed to the card sheet, so the page and floating bars are visible again afterwards.
-    private func handOver() { focused = false; onSubmit() }
+    private func handOver() { voice.dictation.stopNow(); focused = false; onSubmit() }
 
     private struct Starter: Identifiable { let id: String; let label: String; let text: String; let sendsNow: Bool }
     private var starters: [Starter] {
@@ -99,7 +56,7 @@ private struct ParentingVoiceStrip: View {
                 ForEach(starters) { starter in
                     Button {
                         input.draft = starter.text
-                        if starter.sendsNow { handOver() } else { focused = true }
+                        if starter.sendsNow { handOver() } else { voice.setMode(.keyboard); focused = true }
                     } label: {
                         Text(ui(starter.label)).font(catTypography.Role.caption.font.weight(.medium))
                             .padding(.horizontal, 12).frame(minHeight: 36)
@@ -143,26 +100,34 @@ private struct ParentingVoiceStrip: View {
 
     // MARK: Layout: one glass card; idle is a single line (+ · hold-to-talk · keyboard)
 
-    private var keyboardActive: Bool { keyboardMode || dynamicTypeSize.isAccessibilitySize }
+    private var keyboardActive: Bool { voice.mode == .keyboard }
     private var expanded: Bool { keyboardActive && (focused || !input.draft.isEmpty) && !dynamicTypeSize.isAccessibilitySize }
+
+    private var sendButton: some View {
+        Button(action: handOver) {
+            Image(systemName: "arrow.up").font(.body.weight(.semibold)).frame(width: 40, height: 40)
+                .foregroundStyle(catColors.calmGlyph)
+                .background(input.canSubmit && !busy ? catColors.calmCTATop : catColors.fillSelected, in: Circle())
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .disabled(!input.canSubmit || busy)
+        .accessibilityLabel(ui("交给小咪"))
+        .accessibilityIdentifier("parenting.natural.send")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let accessory { ParentingVoiceStrip(state: accessory.voiceState) }
             if expanded {
                 chipsRow
                 suggestionRow
             }
-            HStack(alignment: .center, spacing: 6) {
+            HStack(alignment: .bottom, spacing: 6) {
                 plusMenu
-                if keyboardActive {
+                ParentingVoiceInputRow(input: input, state: voice, busy: busy, focused: $focused, onSend: handOver, field: {
                     textField
                         .background(catColors.fillSelected.opacity(0.7), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    trailingButton
-                } else {
-                    holdToTalk
-                    keyboardToggle
-                }
+                }, sendButton: { sendButton })
             }
         }
         .padding(.horizontal, 8).padding(.vertical, 8)
@@ -170,13 +135,16 @@ private struct ParentingVoiceStrip: View {
         .animation(.snappy(duration: 0.22), value: expanded)
         .animation(.snappy(duration: 0.22), value: keyboardActive)
         .frame(maxWidth: 520)
+        // At accessibility sizes the capsule is too small to hold: keyboard only.
+        .onAppear { if dynamicTypeSize.isAccessibilitySize { voice.setMode(.keyboard) } }
+        .onChange(of: dynamicTypeSize) { _, size in if size.isAccessibilitySize { voice.setMode(.keyboard) } }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("parenting.natural.bar")
     }
 
-    private func switchMode(toKeyboard: Bool) {
-        keyboardMode = toKeyboard
-        if toKeyboard { DispatchQueue.main.async { focused = true } } else { focused = false }
+    private func switchToKeyboard() {
+        voice.setMode(.keyboard)
+        DispatchQueue.main.async { focused = true }
     }
 
     private var plusMenu: some View {
@@ -184,7 +152,7 @@ private struct ParentingVoiceStrip: View {
             ForEach(starters) { starter in
                 Button(ui(starter.label)) {
                     input.draft = starter.text
-                    if starter.sendsNow { handOver() } else { switchMode(toKeyboard: true) }
+                    if starter.sendsNow { handOver() } else { switchToKeyboard() }
                 }
                 .accessibilityIdentifier("parenting.natural.chip." + starter.id)
             }
@@ -201,60 +169,6 @@ private struct ParentingVoiceStrip: View {
         .disabled(busy)
         .accessibilityLabel(ui("更多"))
         .accessibilityIdentifier("parenting.plus.menu")
-    }
-
-    /// Voice-first layout. Until a voice accessory is installed the capsule only opens the keyboard (nothing is recorded).
-    @ViewBuilder private var holdToTalk: some View {
-        if let accessory {
-            accessory.micControl { text in
-                input.draft = text
-                if input.canSubmit && !busy { handOver() }
-            }
-            .frame(maxWidth: .infinity, minHeight: 44)
-        } else {
-            Button { switchMode(toKeyboard: true) } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "mic.fill")
-                    Text(ui("按住说话")).font(.body.weight(.semibold))
-                }
-                .foregroundStyle(catColors.ink)
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .background(catColors.fillSelected.opacity(0.7), in: Capsule())
-                .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .disabled(busy)
-            .accessibilityHint(ui("语音输入暂未开放，点这里改用键盘"))
-            .accessibilityIdentifier("parenting.composer.mic")
-        }
-    }
-
-    private var keyboardToggle: some View {
-        Button { switchMode(toKeyboard: !keyboardActive) } label: {
-            Image(systemName: keyboardActive ? "mic" : "keyboard").font(.title3).foregroundStyle(catColors.ink)
-                .frame(width: 44, height: 44).contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(ui(keyboardActive ? "切换到语音" : "切换到键盘"))
-        .accessibilityIdentifier("parenting.composer.keyboardToggle")
-    }
-
-    /// Send while there are words; otherwise the way back to voice.
-    @ViewBuilder private var trailingButton: some View {
-        if input.canSubmit || dynamicTypeSize.isAccessibilitySize {
-            Button(action: handOver) {
-                Image(systemName: "arrow.up").font(.body.weight(.semibold)).frame(width: 40, height: 40)
-                    .foregroundStyle(catColors.calmGlyph)
-                    .background(input.canSubmit && !busy ? catColors.calmCTATop : catColors.fillSelected, in: Circle())
-                    .frame(width: 44, height: 44)
-            }
-            .buttonStyle(.plain)
-            .disabled(!input.canSubmit || busy)
-            .accessibilityLabel(ui("交给小咪"))
-            .accessibilityIdentifier("parenting.natural.send")
-        } else {
-            keyboardToggle
-        }
     }
 
     /// Grey, Tab-style read-back of what the draft would become. It is a suggestion only; nothing is saved until the card is confirmed.
