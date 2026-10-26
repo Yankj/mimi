@@ -217,7 +217,7 @@ let voiceChatLog = Logger(subsystem: "catpaw", category: "voiceChat")
                         Button { voiceChat.exit() } label: { Image(systemName: "xmark").font(catTypography.Role.caption.font) }
                             .accessibilityLabel(ui("结束语音对话")).accessibilityIdentifier("chat.voiceChat.capsule.close")
                     }
-                    .padding(.horizontal, 12).padding(.vertical, 8).background(.regularMaterial, in: Capsule())
+                    .padding(.horizontal, 12).padding(.vertical, 8).catGlass(in: Capsule())
                     .fixedSize(horizontal: false, vertical: true).frame(width: 300, alignment: .trailing).offset(y: -56)
                     .accessibilityElement(children: .contain).accessibilityIdentifier("chat.voiceChat.capsule")
                 }
@@ -225,7 +225,7 @@ let voiceChatLog = Logger(subsystem: "catpaw", category: "voiceChat")
             .overlay(alignment: .top) {
                 if comingSoon {
                     Text(ui("语音对话即将支持")).font(catTypography.Role.caption.font).foregroundStyle(catColors.ink)
-                        .padding(.horizontal, 12).padding(.vertical, 6).background(.regularMaterial, in: Capsule())
+                        .padding(.horizontal, 12).padding(.vertical, 6).catGlass(in: Capsule())
                         .fixedSize().offset(y: -44).transition(.opacity).accessibilityIdentifier("chat.composer.voice.comingSoon")
                 }
             }
@@ -236,7 +236,7 @@ let voiceChatLog = Logger(subsystem: "catpaw", category: "voiceChat")
                         Text(noticeMessage).font(catTypography.Role.caption.font).foregroundStyle(catColors.ink).lineLimit(3).fixedSize(horizontal: false, vertical: true)
                         if dictation.notice == .permissionDenied { Button(ui("去设置")) { ComposerDictation.openSettings() }.font(catTypography.Role.caption.font.weight(.semibold)) }
                     }
-                    .padding(.horizontal, 12).padding(.vertical, 8).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .padding(.horizontal, 12).padding(.vertical, 8).catGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     // Anchored to the narrow mic button: give the hint its own width so it never truncates.
                     .fixedSize(horizontal: false, vertical: true).frame(width: 280, alignment: .trailing).offset(y: -56)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -248,7 +248,7 @@ let voiceChatLog = Logger(subsystem: "catpaw", category: "voiceChat")
             .overlay(alignment: .topTrailing) {
                 if let voiceChatNotice {
                     Text(voiceChatNotice).font(catTypography.Role.caption.font).foregroundStyle(catColors.ink).lineLimit(3).fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 12).padding(.vertical, 8).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .padding(.horizontal, 12).padding(.vertical, 8).catGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .fixedSize(horizontal: false, vertical: true).frame(width: 280, alignment: .trailing).offset(y: -56)
                         .onTapGesture { self.voiceChatNotice = nil }
                         .task(id: voiceChatNotice) { try? await Task.sleep(nanoseconds: 4_000_000_000); withAnimation { self.voiceChatNotice = nil } }

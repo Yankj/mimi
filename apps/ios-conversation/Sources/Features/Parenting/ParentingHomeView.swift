@@ -187,6 +187,7 @@ import Combine
                     // The bars float over the page: content scrolls under the glass, and these margins keep the last item reachable.
                     .contentMargins(.bottom, floatingBars ? floatingBarHeight + 8 : 0, for: .scrollContent)
                     .scrollDismissesKeyboard(.interactively)
+                    .catSoftScrollEdges()
                     .contentMargins(.bottom, floatingBars ? floatingBarHeight : 0, for: .scrollIndicators)
                     .refreshable { await model.load() }
                 }

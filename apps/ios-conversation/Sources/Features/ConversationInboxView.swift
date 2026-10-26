@@ -159,7 +159,7 @@ enum ConversationInboxReturnResult {case returned,unavailable(String)}
         if allowed && model.matches(service: service, item: item), let goal = model.goal, let artifact {
             ConversationArtifactReaderView(goal: goal, selectedArtifact: artifact)
                 .safeAreaInset(edge: .top) { artifactReadStatus }
-                .overlay(alignment: .top) { if model.loading { ProgressView().padding(8).background(.regularMaterial, in: Capsule()) } }
+                .overlay(alignment: .top) { if model.loading { ProgressView().padding(8).catGlass(in: Capsule()) } }
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {

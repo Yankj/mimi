@@ -360,3 +360,10 @@ struct catGlassButtonBackground<S: InsettableShape>: ViewModifier {
         }
     }
 }
+
+extension View {
+    /// Content scrolls under floating glass bars: the system soft edge effect on iOS 26+, no-op before.
+    @ViewBuilder func catSoftScrollEdges() -> some View {
+        if #available(iOS 26.0, *) { self.scrollEdgeEffectStyle(.soft, for: .all) } else { self }
+    }
+}
