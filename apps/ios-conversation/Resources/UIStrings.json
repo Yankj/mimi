@@ -8942,5 +8942,85 @@
   "新安排": {
     "en": "New arrangement",
     "zh-Hans": "新安排"
+  },
+  "在听…": {
+    "en": "Listening…",
+    "zh-Hans": "在听…"
+  },
+  "清除": {
+    "en": "Clear",
+    "zh-Hans": "清除"
+  },
+  "切换到键盘输入": {
+    "en": "Switch to keyboard",
+    "zh-Hans": "切换到键盘输入"
+  },
+  "切换到语音输入": {
+    "en": "Switch to voice input",
+    "zh-Hans": "切换到语音输入"
+  },
+  "停止说话": {
+    "en": "Stop talking",
+    "zh-Hans": "停止说话"
+  },
+  "按住说话": {
+    "en": "Hold to talk",
+    "zh-Hans": "按住说话"
+  },
+  "双击开始说话，再双击完成": {
+    "en": "Double-tap to start talking, double-tap again to finish",
+    "zh-Hans": "双击开始说话，再双击完成"
+  },
+  "正在准备语音模型…": {
+    "en": "Preparing the speech model…",
+    "zh-Hans": "正在准备语音模型…"
+  },
+  "再点一下完成": {
+    "en": "Tap again to finish",
+    "zh-Hans": "再点一下完成"
+  },
+  "松开发送": {
+    "en": "Release to send",
+    "zh-Hans": "松开发送"
+  },
+  "松开取消": {
+    "en": "Release to cancel",
+    "zh-Hans": "松开取消"
+  },
+  "上滑发送 · 左滑取消": {
+    "en": "Swipe up to send · swipe left to cancel",
+    "zh-Hans": "上滑发送 · 左滑取消"
+  },
+  "说话": {
+    "en": "Talk",
+    "zh-Hans": "说话"
+  },
+  "小咪的语音识别只在你的手机上完成，不会上传。接下来 iOS 会请你允许麦克风和语音识别。": {
+    "en": "mimi recognizes your voice on this phone only; nothing is uploaded. Next, iOS will ask you to allow the microphone and speech recognition.",
+    "zh-Hans": "小咪的语音识别只在你的手机上完成，不会上传。接下来 iOS 会请你允许麦克风和语音识别。"
+  },
+  "改用键盘": {
+    "en": "Use the keyboard",
+    "zh-Hans": "改用键盘"
+  },
+  "需要麦克风和语音识别权限才能说话。可以在“设置”里开启，或直接打字。": {
+    "en": "Talking needs microphone and speech recognition access. You can turn it on in Settings, or just type.",
+    "zh-Hans": "需要麦克风和语音识别权限才能说话。可以在“设置”里开启，或直接打字。"
+  },
+  "这台手机暂时用不了本机语音识别，小咪不会改用在线识别。可以点键盘，用系统键盘上的麦克风听写。": {
+    "en": "On-device speech recognition isn't available on this phone right now, and mimi won't switch to online recognition. Tap the keyboard and use the microphone on the system keyboard to dictate.",
+    "zh-Hans": "这台手机暂时用不了本机语音识别，小咪不会改用在线识别。可以点键盘，用系统键盘上的麦克风听写。"
+  },
+  "没听清，可能是周围太吵。再说一次，或点键盘打字。": {
+    "en": "Couldn't make that out — it may be too noisy. Try again, or tap the keyboard to type.",
+    "zh-Hans": "没听清，可能是周围太吵。再说一次，或点键盘打字。"
+  },
+  "没听到内容。再说一次，或点键盘打字。": {
+    "en": "Didn't hear anything. Try again, or tap the keyboard to type.",
+    "zh-Hans": "没听到内容。再说一次，或点键盘打字。"
+  },
+  "语音被打断了，已听到的内容保留在上面，可以接着改或再说一次。": {
+    "en": "Voice input was interrupted. What was heard is kept above; edit it or say it again.",
+    "zh-Hans": "语音被打断了，已听到的内容保留在上面，可以接着改或再说一次。"
   }
 }

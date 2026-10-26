@@ -37,12 +37,14 @@ extension View {
     @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @FocusState private var focused: Bool
+    /// Voice-first input (S1b): the row below starts as hold-to-talk; see ParentingVoiceControls.swift.
+    @StateObject private var voice = ParentingVoiceState()
 
     private func ui(_ key: String) -> String { AppLanguage(locale: locale).ui(key) }
     private func ui(_ key: String, _ arguments: [String]) -> String { AppLanguage(locale: locale).ui(key, arguments: arguments) }
 
     /// The keyboard goes away when the words are handed to the card sheet, so the page and floating bars are visible again afterwards.
-    private func handOver() { focused = false; onSubmit() }
+    private func handOver() { voice.dictation.stopNow(); focused = false; onSubmit() }
 
     private struct Starter: Identifiable { let id: String; let label: String; let text: String; let sendsNow: Bool }
     private var starters: [Starter] {
@@ -61,7 +63,7 @@ extension View {
                     ForEach(starters) { starter in
                         Button {
                             input.draft = starter.text
-                            if starter.sendsNow { handOver() } else { focused = true }
+                            if starter.sendsNow { handOver() } else { voice.setMode(.keyboard); focused = true }
                         } label: {
                             Text(ui(starter.label)).font(catTypography.Role.caption.font.weight(.medium))
                                 .padding(.horizontal, 12).frame(minHeight: 36)
@@ -91,7 +93,7 @@ extension View {
                 .disabled(busy)
                 .accessibilityIdentifier("parenting.natural.suggestion")
             }
-            HStack(alignment: .bottom, spacing: 10) {
+            ParentingVoiceInputRow(input: input, state: voice, busy: busy, focused: $focused, field: {
                 TextField(ui("说说想让小咪记的事，例如：团团周五游泳改到六点了"), text: $input.draft, axis: .vertical)
                     .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 1 : 3))
                     .focused($focused)
@@ -101,6 +103,7 @@ extension View {
                     .background(catColors.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(catColors.hairline, lineWidth: 0.5))
                     .accessibilityIdentifier("parenting.natural.field")
+            }, sendButton: {
                 Button(action: handOver) {
                     Image(systemName: "arrow.up").frame(width: 44, height: 44)
                         .foregroundStyle(catColors.calmGlyph)
@@ -109,7 +112,7 @@ extension View {
                 .disabled(!input.canSubmit || busy)
                 .accessibilityLabel(ui("交给小咪"))
                 .accessibilityIdentifier("parenting.natural.send")
-            }
+            })
         }
         .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 10)
         .parentingGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous))

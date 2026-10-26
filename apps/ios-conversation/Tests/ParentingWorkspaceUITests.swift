@@ -331,9 +331,9 @@ final class ParentingWorkspaceUITests: XCTestCase {
     func testInteractionScreenshotsConfirmCardTimelineAndFloatingTabBar() {
         let app = launch("p0-ui-parenting-success")
         addChild(app, name: "团团")
-        let field = app.textFields["parenting.natural.field"]
         let entries = ["团团今天下午5点游泳", "团团今天晚上8点练钢琴", "团团今天晚上9点洗澡"]
         for (index, text) in entries.enumerated() {
+            let field = keyboardField(app)
             XCTAssertTrue(field.waitForExistence(timeout: 10), app.debugDescription)
             wait { field.isHittable }
             field.tap()
@@ -379,7 +379,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         let app = launch("p0-ui-parenting-success", display: ["CATPAW_UI_TEST_TEXT_SIZE": "accessibility5"])
         addChild(app, name: "团团")
         XCTAssertTrue(app.buttons["parenting.tab.today"].isHittable, app.debugDescription)
-        XCTAssertTrue(app.textFields["parenting.natural.field"].isHittable, app.debugDescription)
+        XCTAssertTrue(keyboardField(app).isHittable, app.debugDescription)
         capture(app, "Interaction-v05-8-accessibility5-floating-bars")
         tab(app, "growth")
         capture(app, "Interaction-v05-9-accessibility5-growth")
@@ -797,6 +797,17 @@ final class ParentingWorkspaceUITests: XCTestCase {
         field.tap()
         field.typeText(text)
         XCTAssertEqual(field.value as? String, text, app.debugDescription)
+    }
+    /// Voice-first composer (S1b): the composer starts as hold-to-talk, so the typing field is one tap on the keyboard toggle away.
+    private func keyboardField(_ app: XCUIApplication) -> XCUIElement {
+        let field = app.textFields["parenting.natural.field"]
+        if !field.exists {
+            let toggle = app.buttons["parenting.composer.keyboardToggle"]
+            XCTAssertTrue(toggle.waitForExistence(timeout: 10), app.debugDescription)
+            wait { toggle.isHittable }
+            toggle.tap()
+        }
+        return field
     }
     private func element(_ app: XCUIApplication, _ id: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: id).firstMatch
