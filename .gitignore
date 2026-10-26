@@ -57,3 +57,12 @@ __pycache__/
 
 # product site moved to heydusk-site; never commit local leftovers
 apps/website/dist/
+
+# Prevent re-adding historically huge launch / website media (already deleted from HEAD;
+# copies still live in Git history until an approved filter-repo rewrite).
+docs/launch/
+*.mp4
+
+# SwiftPM / Xcode local caches not already covered
+**/.swiftpm/xcode/
+**/SourcePackages/
