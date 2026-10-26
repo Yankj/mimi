@@ -21,7 +21,7 @@ import Combine
     @StateObject private var natural = ParentingNaturalInputModel()
     @State private var naturalPresented = false
     @State private var pendingSheet: ParentingSheet?
-    @State private var growthMode: ParentingGrowthMode = .timeline
+    @State private var growthMode: ParentingGrowthMode?
     @State private var expandedEntryIDs: Set<UUID> = []
     @State private var familyPath: [ParentingFamilyRoute] = []
     @State private var deletion: ParentingDeletion?
@@ -68,6 +68,7 @@ import Combine
             await model.load()
         }
         .onChange(of: catRouteCenter.shared.pending) { _, _ in openPendingRoute() }
+        .onChange(of: tab) { _, newTab in if newTab != .growth { growthMode = nil } }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { now = $0 }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { now = Date(); Task { await model.refreshReminders() } }
@@ -199,6 +200,7 @@ import Combine
             .foregroundStyle(catColors.ink)
             .navigationTitle(ui(item.title))
             .navigationBarTitleDisplayMode(.large)
+            .navigationDestination(item: item == .growth ? $growthMode : Binding<ParentingGrowthMode?>.constant(nil)) { mode in growthDestination(mode) }
             .toolbar { pageToolbar(for: item) }
             .navigationDestination(for: ParentingFamilyRoute.self) { route in
                 switch route {
@@ -617,88 +619,6 @@ import Combine
             .accessibilityIdentifier("parenting.complete.\(item.id)")
     }
 
-    @ViewBuilder private var growthContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(ui("留一条成长的线索")).font(.title2.weight(.semibold))
-            Text(ui("目标由你定义。安排是打算做的事，观察和完成记录是已经记下的事。"))
-                .font(.subheadline).foregroundStyle(catColors.calmSecondary)
-        }
-        if workspace.children.isEmpty { firstChildEmpty }
-        else {
-            growthChildSelector
-            if let child = activeChild {
-                HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: "person.crop.circle").font(.largeTitle).foregroundStyle(catColors.actionText).accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(verbatim: child.name).font(.title3.weight(.semibold))
-                        Text(verbatim: ui("开始记录于") + " " + child.createdAt.formatted(date: .abbreviated, time: .omitted))
-                            .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
-                    }
-                    Spacer(minLength: 0)
-                    Menu {
-                        Button(ui("修改昵称")) { sheet = .editChild(child) }
-                        Button(ui("删除孩子"), role: .destructive) { deletion = .child(child.id) }
-                    } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
-                    .accessibilityLabel(ui("孩子资料操作")).disabled(model.busy)
-                }.parentingCard()
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text(ui("成长目标")).font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
-                        Spacer()
-                        Button { sheet = .newGoal(child.id) } label: {
-                            Label(ui("添加目标"), systemImage: "plus")
-                                .font(.subheadline).frame(minWidth: 46, minHeight: 46)
-                                .contentShape(Rectangle())
-                        }
-                            .buttonStyle(.plain).disabled(model.busy)
-                            .accessibilityIdentifier("parenting.addGoal")
-                    }
-                    if childGoals.isEmpty {
-                        Text(ui("还没有成长目标。也可以先记观察，之后再建立目标。"))
-                            .font(.subheadline).foregroundStyle(catColors.calmSecondary).parentingCard()
-                    } else {
-                        ForEach(childGoals) { goal in
-                            HStack(alignment: .top, spacing: 10) {
-                                Button {
-                                    selectedGoalID = selectedGoalID == goal.id ? nil : goal.id
-                                } label: {
-                                    HStack(alignment: .top, spacing: 9) {
-                                        Image(systemName: selectedGoalID == goal.id ? "leaf.fill" : "leaf")
-                                            .foregroundStyle(catColors.actionText).padding(.top, 2)
-                                        VStack(alignment: .leading, spacing: 5) {
-                                            Text(verbatim: goal.title).font(.headline).foregroundStyle(catColors.ink)
-                                            Text(ui(selectedGoalID == goal.id ? "正在回顾这个目标" : "查看相关安排与记录"))
-                                                .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
-                                        }
-                                        Spacer(minLength: 0)
-                                    }
-                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                    .contentShape(Rectangle())
-                                }.buttonStyle(.plain)
-                                    .accessibilityIdentifier("parenting.goal.\(goal.id)")
-                                Button(role: .destructive) { deletion = .goal(goal.id) } label: {
-                                    Image(systemName: "trash").frame(width: 44, height: 44)
-                                }.accessibilityLabel(ui("删除目标")).disabled(model.busy)
-                            }.parentingCard()
-                        }
-                    }
-                }
-                growthReview(child)
-            }
-        }
-    }
-
-    private var growthChildSelector: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack { growthPicker; Spacer(); addChildButton }
-            VStack(alignment: .leading) { growthPicker; addChildButton }
-        }
-    }
-    private var growthPicker: some View {
-        Picker(ui("选择孩子"), selection: Binding(get: { activeChild?.id }, set: { selectedChildID = $0 })) {
-            ForEach(workspace.children) { child in Text(verbatim: child.name).tag(Optional(child.id)) }
-        }.pickerStyle(.menu)
-    }
     private var addChildButton: some View {
         Button(ui("添加孩子"), systemImage: "plus") { sheet = .newChild }
             .font(.subheadline).frame(minHeight: 44).disabled(model.busy)
@@ -737,60 +657,58 @@ import Combine
         }
     }
 
-    /// 成长时间线: observations and completion records, newest day first. This replaces the old separate 记录 tab.
-    @ViewBuilder private var recordsContent: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Text(ui("把发生过的事留住")).font(.title2.weight(.semibold))
-            Text(ui("日常观察和家长标记完成的内容分开保存，可回看原话、修正或删除。"))
-                .font(.subheadline).foregroundStyle(catColors.calmSecondary)
-        }
+    /// 成长: the home shows one recommended start action and one picture of the week; goals and the timeline are pushed sub pages.
+    @ViewBuilder private var growthTabContent: some View {
         if workspace.children.isEmpty { firstChildEmpty }
         else {
-            childFilter
-            Picker(ui("记录类型"), selection: $recordFilter) {
-                ForEach(ParentingRecordFilter.allCases) { filter in Text(ui(filter.title)).tag(filter) }
-            }.pickerStyle(.segmented)
-            let timeline = ParentingGrowthTimeline.build(
-                workspace: workspace, childID: selectedChildID,
-                filter: recordFilter == .all ? .all : (recordFilter == .observation ? .observation : .completion))
-            if timeline.isEmpty {
-                Text(ui("这里还没有记录。观察可以直接保存；安排完成后会生成独立的完成记录。"))
-                    .font(.subheadline).foregroundStyle(catColors.calmSecondary).parentingCard()
-            }
-            ForEach(timeline.days) { day in
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 8) {
-                        Circle().fill(catColors.action).frame(width: 8, height: 8).accessibilityHidden(true)
-                        Text(verbatim: day.day.formatted(.dateTime.month().day().weekday(.wide)))
-                            .font(.subheadline.weight(.semibold)).accessibilityAddTraits(.isHeader)
-                    }
-                    ForEach(day.records) { record in recordCard(record) }
-                }
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("parenting.growth.day." + String(Int(day.day.timeIntervalSince1970)))
-            }
+            ParentingGrowthHomeView(workspace: workspace, childID: activeChild?.id, now: now, busy: model.busy, actions: growthHomeActions)
         }
     }
 
-    /// 成长: one page, two ways to look. The timeline is the default; goals keep their review.
-    @ViewBuilder private var growthTabContent: some View {
-        HStack(spacing: 8) {
-            ForEach(ParentingGrowthMode.allCases) { mode in
-                Button { growthMode = mode } label: {
-                    Text(ui(mode.title)).font(.subheadline.weight(growthMode == mode ? .semibold : .regular))
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(growthMode == mode ? catColors.action.opacity(0.12) : catColors.fillSelected.opacity(0.6),
-                                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .foregroundStyle(growthMode == mode ? catColors.actionText : catColors.ink)
+    private var growthHomeActions: ParentingGrowthHomeActions {
+        ParentingGrowthHomeActions(
+            selectChild: { selectedChildID = $0; selectedGoalID = nil },
+            addChild: { sheet = .newChild },
+            addObservation: { sheet = .newObservation($0, $1) },
+            addGoal: { sheet = .newGoal($0) },
+            openGoals: { selectedChildID = activeChild?.id; growthMode = .goals },
+            openTimeline: { selectedChildID = activeChild?.id; recordFilter = .all; growthMode = .timeline },
+            renameChild: { sheet = .editChild($0) },
+            deleteChild: { deletion = .child($0) })
+    }
+
+    private var growthFilterBinding: Binding<ParentingGrowthTimeline.Filter> {
+        Binding(
+            get: {
+                switch recordFilter {
+                case .all: return .all
+                case .observation: return .observation
+                case .completion: return .completion
                 }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(growthMode == mode ? [.isSelected] : [])
-                .accessibilityIdentifier("parenting.growth.mode." + mode.rawValue)
+            },
+            set: { value in
+                switch value {
+                case .all: recordFilter = .all
+                case .observation: recordFilter = .observation
+                case .completion: recordFilter = .completion
+                }
+            })
+    }
+
+    @ViewBuilder private func growthDestination(_ mode: ParentingGrowthMode) -> some View {
+        switch mode {
+        case .timeline:
+            ParentingGrowthTimelinePage(
+                workspace: workspace, childID: selectedChildID, filter: growthFilterBinding, now: now, busy: model.busy,
+                onAddObservation: { sheet = .newObservation(selectedChildID, nil) },
+                header: { childFilter }, recordCard: { recordCard($0) })
+        case .goals:
+            if let child = activeChild {
+                ParentingGrowthGoalsPage(
+                    workspace: workspace, child: child, now: now, selectedGoalID: selectedGoalID, busy: model.busy,
+                    onSelect: { selectedGoalID = $0 }, onAdd: { sheet = .newGoal(child.id) }, onDelete: { deletion = .goal($0) },
+                    review: { growthReview(child) })
             }
-        }
-        switch growthMode {
-        case .timeline: recordsContent
-        case .goals: growthContent
         }
     }
 
