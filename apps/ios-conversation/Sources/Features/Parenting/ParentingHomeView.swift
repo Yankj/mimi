@@ -8,6 +8,7 @@ import Combine
     private let accountLabel: String?
     private let onSignOut: (() -> Void)?
     private let isAnonymousAccount: Bool
+    private let launchChecklist: any FamilyLaunchChecklistProviding
     @Environment(\.locale) private var locale
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
@@ -22,7 +23,7 @@ import Combine
     @State private var pendingSheet: ParentingSheet?
     @State private var growthMode: ParentingGrowthMode = .timeline
     @State private var expandedEntryIDs: Set<UUID> = []
-    @State private var settingsPresented = false
+    @State private var familyPath: [ParentingFamilyRoute] = []
     @State private var deletion: ParentingDeletion?
     @State private var undoReview: ParentingUndoReview?
     @State private var operations: [String: UUID] = [:]
@@ -33,13 +34,15 @@ import Combine
     @State private var floatingBarHeight: CGFloat = 0
 
     init(model: ConversationFirstModel, workspaceModel: ParentingWorkspaceModel? = nil, accountLabel: String? = nil,
-         onSignOut: (() -> Void)? = nil, isAnonymousAccount: Bool = false) {
+         onSignOut: (() -> Void)? = nil, isAnonymousAccount: Bool = false,
+         launchChecklist: any FamilyLaunchChecklistProviding = PlaceholderFamilyLaunchChecklist()) {
         _conversationModel = ObservedObject(wrappedValue: model)
         _model = StateObject(wrappedValue: workspaceModel ?? ParentingWorkspaceModel(
             repository: model.repository, scope: model.scope, subjectID: model.trustedSubjectID))
         self.accountLabel = accountLabel
         self.onSignOut = onSignOut
         self.isAnonymousAccount = isAnonymousAccount
+        self.launchChecklist = launchChecklist
     }
 
     private func ui(_ key: String) -> String { AppLanguage(locale: locale).ui(key) }
@@ -58,7 +61,7 @@ import Combine
     private var selectedGoal: ParentingGoal? { childGoals.first { $0.id == selectedGoalID } }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $familyPath) {
             Group {
                 if !model.loaded { loadState }
                 else {
@@ -70,7 +73,8 @@ import Combine
                             case .growth: growthTabContent
                             case .family: familyContent
                             }
-                            localStorageNote
+                            // 我们家 keeps this boundary on its 设置 page (数据与边界) instead of the home page.
+                            if tab != .family { localStorageNote }
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 14)
@@ -88,20 +92,34 @@ import Combine
             .background(catColors.background.ignoresSafeArea())
             .foregroundStyle(catColors.ink)
             .navigationTitle(ui(tab.title))
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    HStack(spacing: 7) {
-                        BrandMark(size: 25, style: .fill)
-                        Text(ui("小咪育儿")).font(.subheadline.weight(.semibold))
+                // The brand name and the gear are gone from all three home pages: the large title takes their place and
+                // settings has one entry, 我们家 › 设置. 添加孩子 stays reachable here, on 我们家 only.
+                ToolbarItem(placement: .topBarTrailing) {
+                    if tab == .family && model.loaded && !workspace.children.isEmpty {
+                        Button { sheet = .newChild } label: {
+                            Image(systemName: "person.badge.plus").frame(width: 44, height: 44)
+                        }
+                        .disabled(model.busy)
+                        .accessibilityLabel(ui("添加孩子"))
+                        .accessibilityIdentifier("parenting.family.addChild")
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { settingsPresented = true } label: {
-                        Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel(ui("育儿工作区设置"))
-                    .accessibilityIdentifier("parenting.settings")
+            }
+            .navigationDestination(for: ParentingFamilyRoute.self) { route in
+                switch route {
+                case .child(let childID):
+                    ParentingFamilyChildDetailView(model: model, childID: childID,
+                                                   onRename: { child in sheet = .editChild(child) },
+                                                   onDelete: { target in deletion = .child(target) })
+                case .reminders:
+                    ParentingRemindersView(model: model)
+                case .settings:
+                    ParentingSettingsView(model: model, accountLabel: accountLabel,
+                                          isAnonymousAccount: isAnonymousAccount,
+                                          onSignOut: onSignOut,
+                                          onOpenChat: { chatPresented = true })
                 }
             }
             .overlay(alignment: .bottom) {
@@ -134,6 +152,11 @@ import Combine
         }
         .onChange(of: workspace.children.map(\.id)) { _, ids in
             if let selectedChildID, !ids.contains(selectedChildID) { self.selectedChildID = nil }
+            // A child profile page never stays open after its child is deleted.
+            familyPath.removeAll { route in
+                if case .child(let id) = route { return !ids.contains(id) }
+                return false
+            }
         }
         .onChange(of: activeChild?.id) { _, _ in
             if let selectedGoalID, !childGoals.contains(where: { $0.id == selectedGoalID }) { self.selectedGoalID = nil }
@@ -159,11 +182,6 @@ import Combine
             ConversationFirstView(model: conversationModel, accountLabel: accountLabel,
                                   onSignOut: onSignOut, isAnonymousAccount: isAnonymousAccount)
                 .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $settingsPresented, onDismiss: openPendingRoute) {
-            ParentingSettingsView(model: model, accountLabel: accountLabel,
-                                  isAnonymousAccount: isAnonymousAccount,
-                                  onSignOut: onSignOut)
         }
         .alert(ui("确认删除？"), isPresented: deletionPresented, presenting: deletion) { target in
             Button(ui("删除"), role: .destructive) { delete(target) }
@@ -262,12 +280,6 @@ import Combine
             childFilter
             arrangementSection("待确认", items: timeline.pending,
                                empty: "还没有待确认的事。直接说一件事，小咪会先给你一张确认卡。")
-            Button { sheet = .newArrangement(selectedChildID, nil) } label: {
-                Label(ui("手动填写一件事"), systemImage: "square.and.pencil").frame(maxWidth: .infinity)
-            }
-            .buttonStyle(ParentingSecondaryButtonStyle())
-            .disabled(model.busy)
-            .accessibilityIdentifier("parenting.addArrangement")
             todayTimeline(timeline)
             if !timeline.overdue.isEmpty {
                 arrangementSection("待重新安排", items: timeline.overdue,
@@ -674,10 +686,6 @@ import Combine
         }
         if workspace.children.isEmpty { firstChildEmpty }
         else {
-            Button { sheet = .newObservation(selectedChildID, nil) } label: {
-                Label(ui("手动记下观察"), systemImage: "square.and.pencil").frame(maxWidth: .infinity)
-            }.buttonStyle(ParentingSecondaryButtonStyle()).disabled(model.busy)
-                .accessibilityIdentifier("parenting.addObservation")
             childFilter
             Picker(ui("记录类型"), selection: $recordFilter) {
                 ForEach(ParentingRecordFilter.allCases) { filter in Text(ui(filter.title)).tag(filter) }
@@ -726,64 +734,39 @@ import Combine
         }
     }
 
-    /// 我们家: the children, reminder and privacy settings, and the old office chat, kept as 高级与历史.
+    /// 我们家: one profile card per child, the 启航 card, and one row each for 提醒 and 设置.
+    /// Everything else (child details, reminder switches, account, data, 高级与历史) sits on pushed sub pages.
     @ViewBuilder private var familyContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(ui("我们家")).font(.title2.weight(.semibold))
-            Text(ui("孩子、提醒和隐私都在这里。所有内容只加密保存在这台设备上。"))
-                .font(.subheadline).foregroundStyle(catColors.calmSecondary)
-        }
         if workspace.children.isEmpty { firstChildEmpty }
         else {
             VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text(ui("孩子")).font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
-                    Spacer()
-                    addChildButton
-                }
-                ForEach(workspace.children) { child in
-                    HStack(alignment: .center, spacing: 12) {
-                        Image(systemName: "person.crop.circle").font(.title).foregroundStyle(catColors.actionText).accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(verbatim: child.name).font(.headline)
-                            Text(verbatim: familyCounts(child)).font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
-                        }
-                        Spacer(minLength: 0)
-                        Menu {
-                            Button(ui("修改昵称")) { sheet = .editChild(child) }
-                            Button(ui("删除孩子"), role: .destructive) { deletion = .child(child.id) }
-                        } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
-                        .accessibilityLabel(ui("孩子资料操作")).disabled(model.busy)
+                ForEach(ParentingFamilySummary.children(in: workspace)) { summary in
+                    NavigationLink(value: ParentingFamilyRoute.child(summary.id)) {
+                        ParentingFamilyChildRow(summary: summary)
                     }
-                    .parentingCard()
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("parenting.family.child." + child.id.uuidString)
+                    .buttonStyle(.plain).parentingCard()
+                    .accessibilityIdentifier("parenting.family.child." + summary.id.uuidString)
                 }
             }
         }
-        reminderPrompt
-        Button { settingsPresented = true } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "bell.badge").font(.title3)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(ui("提醒与隐私设置")).font(.subheadline.weight(.medium))
-                    Text(ui("每天最多 2 条提醒，晚 9 点到早 8 点不打扰。"))
-                        .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(catTypography.Role.caption.font)
-            }
-            .foregroundStyle(catColors.ink).frame(minHeight: 50)
+        ParentingFamilyLaunchCard(checklist: launchChecklist.checklist(for: workspace))
+        NavigationLink(value: ParentingFamilyRoute.reminders) {
+            ParentingFamilyEntryRow(icon: "bell.badge", title: ui("提醒"), subtitle: reminderRowSubtitle)
+        }
+        .buttonStyle(.plain).parentingCard()
+        .accessibilityIdentifier("parenting.family.reminders")
+        NavigationLink(value: ParentingFamilyRoute.settings) {
+            ParentingFamilyEntryRow(icon: "gearshape", title: ui("设置"), subtitle: ui("账户、回顾提示、数据与版本"))
         }
         .buttonStyle(.plain).parentingCard()
         .accessibilityIdentifier("parenting.family.settings")
-        advancedHistoryEntry
     }
 
-    private func familyCounts(_ child: ParentingChild) -> String {
-        let plans = workspace.arrangements.filter { $0.childID == child.id && $0.state == .planned }.count
-        let records = workspace.records.filter { $0.childID == child.id }.count
-        return AppLanguage(locale: locale).ui("{0} 项安排 · {1} 条记录", arguments: [String(plans), String(records)])
+    private var reminderRowSubtitle: String {
+        if !model.remindersAvailable { return ui("这台设备暂不发送提醒") }
+        return ui(model.reminderSettings.enabled
+                  ? "已开启 · 每天最多 2 条，晚 9 点到早 8 点不打扰"
+                  : "未开启 · 每天最多 2 条，晚 9 点到早 8 点不打扰")
     }
 
     private func reviewRecordSection(_ title: String, records: [ParentingRecord], empty: String) -> some View {
@@ -925,25 +908,6 @@ import Combine
         }
     }
 
-    /// The earlier general chat is kept, but only here: it is not part of the daily path and never saves an arrangement.
-    private var advancedHistoryEntry: some View {
-        Button { chatPresented = true } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "clock.arrow.circlepath").font(.title3)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(ui("高级与历史")).font(.subheadline.weight(.medium))
-                    Text(ui("打开原来的办公对话和历史；对话不会自动变成安排。"))
-                        .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(catTypography.Role.caption.font)
-            }
-            .foregroundStyle(catColors.ink).frame(minHeight: 50)
-        }
-        .buttonStyle(.plain).parentingCard()
-        .accessibilityIdentifier("parenting.openChat")
-    }
-
     /// Today's one prompt about reminders: shown until the parent turns them on, or when the system blocks them.
     @ViewBuilder private var reminderPrompt: some View {
         if model.remindersAvailable {
@@ -1039,7 +1003,7 @@ import Combine
         return workspace.goals.first { $0.id == id }?.title
     }
     private func openPendingRoute() {
-        guard sheet == nil, !settingsPresented, catRouteCenter.shared.pending != nil else { return }
+        guard sheet == nil, catRouteCenter.shared.pending != nil else { return }
         chatPresented = true
     }
     private func reviewUndo(_ edit: ParentingArrangementEdit) {
@@ -2192,132 +2156,99 @@ private struct ParentingFormIssue: View {
     }
 }
 
+/// 我们家 › 设置. Pushed on the home navigation stack (no sheet, no own NavigationStack). The reminder switches moved
+/// to 提醒; the rest of the existing settings stay here, and 高级与历史 is reached from here now.
 @MainActor private struct ParentingSettingsView: View {
     @ObservedObject var model: ParentingWorkspaceModel
     let accountLabel: String?
     let isAnonymousAccount: Bool
     let onSignOut: (() -> Void)?
+    let onOpenChat: () -> Void
     @Environment(\.locale) private var locale
     @Environment(\.dismiss) private var dismiss
     @State private var operationID = UUID()
     @State private var signOutConfirmation = false
     @State private var signingOut = false
     @State private var eraseConfirmation = false
-    @Environment(\.openURL) private var openURL
     private func ui(_ key: String) -> String { AppLanguage(locale: locale).ui(key) }
-    private var reminderAuthorization: ParentingNotificationAuthorization? { model.reminderStatus?.authorization }
-    @ViewBuilder private var remindersSection: some View {
-        if model.remindersAvailable {
-            Section {
-                Toggle(ui("到点提醒"), isOn: Binding(
-                    get: { model.reminderSettings.enabled },
-                    set: { value in Task { await model.setReminders(enabled: value) } }))
-                    .disabled(model.busy || !model.loaded)
-                    .accessibilityIdentifier("parenting.reminders.toggle")
-                if model.reminderSettings.enabled {
-                    Picker(ui("提醒时间"), selection: Binding(
-                        get: { model.reminderSettings.lead },
-                        set: { value in Task { await model.setReminderLead(value) } })) {
-                        ForEach(ParentingReminderLead.allCases) { lead in Text(ui(lead.title)).tag(lead) }
-                    }
-                    .disabled(model.busy || !model.loaded)
-                    .accessibilityIdentifier("parenting.reminders.lead")
-                    Toggle(ui("锁屏上隐藏孩子和事项"), isOn: Binding(
-                        get: { model.reminderSettings.hideContent },
-                        set: { value in Task { await model.setReminderContentHidden(value) } }))
-                        .disabled(model.busy || !model.loaded)
-                        .accessibilityIdentifier("parenting.reminders.hideContent")
-                    if reminderAuthorization == .denied {
-                        Label(ui("系统通知已关闭，小咪现在无法提醒你"), systemImage: "bell.slash")
-                            .foregroundStyle(catColors.failure)
-                        Button(ui("打开系统设置")) { if let url = URL(string: "app-settings:") { openURL(url) } }
-                            .frame(minHeight: 44)
-                    } else if let status = model.reminderStatus, reminderAuthorization == .authorized {
-                        Text(AppLanguage(locale: locale).ui("已为 {0} 件安排在本机排好提醒", arguments: [String(status.scheduledCount)]))
-                            .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
-                            .accessibilityIdentifier("parenting.reminders.count")
-                        if status.systemRefused {
-                            Text(ui("有提醒未能确认已排好，请重新打开小咪后再看。"))
-                                .font(catTypography.Role.caption.font).foregroundStyle(catColors.attention)
-                        }
-                    }
-                }
-                Text(ui("只提醒已确认的安排；每天最多 2 条，晚 9 点到早 8 点不提醒（会改在前一晚 8:30）。提醒只在本机发送，不经过服务器，也不会添加系统日历。"))
-                    .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
-            } header: { Text(ui("提醒")) }
-        }
-    }
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    LabeledContent(ui("当前账户")) { Text(verbatim: accountLabel ?? ui(isAnonymousAccount ? "未登录" : "本机账户")) }
-                    if let onSignOut {
-                        Button(ui("退出登录"), role: .destructive) { signOutConfirmation = true }
-                            .disabled(model.busy || signingOut)
-                            .alert(ui("退出登录？"), isPresented: $signOutConfirmation) {
-                                Button(ui("取消"), role: .cancel) { }
-                                Button(ui("退出登录"), role: .destructive) {
-                                    guard !signingOut, !model.busy else { return }
-                                    signingOut = true
-                                    dismiss()
-                                    onSignOut()
-                                }
-                            } message: {
-                                Text(ui(isAnonymousAccount
-                                    ? "体验身份暂时无法找回。退出后，育儿记录仍加密保留在本机，但你可能无法再次访问。"
-                                    : "此设备上的育儿记录会加密保留，重新登录同一账户后可继续查看。"))
-                            }
-                    }
-                } header: { Text(ui("账户")) }
-                remindersSection
-                Section {
-                    Toggle(ui("显示回顾提示"), isOn: Binding(
-                        get: { model.workspace.suggestionsEnabled },
-                        set: { value in
-                            guard !model.busy else { return }
-                            Task {
-                                if await model.apply(.setSuggestionsEnabled(value), operationID: operationID) { operationID = UUID() }
-                            }
-                        }))
-                        .disabled(model.busy || !model.loaded)
-                        .accessibilityIdentifier("parenting.suggestions.toggle")
-                    Text(ui("仅根据已保存的安排和目标整理提示，可随时关闭。不会评估孩子，也不会自动执行任何事。"))
-                        .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
-                } header: { Text(ui("回顾提示")) }
-                Section {
-                    Text(ui("育儿资料仅在此设备加密保存，尚未云同步。更换设备不会自动带回这些记录。"))
-                    Text(ui(model.remindersAvailable
-                            ? "本机安排不会添加系统日历。提醒只在本机发送。记录会保留直到你主动删除。"
-                            : "本机安排不会添加系统日历，也不会发送提醒。记录会保留直到你主动删除。"))
-                    Text(ui("辅助对话沿用现有模型连接和发送授权。只有你明确发送的内容才会交给已连接的服务处理。"))
-                    Button(ui("重新读取本机记录")) { Task { await model.load() } }
-                        .frame(minHeight: 44).disabled(model.busy)
-                    Button(ui("删除全部育儿记录"), role: .destructive) { eraseConfirmation = true }
-                        .frame(minHeight: 44).disabled(model.busy || !model.loaded)
-                        .accessibilityIdentifier("parenting.eraseAll")
-                        .alert(ui("删除全部育儿记录？"), isPresented: $eraseConfirmation) {
+        Form {
+            Section {
+                LabeledContent(ui("当前账户")) { Text(verbatim: accountLabel ?? ui(isAnonymousAccount ? "未登录" : "本机账户")) }
+                if let onSignOut {
+                    Button(ui("退出登录"), role: .destructive) { signOutConfirmation = true }
+                        .disabled(model.busy || signingOut)
+                        .alert(ui("退出登录？"), isPresented: $signOutConfirmation) {
                             Button(ui("取消"), role: .cancel) { }
-                            Button(ui("全部删除"), role: .destructive) {
-                                Task { if await model.apply(.deleteAllRecords, operationID: operationID) { operationID = UUID() } }
+                            Button(ui("退出登录"), role: .destructive) {
+                                guard !signingOut, !model.busy else { return }
+                                signingOut = true
+                                dismiss()
+                                onSignOut()
                             }
-                            .accessibilityIdentifier("parenting.eraseAll.confirm")
                         } message: {
-                            Text(ui("孩子、目标、安排、记录和调整历史都会从此设备删除，同时取消已排好的提醒。无法恢复，也不会影响登录账户。"))
+                            Text(ui(isAnonymousAccount
+                                ? "体验身份暂时无法找回。退出后，育儿记录仍加密保留在本机，但你可能无法再次访问。"
+                                : "此设备上的育儿记录会加密保留，重新登录同一账户后可继续查看。"))
                         }
-                    if let error = model.error { ParentingFormIssue(message: error) }
-                } header: { Text(ui("数据与边界")) }
-                Section {
-                    let info = AppBuildInfo.current
-                    LabeledContent(ui("版本")) { Text(verbatim: info.version ?? "—") }
-                    LabeledContent(ui("构建")) { Text(verbatim: info.build ?? "—") }
-                } header: { Text(ui("关于")) }
+                }
+            } header: { Text(ui("账户")) }
+            Section {
+                Toggle(ui("显示回顾提示"), isOn: Binding(
+                    get: { model.workspace.suggestionsEnabled },
+                    set: { value in
+                        guard !model.busy else { return }
+                        Task {
+                            if await model.apply(.setSuggestionsEnabled(value), operationID: operationID) { operationID = UUID() }
+                        }
+                    }))
+                    .disabled(model.busy || !model.loaded)
+                    .accessibilityIdentifier("parenting.suggestions.toggle")
+                Text(ui("仅根据已保存的安排和目标整理提示，可随时关闭。不会评估孩子，也不会自动执行任何事。"))
+                    .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
+            } header: { Text(ui("回顾提示")) }
+            Section {
+                Text(ui("育儿资料仅在此设备加密保存，尚未云同步。更换设备不会自动带回这些记录。"))
+                Text(ui(model.remindersAvailable
+                        ? "本机安排不会添加系统日历。提醒只在本机发送。记录会保留直到你主动删除。"
+                        : "本机安排不会添加系统日历，也不会发送提醒。记录会保留直到你主动删除。"))
+                Text(ui("辅助对话沿用现有模型连接和发送授权。只有你明确发送的内容才会交给已连接的服务处理。"))
+                Button(ui("重新读取本机记录")) { Task { await model.load() } }
+                    .frame(minHeight: 44).disabled(model.busy)
+                Button(ui("删除全部育儿记录"), role: .destructive) { eraseConfirmation = true }
+                    .frame(minHeight: 44).disabled(model.busy || !model.loaded)
+                    .accessibilityIdentifier("parenting.eraseAll")
+                    .alert(ui("删除全部育儿记录？"), isPresented: $eraseConfirmation) {
+                        Button(ui("取消"), role: .cancel) { }
+                        Button(ui("全部删除"), role: .destructive) {
+                            Task { if await model.apply(.deleteAllRecords, operationID: operationID) { operationID = UUID() } }
+                        }
+                        .accessibilityIdentifier("parenting.eraseAll.confirm")
+                    } message: {
+                        Text(ui("孩子、目标、安排、记录和调整历史都会从此设备删除，同时取消已排好的提醒。无法恢复，也不会影响登录账户。"))
+                    }
+                if let error = model.error { ParentingFormIssue(message: error) }
+            } header: { Text(ui("数据与边界")) }
+            Section {
+                Button { onOpenChat() } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(ui("高级与历史")).font(.subheadline.weight(.medium))
+                        Text(ui("打开原来的办公对话和历史；对话不会自动变成安排。"))
+                            .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                }
+                .accessibilityIdentifier("parenting.openChat")
             }
-            .scrollContentBackground(.hidden).background(catColors.background)
-            .foregroundStyle(catColors.ink)
-            .navigationTitle(ui("育儿工作区设置")).navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button(ui("完成")) { dismiss() } } }
-        }.tint(catColors.actionText)
-            .modifier(catPrivacyShield(lockedText: ui("解锁后查看育儿记录"), identifier: "parenting.settings.privacyShield"))
+            Section {
+                let info = AppBuildInfo.current
+                LabeledContent(ui("版本")) { Text(verbatim: info.version ?? "—") }
+                LabeledContent(ui("构建")) { Text(verbatim: info.build ?? "—") }
+            } header: { Text(ui("关于")) }
+        }
+        .scrollContentBackground(.hidden).background(catColors.background.ignoresSafeArea())
+        .foregroundStyle(catColors.ink)
+        .navigationTitle(ui("设置")).navigationBarTitleDisplayMode(.large)
+        .accessibilityIdentifier("parenting.settings.page")
     }
 }

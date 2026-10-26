@@ -8942,5 +8942,53 @@
   "新安排": {
     "en": "New arrangement",
     "zh-Hans": "新安排"
+  },
+  "添加孩子的昵称": {
+    "en": "Add your child's nickname",
+    "zh-Hans": "添加孩子的昵称"
+  },
+  "记下第一件安排或观察": {
+    "en": "Record a first arrangement or observation",
+    "zh-Hans": "记下第一件安排或观察"
+  },
+  "写下一个成长目标": {
+    "en": "Write one growth goal",
+    "zh-Hans": "写下一个成长目标"
+  },
+  "{0} 个目标 · {1} 条观察": {
+    "en": "{0} goals · {1} observations",
+    "zh-Hans": "{0} 个目标 · {1} 条观察"
+  },
+  "启航 {0}/{1}": {
+    "en": "Getting started {0}/{1}",
+    "zh-Hans": "启航 {0}/{1}"
+  },
+  "已有记录": {
+    "en": "Saved so far",
+    "zh-Hans": "已有记录"
+  },
+  "这里只显示已经记下的昵称、目标和观察。": {
+    "en": "This page only shows the nickname, goals and observations already saved.",
+    "zh-Hans": "这里只显示已经记下的昵称、目标和观察。"
+  },
+  "这台设备暂不发送提醒。安排只保存在本机，不会添加系统日历。": {
+    "en": "This device is not sending reminders. Arrangements stay on this device and are not added to the system calendar.",
+    "zh-Hans": "这台设备暂不发送提醒。安排只保存在本机，不会添加系统日历。"
+  },
+  "账户、回顾提示、数据与版本": {
+    "en": "Account, review hints, data and version",
+    "zh-Hans": "账户、回顾提示、数据与版本"
+  },
+  "这台设备暂不发送提醒": {
+    "en": "This device is not sending reminders",
+    "zh-Hans": "这台设备暂不发送提醒"
+  },
+  "已开启 · 每天最多 2 条，晚 9 点到早 8 点不打扰": {
+    "en": "On · up to 2 a day, none from 9 pm to 8 am",
+    "zh-Hans": "已开启 · 每天最多 2 条，晚 9 点到早 8 点不打扰"
+  },
+  "未开启 · 每天最多 2 条，晚 9 点到早 8 点不打扰": {
+    "en": "Off · up to 2 a day, none from 9 pm to 8 am",
+    "zh-Hans": "未开启 · 每天最多 2 条，晚 9 点到早 8 点不打扰"
   }
 }
