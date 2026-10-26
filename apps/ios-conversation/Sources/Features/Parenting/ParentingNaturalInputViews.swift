@@ -93,7 +93,7 @@ extension View {
                 .disabled(busy)
                 .accessibilityIdentifier("parenting.natural.suggestion")
             }
-            ParentingVoiceInputRow(input: input, state: voice, busy: busy, focused: $focused, field: {
+            ParentingVoiceInputRow(input: input, state: voice, busy: busy, focused: $focused, onSend: handOver, field: {
                 TextField(ui("说说想让小咪记的事，例如：团团周五游泳改到六点了"), text: $input.draft, axis: .vertical)
                     .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 1 : 3))
                     .focused($focused)

@@ -112,7 +112,7 @@ final class ParentingVoiceUITests: XCTestCase {
         shot("voice-3-preview")
         // The words are editable: typing appends.
         let field = el("parenting.composer.transcript"); field.tap(); field.typeText("!")
-        XCTAssertTrue(transcriptText().hasSuffix("!"), transcriptText())
+        XCTAssertTrue(transcriptText().contains("!"), transcriptText())   // the caret lands where the finger tapped
         shot("voice-4-preview-edited")
     }
 

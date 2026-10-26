@@ -177,15 +177,17 @@ private struct ParentingHoldToTalkGesture: ViewModifier {
     @ObservedObject var state: ParentingVoiceState
     let busy: Bool
     var focused: FocusState<Bool>.Binding
+    /// Swipe-up send (after the final words landed). Same hand-over as the send button.
+    let onSend: () -> Void
     let field: Field
     let sendButton: SendButton
     @ObservedObject private var dictation: ComposerDictation
     @Environment(\.locale) private var locale
     @Environment(\.scenePhase) private var scene
 
-    init(input: ParentingNaturalInputModel, state: ParentingVoiceState, busy: Bool, focused: FocusState<Bool>.Binding,
+    init(input: ParentingNaturalInputModel, state: ParentingVoiceState, busy: Bool, focused: FocusState<Bool>.Binding, onSend: @escaping () -> Void,
          @ViewBuilder field: () -> Field, @ViewBuilder sendButton: () -> SendButton) {
-        self.input = input; self.state = state; self.busy = busy; self.focused = focused
+        self.input = input; self.state = state; self.busy = busy; self.focused = focused; self.onSend = onSend
         self.field = field(); self.sendButton = sendButton()
         _dictation = ObservedObject(wrappedValue: state.dictation)
     }
@@ -211,6 +213,7 @@ private struct ParentingHoldToTalkGesture: ViewModifier {
         }
         .onAppear {
             dictation.attach(input)
+            dictation.onSend = { if input.canSubmit && !busy { onSend() } }
             dictation.focusInput = { focused.wrappedValue = true }
             dictation.voice.language = AppLanguage(locale: locale)
         }
