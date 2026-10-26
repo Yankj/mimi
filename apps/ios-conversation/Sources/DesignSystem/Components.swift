@@ -6,25 +6,27 @@ import AppKit
 #endif
 
 /// R5 semantic roles, mapped from mobile-conversation-reference-r5.json.
+/// Neutral surface / text / status roles now read the selected palette (`CatTheme`, CatTheme.swift: C 素白墨黑 by default,
+/// B 雾粉+燕麦); orange action roles, `onInk`, `send*`, `voice*`, `controlEdge` and the calm accent roles are unchanged.
 /// Reading, temporary surfaces, sending and exact approval are independent roles:
 /// changing an action tint cannot recolor a message or grant an approval emphasis.
 enum catColors {
     // Surfaces — brand Background #FFFCF8
-    static let background = adaptive(light: catBrandTokens.background, dark: catBrandTokens.canvasDark)
-    static let panel = adaptive(light: catBrandTokens.panelLight, dark: catBrandTokens.panelDark)
-    static let input = adaptive(light: catBrandTokens.panelLight, dark: 0x141414)
-    static let drawer = adaptive(light: 0xF5F5F5, dark: 0x141414)
+    static let background = CatTheme.color(.canvas)
+    static let panel = CatTheme.color(.surface)
+    static let input = CatTheme.color(.surface)
+    static let drawer = CatTheme.color(.surface)
     /// Brand Ink #292622 — primary text
-    static let ink = adaptive(light: catBrandTokens.ink, dark: catBrandTokens.inkDark)
+    static let ink = CatTheme.color(.ink)
     static let onInk = adaptive(light: 0xFFFFFF, dark: 0x151515)
     /// Brand Grey #929298 — secondary text / captions
-    static let secondary = adaptive(light: catBrandTokens.secondaryLight, dark: catBrandTokens.greyDark)
-    static let tertiary = adaptive(light: catBrandTokens.grey, dark: 0x6B6662)  // sheet Grey (muted)
-    static let groupedBackground = adaptive(light: catBrandTokens.background, dark: 0x121110)
-    static let card = adaptive(light: 0xFFFFFF, dark: 0x1C1B19)
-    static let fillSelected = adaptive(light: 0xEAE6E1, dark: 0x2E2B28)
-    static let hairline = adaptiveAlpha(light: catBrandTokens.ink, lightAlpha: 0.08, dark: 0xFFFFFF, darkAlpha: 0.10)
-    static let destructive = adaptive(light: 0xD9402B, dark: 0xFF6B57)
+    static let secondary = CatTheme.color(.ink2)
+    static let tertiary = CatTheme.color(.ink3)  // decorative / placeholder only: below 4.5:1 in the proposal tokens
+    static let groupedBackground = CatTheme.color(.canvas)
+    static let card = CatTheme.color(.card)
+    static let fillSelected = CatTheme.color(.track)
+    static let hairline = CatTheme.color(.hairline)
+    static let destructive = CatTheme.color(.danger)
     /// Brand Primary #FF702A — fills / icons / non-text only (never body copy).
     static let action = adaptive(light: catBrandTokens.fillLight, dark: catBrandTokens.primaryDark)
     /// Semantic alias for brand fill (same as `action`).
@@ -38,19 +40,19 @@ enum catColors {
     static let voiceFill = adaptive(light: catBrandTokens.ink, dark: 0x000000)
     /// Hairline so the black circle still separates from the dark composer surface (dark only).
     static let voiceRing = adaptiveAlpha(light: 0xFFFFFF, lightAlpha: 0, dark: 0xFFFFFF, darkAlpha: 0.22)
-    static let userMessageBackground = adaptive(light: 0xF2EFEB, dark: 0x262422)
-    static let userMessageInk = adaptive(light: catBrandTokens.ink, dark: catBrandTokens.inkDark)
+    static let userMessageBackground = CatTheme.color(.surface)
+    static let userMessageInk = CatTheme.color(.ink)
     static let controlEdge = adaptive(light: 0x858585, dark: 0x777777)
-    static let separator = adaptive(light: 0xDEDEDE, dark: 0x383838)
-    static let success = adaptive(light: 0x267146, dark: 0x9BD4AF)
-    static let attention = adaptive(light: 0x895700, dark: 0xE9BC69)
-    static let failure = adaptive(light: 0xB3261E, dark: 0xFFB4AB)
+    static let separator = CatTheme.color(.hairline)
+    static let success = CatTheme.color(.success)
+    static let attention = CatTheme.color(.attention)
+    static let failure = CatTheme.color(.danger)
     // Calm launch / onboarding / voice (warm page + orb)
     // first-run-polish (Grok Bot 12:33): the calm tokens get real dark values — launch screen, splash and chat share one
     // canvas per mode, so nothing inverts and the system-coloured status bar stays legible.
-    static let calmPage = adaptive(light: catBrandTokens.background, dark: catBrandTokens.canvasDark)
+    static let calmPage = CatTheme.color(.canvas)
     /// Splash secondary text: 6.7:1 light / 8.8:1 dark on the canvas (≥4.5 on the ring wash tail).
-    static let calmSecondary = adaptive(light: 0x5F5A55, dark: 0xB3ADA6)
+    static let calmSecondary = CatTheme.color(.ink2)
     /// Auxiliary icons only (#929298 in both modes; ≥3:1 on calmSurface white / #1F1B18).
     static let calmIcon = adaptive(light: catBrandTokens.grey, dark: catBrandTokens.grey)
     /// SPEC-E §1 landing chip icon (icon only, never text): 4.79:1 / 7.36:1 on calmSurface.
@@ -65,7 +67,7 @@ enum catColors {
     static let calmLavender = adaptive(light: catBrandTokens.lavender, dark: catBrandTokens.lavender)
     static let orbLight = adaptive(light: catBrandTokens.orbLight, dark: catBrandTokens.orbLight)
     static let orbDeep = adaptive(light: catBrandTokens.primary, dark: catBrandTokens.primary)
-    static let calmSurface = adaptive(light: 0xFFFFFF, dark: 0x1F1B18)
+    static let calmSurface = CatTheme.color(.card)
     static let calmGlyph = adaptive(light: 0xFFFFFF, dark: 0xFFFFFF)
     static let calmShadow = adaptive(light: 0x000000, dark: 0x000000)
     // Compatibility aliases — never a second palette.

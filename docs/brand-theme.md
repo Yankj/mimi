@@ -51,6 +51,20 @@ Composer send/stop morph and voice-capsule chrome are owned by the Mac worker �
 - Obsolete imagesets removed: `LaunchPaw`, `LaunchPawMark`, `LaunchGlow`. Do not regenerate them.
 - Regenerate the static frame: `python3 apps/ios-conversation/design/brand/render_brand.py apps/ios-conversation/Resources/Assets.xcassets`.
 
+## Selectable palettes (C 素白墨黑 default / B 雾粉+燕麦)
+
+Proposal: `mimi-brand-themes-proposal.md` + `mimi-brand-themes-tokens.json` (4 combinations: palette × light/dark).
+
+| Layer | Where | Role |
+| --- | --- | --- |
+| Palette + appearance axes | `CatPalette` (`inkWhite` = C default, `softBlush` = B), `CatAppearance` (`system` default / `light` / `dark`) in `Sources/DesignSystem/CatTheme.swift` | Two independent preferences: key `palette` (new) and the existing key `theme` (appearance). Appearance default is now **system** (was dark). |
+| Tokens | `CatThemeTokens` → `CatColorSet` (light/dark) | canvas, card, surface, hairline, track, ink/ink2/ink3, accent, accentOn(+Pressed), orangeText, success/attention/danger (+fills), kid colours, tinted-button alphas, tab fill, B wash |
+| Current theme | `CatTheme.palette` / `CatTheme.colors` / `CatTheme.color(_:)` | Dynamic colours re-read the palette each time they resolve; rebuild the view tree on `CatTheme.paletteDidChange` |
+| Legacy names | `catColors.background/panel/input/drawer/ink/secondary/tertiary/card/hairline/separator/fillSelected/success/attention/failure/destructive/userMessage*/calm{Page,Secondary,Surface}` | Same names, now theme-driven. Orange action roles (`action`, `actionText`, `onInk`, `send*`, `voice*`, calm accents) are unchanged until the call-site PR. |
+| Button | `CatTintedGlassButtonStyle` / `.catTintedGlass(in:state:)` in `CatButtonStyles.swift` | Orange 16–20 % tint over glass + 1 pt orange stroke, ink text; pressed / disabled / voice-hold; iOS 26 `glassEffect`, material fallback, opaque under Reduce Transparency |
+
+Contrast: `Tests/CatThemeTokenTests.swift` asserts every text pair ≥ 4.5:1 and icon pairs ≥ 3:1 for all four combinations (WCAG formula implemented in the test). `ink3` is the proposal's decorative grey and is **below 4.5:1** on at least one surface in every combination; its measured ratios are pinned in the test. Do not use it for required text.
+
 ## How to swap the palette later
 
 1. Edit hex constants in `catBrandTokens` only.

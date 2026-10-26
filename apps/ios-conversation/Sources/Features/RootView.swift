@@ -23,7 +23,7 @@ import Combine
         .id(model.scope.workspaceID)
         .tint(catColors.ink)
         .environment(\.locale, Locale(identifier: model.language.rawValue))
-        .preferredColorScheme(model.preference("theme", fallback: "dark") == "system" ? nil : model.preference("theme", fallback: "dark") == "light" ? .light : .dark)
+        .preferredColorScheme(CatAppearance(preference: model.preference(CatThemePreference.appearanceKey, fallback: CatAppearance.default.rawValue)).colorScheme)
         .sheet(isPresented: $model.sidebar) { SidebarView(model: model).tint(catColors.ink).presentationDetents([.large]).presentationDragIndicator(.visible) }
         .alert(ui("操作未完成"), isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button(ui("好")) { model.error = nil } } message: { Text(model.error ?? "") }
         .overlay {
