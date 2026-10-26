@@ -170,6 +170,7 @@ import XCTest
         XCTAssertNil(chat.notice)
     }
     func testInterruptedSessionNeverAutoSends() {
+        fake.finishesImmediately = false   // the final result has not landed yet when the call comes in
         dictation.beginHold(); fake.emit("团团游泳")
         dictation.updateHold(CGSize(width: 0, height: -200)); dictation.confirmAndSend()
         fake.finish(.interrupted)
@@ -266,8 +267,8 @@ import XCTest
         XCTAssertFalse(text.contains("mode: .voiceChat"))
         XCTAssertTrue(text.contains("startDictation(onDeviceOnly: false, onText: onText, onEnd: onEnd)"), "the old entry point stays tiered (chat unchanged)")
         XCTAssertTrue(text.contains("if networkTierForbidden && dictationTier.usesNetwork"))
-        XCTAssertTrue(text.contains("dictationOnDeviceOnly = false\n        dictationEpoch += 1") == false, "the switch is set per session, before the epoch bump, and reset in endDictation")
-        XCTAssertTrue(text.contains("dictationOnDeviceOnly = false\n        let onEnd") || text.contains("dictationOnEnd = nil; dictationOnDeviceOnly = false"))
+        XCTAssertTrue(text.contains("dictationOnDeviceOnly = onDeviceOnly"), "the switch is set per session")
+        XCTAssertTrue(text.contains("dictationOnEnd = nil; dictationOnDeviceOnly = false"), "and reset in the single exit")
     }
 }
 #endif

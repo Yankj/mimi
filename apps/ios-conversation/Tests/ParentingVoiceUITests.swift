@@ -29,7 +29,7 @@ final class ParentingVoiceUITests: XCTestCase {
         first.tap()
         let name = app.textFields["parenting.child.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 10), app.debugDescription)
-        name.tap(); name.typeText("团团")
+        name.tap(); name.typeText("Tuan")   // ASCII: the zh-Hans pinyin keyboard stalls XCUITest on hanzi
         app.buttons["parenting.name.save"].tap()
         XCTAssertTrue(app.buttons["parenting.addArrangement"].waitForExistence(timeout: 10), app.debugDescription)
     }
@@ -83,7 +83,7 @@ final class ParentingVoiceUITests: XCTestCase {
         XCTAssertFalse(app.buttons["parenting.natural.send"].exists, "empty field: mic, not send")
         shot("voice-5-keyboard-empty")
 
-        field.tap(); field.typeText("团团周五游泳")
+        field.tap(); field.typeText("Swim at five")
         XCTAssertTrue(app.buttons["parenting.natural.send"].waitForExistence(timeout: 5), "text present: the mic becomes send")
         XCTAssertFalse(el("parenting.composer.mic").exists)
         shot("voice-6-keyboard-text")
@@ -111,8 +111,8 @@ final class ParentingVoiceUITests: XCTestCase {
         waitFor("parenting.composer.mic")
         shot("voice-3-preview")
         // The words are editable: typing appends.
-        let field = el("parenting.composer.transcript"); field.tap(); field.typeText("！")
-        XCTAssertTrue(transcriptText().hasSuffix("！"), transcriptText())
+        let field = el("parenting.composer.transcript"); field.tap(); field.typeText("!")
+        XCTAssertTrue(transcriptText().hasSuffix("!"), transcriptText())
         shot("voice-4-preview-edited")
     }
 

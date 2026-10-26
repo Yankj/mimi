@@ -34,6 +34,19 @@ enum ParentingVoicePresentation: Equatable {
     }
 }
 
+/// The last ~1.4 s of input level for the bars. Subscribes ONCE (a view-level `onReceive` on a computed publisher re-subscribed on
+/// every render, and a replaying subject then re-rendered the view forever).
+@MainActor final class ParentingLevelHistory: ObservableObject {
+    @Published private(set) var samples: [Float] = Array(repeating: 0, count: 28)
+    private var cancellable: AnyCancellable?
+    init(source: AnyPublisher<Float, Never>) {
+        cancellable = source.dropFirst().sink { [weak self] level in
+            guard let self else { return }
+            self.samples.removeFirst(); self.samples.append(level)
+        }
+    }
+}
+
 /// Owns the voice-first state of one composer: the input mode, the first-press explanation, and its own dictation
 /// session (on-device only, never shared with chat). The draft it fills is `ParentingNaturalInputModel.draft`.
 @MainActor final class ParentingVoiceState: ObservableObject {
@@ -42,12 +55,15 @@ enum ParentingVoicePresentation: Equatable {
     /// The in-app sentence shown BEFORE the first system permission prompt.
     @Published private(set) var explaining = false
     let dictation: ComposerDictation
+    let levels: ParentingLevelHistory
     private let defaults: UserDefaults
     /// True while the system permission prompts have not been answered yet. Injectable for tests.
     var permissionsUndetermined: () -> Bool
 
     init(dictation: ComposerDictation? = nil, defaults: UserDefaults = .standard, permissionsUndetermined: (() -> Bool)? = nil) {
-        self.dictation = dictation ?? Self.makeDictation()
+        let made = dictation ?? Self.makeDictation()
+        self.dictation = made
+        self.levels = ParentingLevelHistory(source: made.engine.audioLevelPublisher)
         self.defaults = defaults
         self.permissionsUndetermined = permissionsUndetermined ?? Self.systemPermissionsUndetermined
         #if DEBUG
@@ -185,7 +201,7 @@ private struct ParentingHoldToTalkGesture: ViewModifier {
                 ParentingKeyboardToggle(state: state, focused: focused)
                 switch presentation {
                 case .voiceIdle, .listening, .preview:
-                    ParentingHoldToTalkCapsule(state: state, dictation: dictation, voice: dictation.voice)
+                    ParentingHoldToTalkCapsule(state: state, dictation: dictation, voice: dictation.voice, meter: state.levels)
                     if presentation == .preview && input.canSubmit { sendButton }
                 case .keyboard, .keyboardListening:
                     field
@@ -258,7 +274,7 @@ private struct ParentingHoldToTalkGesture: ViewModifier {
     @ObservedObject var state: ParentingVoiceState
     @ObservedObject var dictation: ComposerDictation
     @ObservedObject var voice: NativeVoiceController
-    @State private var levels: [Float] = Array(repeating: 0, count: 28)
+    @ObservedObject var meter: ParentingLevelHistory
     @State private var elapsed = 0
     @Environment(\.locale) private var locale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -274,10 +290,6 @@ private struct ParentingHoldToTalkGesture: ViewModifier {
         .overlay(Capsule().stroke(catColors.hairline, lineWidth: dictation.dictating ? 0 : 0.5))
         .contentShape(Capsule())
         .modifier(ParentingHoldToTalkGesture(state: state, dictation: dictation))
-        .onReceive(dictation.engine.audioLevelPublisher) { level in
-            guard dictation.dictating, !reduceMotion else { return }
-            levels.removeFirst(); levels.append(level)
-        }
         .task(id: dictation.dictating) {
             elapsed = 0
             guard dictation.dictating else { return }
@@ -324,7 +336,7 @@ private struct ParentingHoldToTalkGesture: ViewModifier {
                 if voice.preparingSpeechModel {
                     Text(ui("正在准备语音模型…"))
                 } else {
-                    ParentingLevelBars(levels: levels, still: reduceMotion).frame(height: 22)
+                    ParentingLevelBars(levels: meter.samples, still: reduceMotion).frame(height: 22)
                     Text(timer).monospacedDigit()
                 }
             }
