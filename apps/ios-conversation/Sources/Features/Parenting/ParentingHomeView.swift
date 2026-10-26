@@ -135,6 +135,7 @@ import Combine
                 Tab(ui(item.title), systemImage: item.icon, value: item) {
                     page(for: item, floatingBars: false)
                 }
+                .accessibilityIdentifier("parenting.tab.\(item.rawValue)")
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)

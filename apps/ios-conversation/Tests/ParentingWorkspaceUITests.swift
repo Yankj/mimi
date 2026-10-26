@@ -354,8 +354,11 @@ final class ParentingWorkspaceUITests: XCTestCase {
         }
         capture(app, "Interaction-v05-3-today-timeline-top")
         // Scroll the page under the floating bars: content must still be visible through the glass and the last item reachable.
-        let bar = app.otherElements["parenting.tabBar"]
+        // iOS 26+: the system tab bar plus the composer inset above it; before that the custom floating bar.
+        let bar = app.tabBars.firstMatch.exists ? app.tabBars.firstMatch : app.otherElements["parenting.tabBar"]
         XCTAssertTrue(bar.exists, app.debugDescription)
+        let composerBar = app.otherElements["parenting.natural.bar"]
+        func barTop() -> CGFloat { composerBar.exists && composerBar.isHittable ? min(bar.frame.minY, composerBar.frame.minY) : bar.frame.minY }
         // Coordinates are taken from the app window: the composer chips are also a (horizontal) scroll view.
         // Drag from the upper part of the page: the lower part is covered by the floating bars (and the keyboard, if open).
         func dragPageUp() {
@@ -368,7 +371,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         capture(app, "Interaction-v05-5-scrolled-to-end")
         let last = app.staticTexts["parenting.storageBoundary"]
         XCTAssertTrue(last.exists, app.debugDescription)
-        XCTAssertLessThanOrEqual(last.frame.maxY, bar.frame.minY + 1, "The last item must stop above the floating bars at the end of the page.")
+        XCTAssertLessThanOrEqual(last.frame.maxY, barTop() + 1, "The last item must stop above the floating bars at the end of the page.")
         tab(app, "growth")
         capture(app, "Interaction-v05-6-growth-tab")
         tab(app, "family")
@@ -378,7 +381,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
     func testInteractionFloatingTabBarAtLargestAccessibilityText() {
         let app = launch("p0-ui-parenting-success", display: ["CATPAW_UI_TEST_TEXT_SIZE": "accessibility5"])
         addChild(app, name: "团团")
-        XCTAssertTrue(app.buttons["parenting.tab.today"].isHittable, app.debugDescription)
+        XCTAssertTrue(tabButton(app, "today").isHittable, app.debugDescription)
         XCTAssertTrue(app.textFields["parenting.natural.field"].isHittable, app.debugDescription)
         capture(app, "Interaction-v05-8-accessibility5-floating-bars")
         tab(app, "growth")
@@ -620,7 +623,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
     private func ready(_ app: XCUIApplication) {
         XCTAssertTrue(app.staticTexts["parenting.fixture.identity"].waitForExistence(timeout: 15), app.debugDescription)
         XCTAssertFalse(element(app, "parenting.fixture.error").exists, app.debugDescription)
-        wait { app.buttons["parenting.tab.today"].exists && !self.element(app, "parenting.loadState").exists }
+        wait { (app.buttons["parenting.tab.today"].exists || app.tabBars.firstMatch.exists) && !self.element(app, "parenting.loadState").exists }
         XCTAssertFalse(app.textViews["chat.input"].exists, "A normal launch must lead to the actual parenting workspace.")
     }
     private func assertEmpty(_ app: XCUIApplication) {
@@ -652,10 +655,24 @@ final class ParentingWorkspaceUITests: XCTestCase {
     }
     /// Navigation is 今天｜成长｜我们家. Older journeys say "records" for the observation/completion list; that list is now
     /// the 成长 tab's timeline, and "growth" means its goals view.
+    /// The custom floating bar exposes `parenting.tab.<id>`; the iOS 26 system tab bar exposes localized buttons in order.
+    /// A minimized (collapsed) system bar shows only the selected tab: tapping it expands the bar first.
+    private func tabButton(_ app: XCUIApplication, _ target: String) -> XCUIElement {
+        let custom = app.buttons["parenting.tab." + target]
+        if custom.exists { return custom }
+        let bar = app.tabBars.firstMatch
+        guard bar.exists else { return custom }
+        let order = ["today": 0, "growth": 1, "family": 2]
+        if bar.buttons.count < order.count, bar.buttons.firstMatch.exists {
+            bar.buttons.firstMatch.tap()
+            wait { bar.buttons.count >= order.count }
+        }
+        return bar.buttons.element(boundBy: order[target] ?? 0)
+    }
     private func tab(_ app: XCUIApplication, _ name: String) {
         let target = (name == "records" || name == "growth") ? "growth" : name
         // The tab bar floats as a glass capsule over the page; it must stay reachable above scrolled content.
-        let button = app.buttons["parenting.tab." + target]
+        let button = tabButton(app, target)
         XCTAssertTrue(button.waitForExistence(timeout: 5), app.debugDescription)
         wait { button.isHittable }
         button.tap()
@@ -840,8 +857,9 @@ final class ParentingWorkspaceUITests: XCTestCase {
             // A sheet covers the bar without removing it; only a reachable bar clips the viewport.
             let composerTop: CGFloat? = (bar.exists && bar.isHittable) ? bar.frame.minY : nil
             // The floating bars overlay the scroller, so everything under their top edge is covered.
+            let nativeTabTop: [CGFloat] = app.tabBars.firstMatch.exists ? [app.tabBars.firstMatch.frame.minY] : []
             let tabTop = (app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "parenting.tab."))
-                .allElementsBoundByIndex.filter { $0.isHittable }.map { $0.frame.minY } + [composerTop].compactMap { $0 }).min()
+                .allElementsBoundByIndex.filter { $0.isHittable }.map { $0.frame.minY } + nativeTabTop + [composerTop].compactMap { $0 }).min()
             let bounds = ViewportBounds(appFrame: appFrame, navigationFrames: navigationFrames,
                                         tabTop: tabTop, inputPanelTop: inputPanelTop(app, appFrame: appFrame))
             let scroll = scrollingElement(app, bounds: bounds)
