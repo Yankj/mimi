@@ -301,6 +301,7 @@ private struct ParentingVoiceStrip: View {
                 .padding(20)
                 .frame(maxWidth: 680).frame(maxWidth: .infinity)
             }
+            .catBottomBar { confirmActions }
             .catSheetCanvas()
             .foregroundStyle(catColors.ink)
             .navigationTitle(ui("小咪来整理"))
@@ -421,22 +422,37 @@ private struct ParentingVoiceStrip: View {
                     .foregroundStyle(catColors.failure).frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("parenting.natural.failure")
             }
-            let saving = input.phase == .saving
-            VStack(spacing: 10) {
-                Button {
-                    if card.writes { Task { await input.confirm(model: workspaceModel) } }
-                    else { let kind = p.kind; input.reset(); dismiss(); onNavigate(kind) }
-                } label: {
-                    HStack { if saving { ProgressView() }; Text(ui(card.confirmTitle)) }.frame(maxWidth: .infinity)
+        }
+    }
+
+    private var currentCard: ParentingConfirmCard? {
+        input.card(workspace: workspaceModel.workspace, remindersEnabled: workspaceModel.remindersAvailable ? workspaceModel.reminderSettings.enabled : nil, now: now)
+    }
+    /// Confirm / manual actions stay pinned at the bottom of the sheet so they are visible at the medium detent.
+    @ViewBuilder private var confirmActions: some View {
+        if let p = input.proposal, let card = currentCard {
+            switch input.phase {
+            case .confirming, .saving, .failed:
+                let saving = input.phase == .saving
+                VStack(spacing: 10) {
+                    Button {
+                        if card.writes { Task { await input.confirm(model: workspaceModel) } }
+                        else { let kind = p.kind; input.reset(); dismiss(); onNavigate(kind) }
+                    } label: {
+                        HStack { if saving { ProgressView() }; Text(ui(card.confirmTitle)) }.frame(maxWidth: .infinity)
+                    }
+                    .parentingPrimaryButton()
+                    .disabled(saving || workspaceModel.busy)
+                    .accessibilityIdentifier("parenting.natural.confirm")
+                    if card.writes {
+                        Button(ui("手动调整")) { onManual(p); dismiss() }
+                            .parentingSecondaryButton().disabled(saving)
+                            .accessibilityIdentifier("parenting.natural.manual")
+                    }
                 }
-                .parentingPrimaryButton()
-                .disabled(saving || workspaceModel.busy)
-                .accessibilityIdentifier("parenting.natural.confirm")
-                if card.writes {
-                    Button(ui("手动调整")) { onManual(p); dismiss() }
-                        .parentingSecondaryButton().disabled(saving)
-                        .accessibilityIdentifier("parenting.natural.manual")
-                }
+                .padding(.horizontal, 20).padding(.vertical, 10)
+                .frame(maxWidth: 680).frame(maxWidth: .infinity)
+            default: EmptyView()
             }
         }
     }

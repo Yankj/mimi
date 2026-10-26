@@ -695,9 +695,11 @@ final class ParentingWorkspaceUITests: XCTestCase {
         capture(again, "Glass-confirm-card-medium")
         confirm.tap()
         let done = again.buttons["parenting.natural.done"]
-        XCTAssertTrue(done.waitForExistence(timeout: 10), again.debugDescription)
-        wait { !done.exists }
+        // The receipt is short-lived: it may already be closing by the time it is queried.
+        wait { !confirm.exists }
+        RunLoop.current.run(until: Date().addingTimeInterval(3.5))
         XCTAssertFalse(done.exists, "The saved receipt must close the sheet by itself.")
+        XCTAssertFalse(again.buttons["parenting.natural.close"].exists, again.debugDescription)
     }
 
     /// The custom floating bar exposes `parenting.tab.<id>`; the iOS 26 system tab bar exposes localized buttons in order.
