@@ -367,3 +367,24 @@ extension View {
         if #available(iOS 26.0, *) { self.scrollEdgeEffectStyle(.soft, for: .all) } else { self }
     }
 }
+
+/// Groups nearby glass surfaces so they blend and morph together on iOS 26+; a plain container before that.
+struct catGlassGroup<Content: View>: View {
+    var spacing: CGFloat = 10
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        if #available(iOS 26.0, *) { GlassEffectContainer(spacing: spacing) { content() } } else { content() }
+    }
+}
+
+extension View {
+    /// Bottom bar that content scrolls under: `safeAreaBar` (soft edge effect, iOS 26+) or a plain bottom safe-area inset.
+    @ViewBuilder func catBottomBar<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        if #available(iOS 26.0, *) { self.safeAreaBar(edge: .bottom, spacing: 0) { content() } }
+        else { self.safeAreaInset(edge: .bottom, spacing: 0) { content() } }
+    }
+    /// Partial-height sheets take the system glass on iOS 26+; the brand canvas is kept before that.
+    @ViewBuilder func catSheetCanvas() -> some View {
+        if #available(iOS 26.0, *) { self } else { self.background(catColors.background.ignoresSafeArea()) }
+    }
+}

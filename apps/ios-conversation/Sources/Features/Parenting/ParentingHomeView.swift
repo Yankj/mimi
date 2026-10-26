@@ -89,7 +89,7 @@ import Combine
                                   onNavigate: { kind in navigate(kind) },
                                   onManual: { proposal in pendingSheet = manualSheet(for: proposal) },
                                   onAddChild: { pendingSheet = .newChild })
-                .presentationDetents([.large])
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $chatPresented) {
@@ -142,25 +142,16 @@ import Combine
         .accessibilityIdentifier("parenting.tabBar")
     }
 
-    @ToolbarContentBuilder private var pageToolbar: some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            // The brand mark is a logo, not a control: keep it off the shared glass bubble that system toolbar items get.
-            ToolbarItem(placement: .topBarLeading) { brandLabel }.sharedBackgroundVisibility(.hidden)
-        } else {
-            ToolbarItem(placement: .topBarLeading) { brandLabel }
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button { settingsPresented = true } label: {
-                Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44)
+    /// Tabs carry only a large title. The settings entry is temporary and lives on 我们家 until the family screen owns it.
+    @ToolbarContentBuilder private func pageToolbar(for item: ParentingTab) -> some ToolbarContent {
+        if item == .family {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { settingsPresented = true } label: {
+                    Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44)
+                }
+                .accessibilityLabel(ui("育儿工作区设置"))
+                .accessibilityIdentifier("parenting.settings")
             }
-            .accessibilityLabel(ui("育儿工作区设置"))
-            .accessibilityIdentifier("parenting.settings")
-        }
-    }
-    private var brandLabel: some View {
-        HStack(spacing: 7) {
-            BrandMark(size: 25, style: .fill)
-            Text(ui("小咪育儿")).font(.subheadline.weight(.semibold))
         }
     }
 
@@ -196,8 +187,8 @@ import Combine
             .background(catColors.background.ignoresSafeArea())
             .foregroundStyle(catColors.ink)
             .navigationTitle(ui(item.title))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { pageToolbar }
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar { pageToolbar(for: item) }
             .overlay(alignment: .bottom) {
                 if floatingBars {
                     VStack(spacing: 8) {
@@ -210,7 +201,7 @@ import Combine
             }
             .onPreferenceChange(ParentingFloatingBarHeightKey.self) { floatingBarHeight = $0 }
             // iOS 26: the system tab bar floats and the composer is a bottom safe-area inset above it, so content scrolls under both.
-            .safeAreaInset(edge: .bottom, spacing: 0) {
+            .catBottomBar {
                 if !floatingBars && showsComposer(on: item) {
                     composerBar.padding(.horizontal, 12).padding(.bottom, 4)
                 }
@@ -374,11 +365,12 @@ import Combine
         ParentingNaturalContext(workspace: workspace, activeChildID: selectedChildID)
     }
     private var composerBar: some View {
-        ParentingComposerBar(input: natural, context: naturalContext, now: now, busy: model.busy) {
+        ParentingComposerBar(input: natural, context: naturalContext, now: now, busy: model.busy, onSubmit: {
             guard natural.canSubmit, !model.busy else { return }
             natural.submit(context: naturalContext, now: now)
             naturalPresented = true
-        }
+        }, onManualArrangement: { sheet = .newArrangement(selectedChildID, nil) },
+           onManualObservation: { sheet = .newObservation(selectedChildID, nil) })
     }
     private func navigate(_ kind: ParentingIntentKind) {
         switch kind {

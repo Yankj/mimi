@@ -8599,6 +8599,38 @@
     "en": "What",
     "zh-Hans": "事项"
   },
+  "按住说话": {
+    "en": "Hold to talk",
+    "zh-Hans": "按住说话"
+  },
+  "切换到键盘": {
+    "en": "Switch to keyboard",
+    "zh-Hans": "切换到键盘"
+  },
+  "切换到语音": {
+    "en": "Switch to voice",
+    "zh-Hans": "切换到语音"
+  },
+  "更多": {
+    "en": "More",
+    "zh-Hans": "更多"
+  },
+  "手动添加安排": {
+    "en": "Add an arrangement manually",
+    "zh-Hans": "手动添加安排"
+  },
+  "手动记一笔": {
+    "en": "Add a note manually",
+    "zh-Hans": "手动记一笔"
+  },
+  "正在听…": {
+    "en": "Listening…",
+    "zh-Hans": "正在听…"
+  },
+  "语音输入暂未开放，点这里改用键盘": {
+    "en": "Voice input is not available yet; tap to use the keyboard",
+    "zh-Hans": "语音输入暂未开放，点这里改用键盘"
+  },
   "交给小咪": {
     "en": "Hand to mimi",
     "zh-Hans": "交给小咪"
