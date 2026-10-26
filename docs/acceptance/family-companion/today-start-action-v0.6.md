@@ -70,5 +70,9 @@ cancelled：不能完成，也不能重新打开（报错）
 - “逾期”只是标记。逾期安排从不自动完成、取消或改期。
 - 仅逻辑层与测试，没有 UI；没有真机验收。
 
-## 验证
-见 PR 描述中的实际命令与结果。
+## 验证（2026-10-26，Xcode 27.1，Mac 46a24d5d，模拟器 iPhone 18 Pro / iOS 27.0）
+- `xcodebuild … build-for-testing`（scheme `cat`，Debug，iphonesimulator，本机 ad-hoc 模拟器签名参数）：`TEST BUILD SUCCEEDED`（App 与 catTests 均编译）。
+- `xcodebuild … test-without-building`，`-only-testing` 为 `ParentingStartActionTests`、`ParentingWorkspaceTests`、`ParentingArrangementEditTests`、`ParentingRescheduleIntakeTests`、`ParentingAccountLifecycleTests`、`ParentingNaturalInputTests`、`ParentingReminderPlannerTests`、`ParentingReminderSchedulerTests`、`ParentingReminderModelTests`：共 133 个用例，0 失败。其中新增 33 个纯逻辑用例（`ParentingStartActionTests`）与 3 个经加密存储的用例（`ParentingWorkspaceTests`：冷重启持久化、同一 operationID 重试、保存失败不改磁盘、模型一键完成与撤销）。
+- 同一份 33 个纯逻辑用例另在 macOS 主机上用临时 SwiftPM 包（只含 5 个 Domain 源文件和 `catError` 垫片，包不在仓库内）跑过：0 失败。
+- `Scripts/validate-project.py`：PASS（253 个 App 源文件成员关系一致）。
+- 未跑：UI 测试（`ParentingWorkspaceUITests` 等，本切片没有改视图）、真机、`test-parenting-core-simulator.sh` 全量脚本。
