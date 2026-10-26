@@ -40,7 +40,7 @@ struct ProfileExport: FileDocument {
                 Text(ui("系统推送与持久云调度尚未连接，不会自动申请通知权限。")).font(.footnote)
             } header: { sectionHeader(ui("权限")) }
             Section {
-                Picker(ui("主题"), selection: Binding(get: { model.preference("theme", fallback: "dark") }, set: { model.setPreference("theme", $0) })) { Text(ui("深色")).tag("dark"); Text(ui("浅色 · 本地补充")).tag("light"); Text(ui("跟随系统")).tag("system") }.accessibilityIdentifier("settings.theme")
+                Picker(ui("主题"), selection: Binding(get: { model.preference("theme", fallback: CatAppearance.default.rawValue) }, set: { model.setPreference("theme", $0) })) { Text(ui("深色")).tag("dark"); Text(ui("浅色 · 本地补充")).tag("light"); Text(ui("跟随系统")).tag("system") }.accessibilityIdentifier("settings.theme")
                 Picker(ui("界面语言"), selection: Binding(get: { model.preference("language", fallback: "zh-Hans") }, set: { model.setPreference("language", $0) })) { Text(ui("中文")).tag("zh-Hans"); Text("English").tag("en") }
                 Text(ui("主题与语言等偏好在同一用户的云端、电脑、本机视图共享；会话配置保持创建时快照。")).font(.footnote)
             } header: { sectionHeader(ui("外观")) }

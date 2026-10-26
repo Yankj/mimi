@@ -34,6 +34,14 @@ ROLES = {
     "send": "send", "sendIcon": "send_ink", "userMessageBackground": "bubble",
     "userMessageInk": "bubble_ink", "controlEdge": "control_edge", "failure": "error",
 }
+# Roles that read the selectable palette (CatTheme.swift) instead of a fixed literal pair. Their values are
+# asserted by the token unit tests (CatThemeTokenTests: proposal values + WCAG contrast over all four palette/appearance
+# combinations); here only the binding to the theme token is guarded.
+THEME_ROLES = {
+    "background": "canvas", "panel": "surface", "input": "surface", "drawer": "surface", "ink": "ink",
+    "secondary": "ink2", "userMessageBackground": "surface", "userMessageInk": "ink", "failure": "danger",
+}
+THEME_FILES = (HOST + "DesignSystem/CatTheme.swift", HOST + "DesignSystem/CatButtonStyles.swift")
 ROLE_MAP = {"body": "body", "secondary": "subheadline", "caption": "footnote", "table": "callout"}
 
 
@@ -131,6 +139,10 @@ def check(sources, spec):
         issue(TOKENS_PATH, "catBrandTokens must define brand sheet hex (primary/deep/background/ink/grey)")
     values = {}
     for role, key in ROLES.items():
+        if role in THEME_ROLES:
+            require(COMPONENTS, masked(palette), r"\bstatic\s+let\s+" + role + r"\s*=\s*CatTheme\.color\(\s*\.(?:" + THEME_ROLES[role] + r")\s*\)\s*(?:\n|//)",
+                    f"R5 role {role} must read theme token {THEME_ROLES[role]} (CatTheme.color(.{THEME_ROLES[role]}))")
+            continue
         actual = adaptive_values(palette, r"\bstatic\s+let\s+" + role + r"\b", tokens)
         expected = R9_OVERRIDES.get(key) or tuple(spec["colors"][mode][key].upper() for mode in ("light", "dark"))
         if actual != [expected]:
@@ -203,7 +215,7 @@ def check(sources, spec):
     # New host code cannot quietly introduce an unreviewed parallel RGB palette.
     # Transparent clears, semantic system labels, images and package defaults remain valid.
     for path, text in sources.items():
-        if not path.startswith(HOST) or path == COMPONENTS or path in TYPOGRAPHY.LEGACY:
+        if not path.startswith(HOST) or path == COMPONENTS or path in THEME_FILES or path in TYPOGRAPHY.LEGACY:
             continue
         code = masked(text)
         if re.search(r"\b(?:Color|UIColor|NSColor)\s*\(\s*(?:red|white|hue|srgbRed)\s*:|\b(?:Color|UIColor|NSColor)\.(?:blue|black|white|gray|cyan|indigo|teal|pink|purple|brown|yellow|mint|orange)\b|\.(?:foregroundStyle|foregroundColor|background|tint)\s*\(\s*\.(?:blue|black|white|gray|cyan|indigo|teal|pink|purple|brown|yellow|mint|orange)\b", code):
@@ -216,7 +228,8 @@ def self_test(sources, spec):
     # These are guard regressions, not product/visual tests.
     sources = {path: sources[path] for path in (COMPONENTS, TYPE, FIRST, STREAM, READER, COMPOSER, CHROME, SIDEBAR, PANEL)}
     tests = [
-        (COMPONENTS, "light: catBrandTokens.background, dark: catBrandTokens.canvasDark", "light: 0xF7F8FA, dark: 0x111214", "R5 role background"),
+        (COMPONENTS, "static let background = CatTheme.color(.canvas)", "static let background = CatTheme.color(.card)", "R5 role background"),
+        (COMPONENTS, "static let ink = CatTheme.color(.ink)", "static let ink = adaptive(light: 0x292622, dark: 0xF2F0ED)", "R5 role ink"),
         (COMPONENTS, "static let accent = action", "static let accent = ink", "compatibility alias"),
         (CHROME, ".foregroundStyle(catColors.sendIcon)\n                            .frame", ".foregroundStyle(catColors.onInk)\n                            .frame", "enabled send glyph"),
         (CHROME, "canSend ? catBrand.paw", "canSend ? catColors.action", "enabled send background"),
