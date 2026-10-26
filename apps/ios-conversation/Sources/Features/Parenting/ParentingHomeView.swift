@@ -1192,7 +1192,7 @@ extension View {
 extension View {
     /// Primary action: system `.glassProminent` on iOS 26+, the brand-gradient style before that.
     @ViewBuilder func parentingPrimaryButton() -> some View {
-        if #available(iOS 26.0, *) { self.buttonStyle(.glassProminent).tint(catColors.calmCTATop).controlSize(.large) }
+        if #available(iOS 26.0, *) { self.buttonStyle(.glassProminent).tint(catColors.calmCTATop).foregroundStyle(catColors.calmGlyph).controlSize(.large) }
         else { self.buttonStyle(ParentingPrimaryButtonStyle()) }
     }
     /// Secondary action: system `.glass` on iOS 26+.

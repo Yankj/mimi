@@ -452,6 +452,7 @@ private struct ParentingVoiceStrip: View {
                 }
                 .padding(.horizontal, 20).padding(.vertical, 10)
                 .frame(maxWidth: 680).frame(maxWidth: .infinity)
+                .background(.bar)
             default: EmptyView()
             }
         }
