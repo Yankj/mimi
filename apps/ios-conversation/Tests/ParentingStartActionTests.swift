@@ -12,7 +12,7 @@ final class ParentingStartActionTests: XCTestCase {
     private let child = UUID(uuidString: "D2000000-0000-4000-8000-000000000001")!
     private let goal = UUID(uuidString: "D4000000-0000-4000-8000-000000000001")!
 
-    private func at(_ day: Int, _ hour: Int, _ minute: Int = 0, month: Int = 10) -> Date {
+    private func at(_ day: Int, _ hour: Int = 0, _ minute: Int = 0, month: Int = 10) -> Date {
         calendar.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour, minute: minute))!
     }
     private var monday10: Date { at(26, 10) } // 2026-10-26 is a Monday
@@ -133,7 +133,8 @@ final class ParentingStartActionTests: XCTestCase {
         XCTAssertEqual(growth(ledger(goals: true, records: five), at(26, 12), .init(lastWeeklyReviewAt: at(25, 9))), .recordObservation(childID: child))
         let four = Array(five.prefix(4))
         XCTAssertEqual(growth(ledger(records: four), at(26, 12), .init(lastWeeklyReviewAt: at(25, 9))), .recordObservation(childID: child))
-        XCTAssertEqual(growth(ledger(records: five), at(25, 19)), .weeklyReview(reason: .sundayEvening))
+        let earlier = (1...5).map { record($0, at: at(23, 6 + $0)) }
+        XCTAssertEqual(growth(ledger(records: earlier), at(25, 19)), .weeklyReview(reason: .sundayEvening))
     }
 
     func testGrowthCompletionRecordsDoNotCountAsObservations() {
