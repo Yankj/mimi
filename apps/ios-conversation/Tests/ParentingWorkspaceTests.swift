@@ -455,6 +455,75 @@ final class ParentingWorkspaceTests: XCTestCase {
         XCTAssertNil(model.error)
         XCTAssertFalse(model.busy)
     }
+
+    // MARK: reopenArrangement through the encrypted store
+
+    func testCompleteThenReopenPersistsAcrossColdRelaunchAndRetriesAreIdempotent() async throws {
+        let harness = try make()
+        try await seedDraft(harness, linkedGoal: true)
+        try await apply(.confirmArrangement(id: itemID), to: harness)
+        let completed = try await apply(.completeArrangement(id: itemID, recordID: recordID, note: ""), to: harness)
+        XCTAssertEqual(completed.records.count, 1)
+        let coldCompleted = try await reopen(harness).load()
+        XCTAssertEqual(coldCompleted, completed)
+
+        let reopenOperation = UUID()
+        let reopened = try await apply(.reopenArrangement(id: itemID), to: harness, operationID: reopenOperation)
+        XCTAssertEqual(reopened.arrangements.first?.state, .planned)
+        XCTAssertTrue(reopened.records.isEmpty)
+        let cold = try await reopen(harness).load()
+        XCTAssertEqual(cold, reopened, "a fresh Repository reads the reopened ledger from the sealed file")
+        // Same operation again (a retry after a lost acknowledgement) returns the saved result without another revision.
+        let retried = try await harness.store.apply(.reopenArrangement(id: itemID), expectedRevision: completed.revision, operationID: reopenOperation)
+        XCTAssertEqual(retried, reopened)
+        // A new tap on an open arrangement is a harmless no-op that still saves cleanly.
+        let again = try await apply(.reopenArrangement(id: itemID), to: harness)
+        XCTAssertEqual(again.arrangements, reopened.arrangements)
+        XCTAssertEqual(again.records, reopened.records)
+        // The arrangement can be completed again with a fresh record.
+        let second = try await apply(.completeArrangement(id: itemID, recordID: stableID("parenting-test-recomplete"), note: ""), to: harness)
+        XCTAssertEqual(second.arrangements.first?.state, .completed)
+        XCTAssertEqual(second.records.count, 1)
+    }
+
+    func testReopenSaveFailureLeavesCompletedLedgerUntouchedOnDiskAndMemory() async throws {
+        let harness = try make()
+        try await seedDraft(harness)
+        try await apply(.confirmArrangement(id: itemID), to: harness)
+        let completed = try await apply(.completeArrangement(id: itemID, recordID: recordID, note: ""), to: harness)
+        let before = try Data(contentsOf: harness.url)
+        harness.persistence.failNextSave()
+        await rejects { _ = try await self.apply(.reopenArrangement(id: self.itemID), to: harness) }
+        try await assertDiskUnchanged(harness, data: before, workspace: completed)
+    }
+
+    @MainActor func testModelOneTapCompleteGivesUndoOnlyAfterSaveAndUndoReopens() async throws {
+        let harness = try make()
+        try await seedDraft(harness)
+        try await apply(.confirmArrangement(id: itemID), to: harness)
+        let instant = now
+        let model = ParentingWorkspaceModel(store: harness.store, clock: { instant })
+        await model.load()
+        harness.persistence.failNextSave()
+        let failedUndo = await model.completeOneTap(itemID)
+        XCTAssertNil(failedUndo, "no undo handle without a saved completion")
+        XCTAssertEqual(model.workspace.arrangements.first?.state, .planned)
+
+        let undo = await model.completeOneTap(itemID, recordID: recordID)
+        XCTAssertEqual(undo?.arrangementID, itemID)
+        XCTAssertEqual(model.workspace.arrangements.first?.state, .completed)
+        let handle = try XCTUnwrap(undo)
+        let expiredHandle = ParentingCompletionUndo(arrangementID: handle.arrangementID, recordID: handle.recordID, expiresAt: instant.addingTimeInterval(-1))
+        let expired = await model.undoCompletion(expiredHandle)
+        XCTAssertFalse(expired)
+        XCTAssertEqual(model.workspace.arrangements.first?.state, .completed)
+        let undone = await model.undoCompletion(handle)
+        XCTAssertTrue(undone)
+        XCTAssertEqual(model.workspace.arrangements.first?.state, .planned)
+        XCTAssertTrue(model.workspace.records.isEmpty)
+        let cold = try await reopen(harness).load()
+        XCTAssertEqual(cold, model.workspace)
+    }
 }
 
 /// Exercises the production intake parser against synthetic conversation records only.
