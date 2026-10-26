@@ -8942,5 +8942,169 @@
   "新安排": {
     "en": "New arrangement",
     "zh-Hans": "新安排"
+  },
+  "全部安排": {
+    "en": "All arrangements",
+    "zh-Hans": "全部安排"
+  },
+  "今天下午宝宝第一次自己拿勺子吃饭": {
+    "en": "This afternoon the baby ate with a spoon alone for the first time",
+    "zh-Hans": "今天下午宝宝第一次自己拿勺子吃饭"
+  },
+  "周六上午10点带宝宝去公园": {
+    "en": "Take the baby to the park on Saturday at 10 AM",
+    "zh-Hans": "周六上午10点带宝宝去公园"
+  },
+  "宝宝今天自己扶着沙发走了几步": {
+    "en": "The baby walked a few steps holding the sofa today",
+    "zh-Hans": "宝宝今天自己扶着沙发走了几步"
+  },
+  "明天早上8点带宝宝打疫苗": {
+    "en": "Take the baby for a vaccine tomorrow at 8 AM",
+    "zh-Hans": "明天早上8点带宝宝打疫苗"
+  },
+  "晚上8点半给宝宝读绘本": {
+    "en": "Read a picture book to the baby at 8:30 PM",
+    "zh-Hans": "晚上8点半给宝宝读绘本"
+  },
+  "{0} 件·已完成 {1}": {
+    "en": "{0} planned · {1} done",
+    "zh-Hans": "{0} 件·已完成 {1}"
+  },
+  "今天暂无安排": {
+    "en": "Nothing planned today",
+    "zh-Hans": "今天暂无安排"
+  },
+  "尚未确认的安排不需要重新打开。": {
+    "en": "An arrangement that has not been confirmed does not need reopening.",
+    "zh-Hans": "尚未确认的安排不需要重新打开。"
+  },
+  "已取消的安排不能重新打开。": {
+    "en": "A cancelled arrangement cannot be reopened.",
+    "zh-Hans": "已取消的安排不能重新打开。"
+  },
+  "一句话就好，小咪会先给你一张确认卡。": {
+    "en": "One sentence is enough. mimi shows you a confirm card first.",
+    "zh-Hans": "一句话就好，小咪会先给你一张确认卡。"
+  },
+  "上次复盘：{0} 天前（{1}）": {
+    "en": "Last review: {0} days ago ({1})",
+    "zh-Hans": "上次复盘：{0} 天前（{1}）"
+  },
+  "下一件": {
+    "en": "Next up",
+    "zh-Hans": "下一件"
+  },
+  "今天已经复盘过。": {
+    "en": "You already reviewed today.",
+    "zh-Hans": "今天已经复盘过。"
+  },
+  "今天有什么小事想记下？": {
+    "en": "Any small moment from today to note down?",
+    "zh-Hans": "今天有什么小事想记下？"
+  },
+  "今晚": {
+    "en": "Tonight",
+    "zh-Hans": "今晚"
+  },
+  "先核对一下": {
+    "en": "Take a look first",
+    "zh-Hans": "先核对一下"
+  },
+  "先看看这些": {
+    "en": "Start with these",
+    "zh-Hans": "先看看这些"
+  },
+  "全部确认": {
+    "en": "Confirm all",
+    "zh-Hans": "全部确认"
+  },
+  "去处理": {
+    "en": "Go and sort them out",
+    "zh-Hans": "去处理"
+  },
+  "只记下时间，用来决定什么时候再提醒你复盘。": {
+    "en": "Only the time is saved. It decides when to nudge you to review again.",
+    "zh-Hans": "只记下时间，用来决定什么时候再提醒你复盘。"
+  },
+  "可以到「成长」里回看。": {
+    "en": "You can look back in Growth.",
+    "zh-Hans": "可以到「成长」里回看。"
+  },
+  "周复盘": {
+    "en": "Weekly review",
+    "zh-Hans": "周复盘"
+  },
+  "周日晚上，适合回看这一周。": {
+    "en": "It is Sunday evening, a good time to look back on the week.",
+    "zh-Hans": "周日晚上，适合回看这一周。"
+  },
+  "它们不会被自动算作完成。可以逐件完成、调整时间或取消。": {
+    "en": "They are never marked done automatically. Finish, reschedule or cancel them one by one.",
+    "zh-Hans": "它们不会被自动算作完成。可以逐件完成、调整时间或取消。"
+  },
+  "已完成：{0}": {
+    "en": "Done: {0}",
+    "zh-Hans": "已完成：{0}"
+  },
+  "接下来": {
+    "en": "Coming up",
+    "zh-Hans": "接下来"
+  },
+  "接下来没有别的安排。": {
+    "en": "Nothing else is planned after this.",
+    "zh-Hans": "接下来没有别的安排。"
+  },
+  "放进输入栏": {
+    "en": "Put in the input bar",
+    "zh-Hans": "放进输入栏"
+  },
+  "时间已过，做完了就点完成": {
+    "en": "The time has passed. Tap Done if it is finished.",
+    "zh-Hans": "时间已过，做完了就点完成"
+  },
+  "有 {0} 件以前的安排还没标记": {
+    "en": "{0} earlier arrangements are not marked yet",
+    "zh-Hans": "有 {0} 件以前的安排还没标记"
+  },
+  "有 {0} 件待确认": {
+    "en": "{0} waiting for confirmation",
+    "zh-Hans": "有 {0} 件待确认"
+  },
+  "标记本周已复盘": {
+    "en": "Mark this week as reviewed",
+    "zh-Hans": "标记本周已复盘"
+  },
+  "确认后才会进入安排，也才会提醒。不确定的可以先逐件查看。": {
+    "en": "Only confirmed ones enter your plan and get reminders. Review them one by one if unsure.",
+    "zh-Hans": "确认后才会进入安排，也才会提醒。不确定的可以先逐件查看。"
+  },
+  "试试这样说": {
+    "en": "Try saying it like this",
+    "zh-Hans": "试试这样说"
+  },
+  "说一句": {
+    "en": "Say one line",
+    "zh-Hans": "说一句"
+  },
+  "距离上次复盘已满 7 天。": {
+    "en": "It has been 7 days since your last review.",
+    "zh-Hans": "距离上次复盘已满 7 天。"
+  },
+  "还剩 {0} 秒": {
+    "en": "{0} seconds left",
+    "zh-Hans": "还剩 {0} 秒"
+  },
+  "还有 {0} 件": {
+    "en": "{0} more",
+    "zh-Hans": "还有 {0} 件"
+  },
+  "还没有记录过周复盘。": {
+    "en": "No weekly review recorded yet.",
+    "zh-Hans": "还没有记录过周复盘。"
+  },
+  "逐件查看": {
+    "en": "Review one by one",
+    "zh-Hans": "逐件查看"
   }
 }
