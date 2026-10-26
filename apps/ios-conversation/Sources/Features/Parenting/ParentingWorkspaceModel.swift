@@ -66,6 +66,19 @@ final class ParentingWorkspaceModel: ObservableObject {
         return true
     }
 
+    /// One-tap complete (blank note). Returns the undo handle only after the ledger acknowledged the save; nil on any failure.
+    /// Pass the same `operationID` when retrying the same tap.
+    func completeOneTap(_ arrangementID: UUID, operationID: UUID = UUID(), recordID: UUID = UUID()) async -> ParentingCompletionUndo? {
+        guard await apply(.completeArrangement(id: arrangementID, recordID: recordID, note: ""), operationID: operationID) else { return nil }
+        return ParentingCompletionUndo.make(workspace: workspace, arrangementID: arrangementID, recordID: recordID, now: clock())
+    }
+
+    /// Undo of `completeOneTap` inside the 3-second window; saved as its own command. False when the window has passed or the save failed.
+    func undoCompletion(_ undo: ParentingCompletionUndo, operationID: UUID = UUID()) async -> Bool {
+        guard undo.isActive(at: clock()) else { return false }
+        return await apply(.reopenArrangement(id: undo.arrangementID), operationID: operationID)
+    }
+
     /// Re-reads the system's permission and re-plans from the saved ledger (foreground, settings return).
     func refreshReminders() async {
         guard loaded else { return }
