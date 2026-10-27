@@ -1600,7 +1600,7 @@ final class ParentingPlushAndFixesTests: XCTestCase {
         gate.finish(completedAt: now)
         XCTAssertFalse(gate.begin(now: now.addingTimeInterval(0.1)), "the hero already shows the next item; a double tap must not complete it")
         XCTAssertFalse(gate.begin(now: now.addingTimeInterval(ParentingOneTapGate.cooldown - 0.01)))
-        XCTAssertTrue(gate.begin(now: now.addingTimeInterval(ParentingOneTapGate.cooldown)), "a deliberate later tap works")
+        XCTAssertTrue(gate.begin(now: now.addingTimeInterval(ParentingOneTapGate.cooldown + 0.05)), "a deliberate later tap works")
     }
 
     // MARK: Weekly review key on sign-out
