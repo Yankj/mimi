@@ -3,6 +3,7 @@ package com.heydusk.mimi.i18n
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.heydusk.mimi.domain.language.AppLanguage
 import java.io.File
 import java.util.Locale
 
