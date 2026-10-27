@@ -19,6 +19,11 @@ class ThemePreferencesRepository(private val store: DataStore<Preferences>) {
         .map { ThemePreferences.fromRaw(it[PALETTE], it[APPEARANCE]) }
         .distinctUntilChanged()
 
+    /** 一次编辑里同时写两个键，读者不会看到只改了一半的组合。 */
+    suspend fun update(preferences: ThemePreferences) {
+        store.edit { it[PALETTE] = preferences.palette.rawValue; it[APPEARANCE] = preferences.appearance.rawValue }
+    }
+
     suspend fun setPalette(palette: Palette) { store.edit { it[PALETTE] = palette.rawValue } }
     suspend fun setAppearance(appearance: Appearance) { store.edit { it[APPEARANCE] = appearance.rawValue } }
 

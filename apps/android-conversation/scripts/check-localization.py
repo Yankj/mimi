@@ -4,7 +4,10 @@
 规则（与 iOS 的约定一致：中文原句做键，值为 {en, zh-Hans}，{n} 占位符两种语言必须一致）：
   1. UIStrings.json、UIStringsAndroid.json 每个键同时有 en 与 zh-Hans，占位符集合相同；
   2. 补充目录里的键不能与共享目录里已有的键给出不同的值（共享优先，冲突说明有人悄悄改了文案）；
-  3. Kotlin 生产代码里每个含汉字的字符串字面量都必须是目录里的键（避免在界面里硬编码中文）。
+  3. 界面层（:app、:feature:*、:core:designsystem、:core:i18n）的 Kotlin 生产代码里，每个含汉字的字符串字面量都必须是目录里的键
+     （避免在界面里硬编码中文）。
+     :core:domain 与 :core:data 豁免：那里的中文是 iOS 同一批"语法数据"（自然语言词表、正则）和错误原句（与 iOS `catError`
+     的文字一一对应），界面层通过它们的类型/文字去映射目录；它们不直接渲染。检查会把这类字面量的数量打印出来，便于发现暴涨。
 
 只用标准库；不构建、不联网。用法：python3 scripts/check-localization.py
 """
@@ -19,6 +22,8 @@ SHARED = ROOT / "apps/ios-conversation/Resources/UIStrings.json"
 SUPPLEMENT = APP / "core/i18n/src/main/assets/UIStringsAndroid.json"
 PLACEHOLDER = re.compile(r"\{[0-9]+\}")
 CJK = re.compile(r"[\u4e00-\u9fff]")
+# 不渲染到界面的层：语法数据与错误原句，见文件头第 3 条。
+NON_UI = ("core/domain", "core/data")
 
 
 def load(path: Path) -> dict:
@@ -44,6 +49,8 @@ def strip_comments(text: str) -> str:
 def kotlin_literals() -> list[tuple[Path, str]]:
     found = []
     for path in sorted(APP.rglob("*.kt")):
+        if path.relative_to(APP).as_posix().startswith(NON_UI):
+            continue
         rel = path.relative_to(APP).parts
         if "build" in rel or "test" in rel or "androidTest" in rel:
             continue
@@ -69,7 +76,13 @@ def main() -> int:
         for p in problems[:50]:
             print("  -", p)
         return 1
-    print(f"PASS check-localization: 共享 {len(shared)} 键 + Android 补充 {len(extra)} 键；Kotlin 中文字面量均在目录内")
+    exempt = sum(
+        len(CJK.findall(m.group(1))) > 0
+        for path in APP.rglob("*.kt")
+        if path.relative_to(APP).as_posix().startswith(NON_UI) and not {"build", "test", "androidTest"} & set(path.relative_to(APP).parts)
+        for m in re.finditer(r'"((?:[^"\\\n]|\\.)*)"', strip_comments(path.read_text(encoding="utf-8")))
+    )
+    print(f"PASS check-localization: 共享 {len(shared)} 键 + Android 补充 {len(extra)} 键；界面层 Kotlin 中文字面量均在目录内（domain/data 豁免，共 {exempt} 处）")
     return 0
 
 

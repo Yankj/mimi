@@ -4,7 +4,10 @@
     <!-- M0 不申请任何运行时权限；网络、麦克风、通知等随各自里程碑引入。 -->
 
     <application
+        android:name=".MimiApplication"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher"
