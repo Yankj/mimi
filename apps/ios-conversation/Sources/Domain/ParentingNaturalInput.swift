@@ -183,9 +183,20 @@ public enum ParentingNaturalInput {
     }
 
     // MARK: Fields
+    /// Children the words point at: a nickname first (several nicknames = several children); otherwise sibling words by creation order.
+    private static func mentionedChildren(_ text: String, context: ParentingNaturalContext) -> [ParentingChild] {
+        let named = context.children.filter { !$0.name.isEmpty && text.contains($0.name) }
+        if !named.isEmpty { return named }
+        let ordered = context.children.enumerated()
+            .sorted { ($0.element.createdAt, $0.offset) < ($1.element.createdAt, $1.offset) }.map(\.element)
+        return ParentingNaturalLexicon.siblingPositions(in: text, childCount: ordered.count).map { ordered[$0] }
+    }
+
+    /// Who the words are about. Order: a child answered on the card, a nickname or sibling word in the sentence, the child selected on
+    /// the page, the only child. Several mentioned children, or none to go on, are never guessed: one question lists the choices.
     private static func resolveChild(_ p: inout ParentingNaturalProposal, text: String, context: ParentingNaturalContext) {
         if let forced = p.overrides.childID, context.children.contains(where: { $0.id == forced }) { p.childID = forced; return }
-        let named = context.children.filter { !$0.name.isEmpty && text.contains($0.name) }
+        let named = mentionedChildren(text, context: context)
         if named.count == 1 { p.childID = named[0].id; return }
         if named.count > 1 { p.missing.append(.child); p.childChoices = named.map(\.id); return }
         if context.children.count == 1 { p.childID = context.children[0].id; return }
@@ -198,6 +209,7 @@ public enum ParentingNaturalInput {
         resolveChild(&p, text: text, context: context)
         var residual = ParentingNaturalLexicon.removing(reading.consumed, from: text)
         for child in context.children { residual = residual.replacingOccurrences(of: child.name, with: " ") }
+        residual = ParentingNaturalLexicon.removingSiblingReferences(residual)
         let title = ParentingNaturalLexicon.cleanTitle(residual)
         if title.isEmpty { p.missing.append(.title) } else { p.title = String(title.prefix(160)) }
         if let forced = p.overrides.dueAt { p.dueAt = forced; return }
@@ -233,7 +245,7 @@ public enum ParentingNaturalInput {
         let post = trigger.map { String(text[$0.1.upperBound...]) } ?? ""
         let preReading = lexicon.read(pre, now: now, calendar: calendar)
         let postReading = lexicon.read(post, now: now, calendar: calendar)
-        let named = context.children.filter { !$0.name.isEmpty && text.contains($0.name) }
+        let named = mentionedChildren(text, context: context)
         var pool = context.arrangements.filter { [.draft, .planned].contains($0.state) }
         if let forced = p.overrides.childID { pool = pool.filter { $0.childID == forced } }
         else if named.count == 1 { pool = pool.filter { $0.childID == named[0].id } }
@@ -243,6 +255,7 @@ public enum ParentingNaturalInput {
         if target == nil {
             var residual = lexicon.removing(preReading.consumed, from: pre)
             for child in context.children { residual = residual.replacingOccurrences(of: child.name, with: " ") }
+            residual = lexicon.removingSiblingReferences(residual)
             let wanted = lexicon.bigrams(lexicon.cleanTitle(residual))
             let scored: [(ParentingArrangement, Int)] = pool.map { item in
                 var name = item.title

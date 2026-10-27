@@ -29,6 +29,30 @@ enum ParentingNaturalLexicon {
     static let lateClockPattern = "[点时]半?才|[点时]半?就(?!要)"
     static let negationPattern = "没(?!有?问题|关系|事)"
     static let assistantNames = ["小咪"]
+
+    // MARK: Sibling references ("老大", "二宝", "哥哥"…): resolved by creation order, only when the family has enough children.
+    /// Where a reference points: a fixed position in creation order, or the youngest child.
+    enum SiblingSlot: Equatable { case position(Int), youngest }
+    static let siblingReferences: [(pattern: String, slot: SiblingSlot, minimumChildren: Int)] = [
+        ("老大|大宝(?!贝)", .position(0), 1), ("老二|二宝", .position(1), 2), ("老三|三宝", .position(2), 3), ("老四|四宝", .position(3), 4),
+        ("哥哥|姐姐", .position(0), 2), ("弟弟|妹妹|小宝(?!宝|贝)", .youngest, 2),
+    ]
+    /// Zero-based positions (creation order) the text points at, each at most once. A reference to a child that does not exist is ignored.
+    static func siblingPositions(in text: String, childCount: Int) -> [Int] {
+        var found: [Int] = []
+        for ref in siblingReferences where childCount >= ref.minimumChildren && matches(ref.pattern, in: text) {
+            let index: Int
+            switch ref.slot { case .position(let i): index = i; case .youngest: index = childCount - 1 }
+            if index < childCount, !found.contains(index) { found.append(index) }
+        }
+        return found.sorted()
+    }
+    /// The text without the sibling words, for deriving a title ("老大2点上课" → "上课").
+    static func removingSiblingReferences(_ text: String) -> String {
+        var t = text
+        for ref in siblingReferences { t = t.replacingOccurrences(of: ref.pattern, with: " ", options: .regularExpression) }
+        return t
+    }
     static let chitchatWords = ["谢谢", "感谢", "好的", "好吧", "你好", "您好", "嗯", "哦", "哈哈", "在吗", "拜拜", "再见", "晚安", "没事", "算了"]
     static let softQuestionWords = ["会不会", "是不是", "怎么样", "为什么", "多少", "天气", "下雨", "下雪", "几点了", "什么时候", "能不能", "可不可以"]
     static let fillerPrefixes = ["帮我记一下", "帮我记下", "让小咪记一下", "让小咪记下", "小咪记一下", "小咪", "帮我记", "记一下", "记下", "记录一下", "麻烦", "请", "帮我", "提醒我", "提醒"]

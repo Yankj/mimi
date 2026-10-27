@@ -328,6 +328,112 @@ final class ParentingNaturalInputTests: XCTestCase {
         XCTAssertEqual(wrong, [])
     }
 
+
+    // MARK: Which child: nickname, sibling words (老大/二宝/哥哥…), selected child, only child — never a silent guess
+    private let dou = ParentingChild(id: UUID(uuidString: "00000000-0000-0000-0000-0000000000A3")!, name: "豆豆", createdAt: Date(timeIntervalSince1970: 1_700_000_002))
+
+    func testSiblingWordsPointAtTheChildByCreationOrder() {
+        let two = context(children: [tuan, duo])
+        let a = classify("老大2点上课", two)
+        XCTAssertEqual(a.kind, .newArrangement)
+        XCTAssertEqual(a.childID, tuan.id)
+        XCTAssertEqual(a.title, "上课", "the sibling word is not part of the title")
+        let b = classify("老二今天睡得早", two)
+        XCTAssertEqual(b.kind, .observation)
+        XCTAssertEqual(b.childID, duo.id)
+        XCTAssertTrue(b.isReadyToConfirm)
+        // Creation order wins over the order of the array.
+        let shuffled = context(children: [duo, tuan])
+        XCTAssertEqual(classify("老大明天要带水杯", shuffled).childID, tuan.id)
+        XCTAssertEqual(classify("老二明天要带水杯", shuffled).childID, duo.id)
+    }
+
+    func testSiblingWordsOnlyWorkWhenTheFamilyHasEnoughChildren() {
+        XCTAssertEqual(classify("老二今天睡得早", context(children: [tuan])).childID, tuan.id, "one child: bound without asking")
+        let two = context(children: [tuan, duo])
+        let third = classify("老三今天睡得早", two)
+        XCTAssertEqual(third.missing, [.child], "there is no third child: ask, do not guess")
+        XCTAssertEqual(ParentingNaturalInput.followUp(for: third, context: two, calendar: calendar)?.options.count, 2)
+        let three = context(children: [tuan, duo, dou])
+        XCTAssertEqual(classify("老三今天睡得早", three).childID, dou.id)
+        XCTAssertEqual(classify("小宝今天睡得早", three).childID, dou.id, "小宝 = the youngest")
+        XCTAssertEqual(classify("二宝今天睡得早", three).childID, duo.id)
+        XCTAssertEqual(classify("大宝今天睡得早", three).childID, tuan.id)
+        XCTAssertEqual(classify("小宝宝今天睡得早", three).missing, [.child], "小宝宝 is a baby, not 小宝")
+    }
+
+    func testBrotherAndSisterWordsMapToTheOlderAndTheYoungerChild() {
+        let two = context(children: [tuan, duo])
+        XCTAssertEqual(classify("哥哥周五下午5点游泳", two).childID, tuan.id)
+        XCTAssertEqual(classify("姐姐周五下午5点游泳", two).childID, tuan.id)
+        XCTAssertEqual(classify("妹妹今天哭了", two).childID, duo.id)
+        XCTAssertEqual(classify("弟弟今天哭了", two).childID, duo.id)
+        XCTAssertEqual(classify("妹妹今天哭了", context(children: [tuan])).childID, tuan.id)
+    }
+
+    func testSentenceReferenceBeatsSelectedChildAndSelectedChildBeatsAsking() {
+        let selected = ParentingNaturalContext(children: [tuan, duo], arrangements: [], activeChildID: tuan.id)
+        XCTAssertEqual(classify("老二今天睡得早", selected).childID, duo.id, "a child named in the sentence wins")
+        XCTAssertEqual(classify("朵朵今天睡得早", selected).childID, duo.id)
+        XCTAssertEqual(classify("今天睡得早", selected).childID, tuan.id, "nothing named: the selected child")
+        let none = context(children: [tuan, duo])
+        let asked = classify("今天睡得早", none)
+        XCTAssertNil(asked.childID)
+        XCTAssertEqual(asked.missing, [.child])
+        XCTAssertEqual(ParentingNaturalInput.followUp(for: asked, context: none, calendar: calendar)?.options.map(\.id),
+                       ["child." + tuan.id.uuidString, "child." + duo.id.uuidString])
+    }
+
+    func testTwoChildrenInOneSentenceAskWhichOneAndTheAnswerSticks() {
+        let two = context(children: [tuan, duo])
+        for text in ["老大和老二今天一起玩了", "团团和朵朵今天一起玩了", "哥哥和妹妹今天一起玩了"] {
+            let p = classify(text, two)
+            XCTAssertEqual(p.kind, .observation, text)
+            XCTAssertEqual(p.missing, [.child], text)
+            let ask = ParentingNaturalInput.followUp(for: p, context: two, calendar: calendar)
+            XCTAssertEqual(ask?.field, .child)
+            XCTAssertEqual(ask?.options.count, 2)
+            let done = ParentingNaturalInput.applying(.child(duo.id), to: p, context: two, now: now, calendar: calendar)
+            XCTAssertEqual(done.childID, duo.id)
+            XCTAssertTrue(done.isReadyToConfirm)
+        }
+    }
+
+    func testRescheduleFindsTheArrangementOfTheChildTheSiblingWordPointsAt() {
+        let mine = swim(due: at(2026, 10, 30, 17, 0), child: tuan)
+        let hers = swim(due: at(2026, 10, 30, 17, 0), child: duo)
+        let ctx = context(children: [tuan, duo], arrangements: [mine, hers])
+        let p = classify("老二周五游泳改到下午6点", ctx)
+        XCTAssertEqual(p.kind, .reschedule)
+        XCTAssertEqual(p.targetID, hers.id)
+        XCTAssertEqual(p.childID, duo.id)
+        XCTAssertTrue(p.isReadyToConfirm)
+    }
+
+    /// (sentence, record/arrangement verdict, child position in creation order, nil = asked) for a family of three.
+    func testChildReferenceCorpus() {
+        let kids = [tuan, duo, dou]
+        let ctx = context(children: kids)
+        let rows: [(String, String, Int?)] = [
+            ("老大2点上课", "A", 0), ("老二2点上课", "A", 1), ("老三2点上课", "A", 2),
+            ("老大今天睡得早", "R", 0), ("老二今天睡得早", "R", 1), ("老三今天睡得早", "R", 2),
+            ("大宝明天要带水杯", "A", 0), ("二宝明天要带水杯", "A", 1), ("小宝明天要带水杯", "A", 2),
+            ("哥哥周五下午5点游泳", "A", 0), ("姐姐周五下午5点游泳", "A", 0), ("弟弟今天哭了", "R", 2), ("妹妹今天哭了", "R", 2),
+            ("团团今天自己穿了鞋", "R", 0), ("朵朵周五下午5点游泳", "A", 1), ("豆豆昨天发烧了", "R", 2),
+            ("老大和老二今天一起玩了", "R", nil), ("团团和豆豆今天一起玩了", "R", nil), ("哥哥和弟弟周五下午5点游泳", "A", nil),
+            ("今天睡得早", "R", nil), ("明天要带水杯", "A", nil), ("老五今天睡得早", "R", nil),
+            ("小宝宝今天睡得早", "R", nil), ("今天他自己穿了鞋", "R", nil),
+        ]
+        var wrong: [String] = []
+        for (text, kindVerdict, position) in rows {
+            let p = classify(text, ctx)
+            let kind: String = p.kind == .observation ? "R" : (p.kind == .newArrangement ? "A" : "?")
+            let child = p.childID.flatMap { id in kids.firstIndex { $0.id == id } }
+            if kind != kindVerdict || child != position { wrong.append("\(text): \(kind)/\(String(describing: child))") }
+        }
+        XCTAssertEqual(wrong, [])
+    }
+
     // MARK: Missing-field follow-up (one question, only what is missing)
     func testAskingForTheChildOnlyWhenSeveralChildrenAndNoneIsNamed() {
         let ctx = context(children: [tuan, duo])
