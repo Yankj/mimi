@@ -49,19 +49,22 @@ final class ParentingWorkspaceUITests: XCTestCase {
         option.tap()
         enter(app, id: "parenting.arrangement.source", text: source)
         requestAndAllow(app)
-        // Candidate is a .contain AX group — never reveal() it (blind-drag dismisses the sheet).
+        // Candidate is a .contain AX group: assert it exists, never reveal() it (a blind drag over a sheet dismisses it).
+        // requestAndAllow already scrolled the adopt button into view.
         let candidate = element(app, "parenting.inline.candidate")
         XCTAssertTrue(candidate.waitForExistence(timeout: 5), app.debugDescription)
-        // Read title without input()/reveal(): scrolling to the title before adopt moves the
-        // form and has left adopt's fill as a no-op (title stayed "").
-        let titleBefore = app.textFields["parenting.arrangement.title"]
-        XCTAssertTrue(titleBefore.waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertFalse(titleBefore.value as? String == "Synthetic reading together",
+        // The title cell sits below the intake section and is virtualized away until scrolled to: use input(),
+        // as testSyntheticUnknownIntakeRequiresOriginalRequestReadback does.
+        XCTAssertFalse(input(app, "parenting.arrangement.title").value as? String == "Synthetic reading together",
                        "A candidate must not apply itself to the arrangement.")
         assertSaveDisabled(app)
+        let adopt = app.buttons["parenting.inline.adopt"]
+        reveal(app, adopt)
         capture(app, "success-candidate-not-saved")
-        tap(app, app.buttons["parenting.inline.adopt"])
-        let title = app.textFields["parenting.arrangement.title"]
+        // adopt silently does nothing while the workspace is busy: wait for idle, then tap.
+        _ = ParentingUI.waitUntilNotBusy(app)
+        tap(app, adopt)
+        let title = input(app, "parenting.arrangement.title")
         XCTAssertTrue(ParentingUI.waitUntil(timeout: 8) {
             (title.value as? String) == "Synthetic reading together"
         }, "Adopt should fill the title; got \(String(describing: title.value))\n" + app.debugDescription)
@@ -792,9 +795,18 @@ final class ParentingWorkspaceUITests: XCTestCase {
         addChild(again, name: "团团")
         _ = ParentingUI.showKeyboardComposer(again)
         let field = again.textFields["parenting.natural.field"]
+        // Same preconditions as testInteractionScreenshots...: the composer submit is a no-op while the workspace is busy
+        // (ParentingHomeView: guard natural.canSubmit, !model.busy), and a tap on a not-yet-enabled send does nothing.
+        _ = ParentingUI.waitUntilNotBusy(again)
+        wait { field.isHittable }
         field.tap(); field.typeText("团团今天下午5点游泳")
-        again.buttons["parenting.natural.send"].tap()
+        let send = again.buttons["parenting.natural.send"]
+        wait { send.isEnabled }
+        _ = ParentingUI.waitUntilNotBusy(again)
+        send.tap()
         let confirm = again.buttons["parenting.natural.confirm"]
+        // If the first tap was swallowed (the card never opened and the text is still in the composer), tap once more.
+        if !confirm.waitForExistence(timeout: 5), send.exists, send.isEnabled { send.tap() }
         XCTAssertTrue(confirm.waitForExistence(timeout: 10), again.debugDescription)
         capture(again, "Glass-confirm-card-medium")
         confirm.tap()
