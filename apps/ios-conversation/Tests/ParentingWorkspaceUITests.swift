@@ -795,14 +795,20 @@ final class ParentingWorkspaceUITests: XCTestCase {
         // The tab bar floats as glass over the page; it must stay reachable above scrolled content.
         ParentingUI.selectTab(app, tab, file: file, line: line)
         if tab == .growth, let mode {
-            let segment = app.buttons["parenting.growth.mode." + mode.rawValue]
-            if !segment.waitForExistence(timeout: 5) {
+            // The doors on the growth home carry `parenting.growth.mode.*`; their English labels are the fallback should an
+            // enclosing container ever swallow the identifier.
+            let byID = app.buttons["parenting.growth.mode." + mode.rawValue]
+            let label = mode == .goals ? "Growth goals" : "Growth timeline"
+            let byLabel = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", label)).firstMatch
+            func door() -> XCUIElement { byID.exists ? byID : byLabel }
+            if !ParentingUI.waitUntil(timeout: 5, { door().exists }) {
                 // A goals/timeline page from an earlier step is still pushed on this tab: go back to the 成长 home first.
                 let back = app.navigationBars.buttons.element(boundBy: 0)
                 if back.exists { back.tap() }
             }
-            XCTAssertTrue(segment.waitForExistence(timeout: 5), app.debugDescription, file: file, line: line)
-            segment.tap()
+            XCTAssertTrue(ParentingUI.waitUntil(timeout: 8, { door().exists }), app.debugDescription, file: file, line: line)
+            // The doors sit below the start card and the week; reveal() scrolls them clear of the composer and the tab bar.
+            tap(app, door(), file: file, line: line)
         }
         // reveal() locates the next target without pulling the refreshable Home past its top edge.
     }

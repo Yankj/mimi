@@ -41,7 +41,6 @@ struct ParentingGrowthHomeView: View {
                 ParentingWeekDensityView(density: density, calendar: calendar)
                 doors(child: child, goalCount: goals.count, recordCount: recordCount)
             }
-            .accessibilityIdentifier("parenting.growth.home")
         }
     }
 
@@ -195,8 +194,6 @@ struct ParentingGrowthHomeView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(catColors.ink)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier(identifier)
     }
 }
