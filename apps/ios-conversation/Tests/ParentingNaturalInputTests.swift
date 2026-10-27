@@ -54,7 +54,9 @@ final class ParentingNaturalInputTests: XCTestCase {
     func testFuturePlansWithADateAreNotMistakenForObservations() {
         let p = classify("记一下周一要带水彩笔", context(children: [tuan]))
         XCTAssertEqual(p.kind, .newArrangement)
-        XCTAssertEqual(p.missing, [.time], "a date without a clock asks only for the time")
+        XCTAssertTrue(p.missing.isEmpty, "a date without a clock is filled with 9:00, not asked")
+        XCTAssertEqual(p.dueAt, at(2026, 10, 26, 9, 0))
+        XCTAssertTrue(p.defaultedTime)
     }
 
     func testQueriesAreClassifiedAsPlanAndReviewAndNeverWrite() {
@@ -90,6 +92,242 @@ final class ParentingNaturalInputTests: XCTestCase {
         XCTAssertEqual(classify("嗯", context(children: [])).kind, .unknown)
     }
 
+
+    // MARK: Intent classification (P0): record vs arrangement
+    private func verdict(_ text: String) -> String {
+        let p = classify(text, context(children: [tuan]))
+        switch p.kind {
+        case .observation: return "R"
+        case .newArrangement: return "A"
+        case .reschedule: return "M"
+        case .viewToday, .viewPlan, .reviewGrowth: return "Q"
+        case .unknown: return p.ambiguousIntent ? "ASK" : "U"
+        }
+    }
+
+    func testTheRealDeviceSentenceIsARecordAndNeverAsksForAClock() {
+        let ctx = context(children: [tuan])
+        for text in ["今天晚上睡得很早，看了一会儿电视。", "今天晚上睡得很早，看了一会儿电视", "今天晚上睡得很早， 看了一会儿电视！", "今天晚上睡得很早,看了一会儿电视"] {
+            let p = classify(text, ctx)
+            XCTAssertEqual(p.kind, .observation, text)
+            XCTAssertTrue(p.isReadyToConfirm, text)
+            XCTAssertNil(ParentingNaturalInput.followUp(for: p, context: ctx, calendar: calendar), "no 几点开始？ for a record: " + text)
+            XCTAssertTrue(ParentingNaturalInput.commands(for: p, workspace: workspace(children: [tuan]), ids: .init()).count == 1)
+        }
+        XCTAssertEqual(verdict("今天下午宝宝吃了一碗饭"), "R", "the old rule turned this into an arrangement")
+    }
+
+    func testABareTodayIsNoArrangementEvidenceButTodayWithAClockOrNeedStillIs() {
+        XCTAssertEqual(verdict("今天午睡睡了两个小时"), "R")
+        XCTAssertEqual(verdict("团团今天下午5点游泳"), "A")
+        XCTAssertEqual(verdict("今天晚上要给宝宝洗澡"), "A")
+        XCTAssertEqual(verdict("今晚8点吃了药"), "R", "a clock with a past marker is a record")
+        XCTAssertEqual(verdict("宝宝昨天晚上8点就睡了"), "R")
+        XCTAssertEqual(verdict("宝宝8点才醒"), "R")
+        XCTAssertEqual(verdict("提醒我晚上8点半给宝宝喂药"), "A")
+        XCTAssertEqual(verdict("10月20日团团打了疫苗"), "R", "a month-day already past this year is not a future date")
+    }
+
+    func testZeroSignalDefaultsToARecordAndConflictingEvidenceAsksOnce() {
+        XCTAssertEqual(verdict("看了一会儿电视"), "R")
+        XCTAssertEqual(verdict("睡得很早"), "R")
+        XCTAssertEqual(verdict("晚上给宝宝读绘本"), "ASK")
+        XCTAssertEqual(verdict("今晚读绘本"), "ASK")
+        XCTAssertEqual(verdict("游泳课"), "ASK")
+        let ctx = context(children: [tuan])
+        let p = classify("今晚读绘本", ctx)
+        XCTAssertEqual(p.missing, [.intent])
+        let record = ParentingNaturalInput.applying(.intent(.observation), to: p, context: ctx, now: now, calendar: calendar)
+        XCTAssertEqual(record.kind, .observation); XCTAssertTrue(record.isReadyToConfirm)
+        XCTAssertEqual(record.observationText, "今晚读绘本")
+        let plan = ParentingNaturalInput.applying(.intent(.newArrangement), to: p, context: ctx, now: now, calendar: calendar)
+        XCTAssertEqual(plan.kind, .newArrangement)
+        XCTAssertEqual(plan.dueAt, at(2026, 10, 25, 9, 0), "a day without a clock gets 9:00")
+    }
+
+    func testChitChatAndNonParentingQuestionsAreNotRecordedOrScheduled() {
+        for text in ["嗯", "谢谢小咪", "明天会不会下雨", "好的谢谢", "朵朵今天吃饭了吗", "明天天气怎么样", "Swim at five"] {
+            let p = classify(text, context(children: [tuan]))
+            XCTAssertEqual(p.kind, .unknown, text)
+            XCTAssertFalse(p.ambiguousIntent, text)
+        }
+        let lead = classify("记一下", context(children: [tuan]))
+        XCTAssertEqual(lead.kind, .observation)
+        XCTAssertEqual(lead.missing, [.content], "only a lead: ask what to write")
+    }
+
+    func testInputIsNormalisedForFullWidthDigitsAndSpeechSpaces() {
+        let ctx = context(children: [tuan])
+        let p = classify("团团周五下午５点游泳", ctx)
+        XCTAssertEqual(p.kind, .newArrangement)
+        XCTAssertEqual(p.dueAt, at(2026, 10, 30, 17, 0))
+        let spoken = classify("团团 周五 下午 5 点 游泳", ctx)
+        XCTAssertEqual(spoken.dueAt, at(2026, 10, 30, 17, 0))
+        let q = classify("记一下，  今天他自己收好书包了", ctx)
+        XCTAssertEqual(q.observationText, "今天他自己收好书包了")
+        XCTAssertEqual(ParentingNaturalLexicon.normalized("团团　睡了， 看电视"), "团团睡了，看电视")
+    }
+
+    func testSwitchingTheKindRereadsTheSameWordsAndKeepsTheOtherKindOneTapAway() throws {
+        let ctx = context(children: [tuan])
+        let ws = workspace(children: [tuan])
+        let record = classify("今天晚上睡得很早，看了一会儿电视", ctx)
+        XCTAssertEqual(record.kind, .observation)
+        let asPlan = ParentingNaturalInput.applying(.intent(.newArrangement), to: record, context: ctx, now: now, calendar: calendar)
+        XCTAssertEqual(asPlan.kind, .newArrangement)
+        XCTAssertEqual(asPlan.sourceText, record.sourceText)
+        XCTAssertEqual(asPlan.dueAt, at(2026, 10, 25, 9, 0))
+        let planCard = try XCTUnwrap(ParentingConfirmCard.make(asPlan, workspace: ws, remindersEnabled: nil, now: now))
+        XCTAssertEqual(planCard.confirmTitle, "确认安排")
+        XCTAssertTrue(planCard.blocks.contains(.note("没说几点，先定在 9:00；不对可以点“手动调整”。", .unknown)))
+        let back = ParentingNaturalInput.applying(.intent(.observation), to: asPlan, context: ctx, now: now, calendar: calendar)
+        XCTAssertEqual(back.kind, .observation)
+        XCTAssertEqual(back.observationText, "今天晚上睡得很早，看了一会儿电视")
+        let recordCard = try XCTUnwrap(ParentingConfirmCard.make(back, workspace: ws, remindersEnabled: nil, now: now))
+        XCTAssertEqual(recordCard.confirmTitle, "保存观察")
+        XCTAssertTrue(recordCard.blocks.contains(.note("只记录这一笔，不会提醒你，也不会写入长期记忆；之后可以修改或删除。要提醒就点上面的“加安排”。", .normal)))
+        XCTAssertEqual(ParentingNaturalInput.commands(for: back, workspace: ws, ids: .init()).count, 1)
+        XCTAssertEqual(ParentingNaturalInput.commands(for: asPlan, workspace: ws, ids: .init()).count, 2)
+    }
+
+    func testSwitchingToAPlanWithoutADayAsksForTheDayAndCanSwitchBack() {
+        let ctx = context(children: [tuan])
+        let record = classify("看了一会儿电视", ctx)
+        let plan = ParentingNaturalInput.applying(.intent(.newArrangement), to: record, context: ctx, now: now, calendar: calendar)
+        XCTAssertEqual(plan.missing, [.date])
+        XCTAssertEqual(ParentingNaturalInput.followUp(for: plan, context: ctx, calendar: calendar)?.field, .date)
+        let back = ParentingNaturalInput.applying(.intent(.observation), to: plan, context: ctx, now: now, calendar: calendar)
+        XCTAssertTrue(back.isReadyToConfirm)
+    }
+
+    @MainActor func testTheTypeSwitchIsOnlyOfferedForRecordAndPlanBeforeAnythingIsSaved() {
+        let ctx = context(children: [tuan])
+        let input = ParentingNaturalInputModel()
+        XCTAssertFalse(input.canSwitchType)
+        input.draft = "今天晚上睡得很早，看了一会儿电视"
+        input.submit(context: ctx, now: now)
+        XCTAssertEqual(input.proposal?.kind, .observation)
+        XCTAssertEqual(input.phase, .confirming)
+        XCTAssertTrue(input.canSwitchType)
+        input.switchType(to: .newArrangement, context: ctx, now: now)
+        XCTAssertEqual(input.proposal?.kind, .newArrangement)
+        input.switchType(to: .observation, context: ctx, now: now)
+        XCTAssertEqual(input.proposal?.kind, .observation)
+        input.draft = "团团周五游泳改到六点"
+        input.submit(context: ctx, now: now)
+        XCTAssertFalse(input.canSwitchType, "a reschedule has no 记一笔 | 加安排 switch")
+    }
+
+    /// The 48-sentence corpus from the proposal (records, arrangements, ask, reschedule, query, chit-chat). The second-phase kinds
+    /// (完成, 取消, 目标, 一句两件事) are deliberately not asserted: they are not in the first version.
+    func testTheProposalCorpusIsClassifiedAsDecided() {
+        let rows: [(String, String)] = [
+        ("今天晚上睡得很早，看了一会儿电视", "R"),
+        ("今天下午宝宝第一次自己拿勺子吃饭", "R"),
+        ("宝宝今天自己扶着沙发走了几步", "R"),
+        ("团团昨天发烧了，38.5度", "R"),
+        ("刚刚团团叫了第一声妈妈", "R"),
+        ("今天午睡睡了两个小时", "R"),
+        ("今天幼儿园老师夸朵朵了", "R"),
+        ("晚上吃了一碗面条，还吃了半个苹果", "R"),
+        ("朵朵今天一直在哭，不肯去幼儿园", "R"),
+        ("今天上午带团团去了公园", "R"),
+        ("今天学会了自己穿袜子", "R"),
+        ("看了一会儿电视", "R"),
+        ("睡得很早", "R"),
+        ("今天跟奶奶视频了", "R"),
+        ("宝宝昨天晚上8点就睡了", "R"),
+        ("今晚8点吃了药", "R"),
+        ("记录：团团今天吃饭很乖", "R"),
+        ("明天早上8点带宝宝打疫苗", "A"),
+        ("团团周五下午5点游泳", "A"),
+        ("记一下周一要带水彩笔", "A"),
+        ("提醒我晚上8点半给宝宝喂药", "A"),
+        ("后天幼儿园家长会", "A"),
+        ("下周三团团体检", "A"),
+        ("今天晚上要给宝宝洗澡", "A"),
+        ("明天要带水杯", "A"),
+        ("10月30日交费", "A"),
+        ("周六上午10点带宝宝去公园", "A"),
+        ("明天打算带他去公园", "A"),
+        ("每周三下午游泳课", "A"),
+        ("晚上给宝宝读绘本", "ASK"),
+        ("今晚读绘本", "ASK"),
+        ("游泳课", "ASK"),
+        ("团团周五游泳改到下午6点了", "M"),
+        ("把钢琴课挪到明天", "M"),
+        ("今天有什么安排", "Q"),
+        ("看看这周兴趣班怎么排", "Q"),
+        ("回顾一下团团最近的阅读", "Q"),
+        ("嗯", "U"),
+        ("谢谢小咪", "U"),
+        ("明天会不会下雨", "U"),
+        ("记一下", "R"),
+        ]
+        var wrong: [String] = []
+        for (text, expected) in rows where verdict(text) != expected { wrong.append("\(expected)≠\(verdict(text)) \(text)") }
+        XCTAssertEqual(wrong, [])
+    }
+
+    /// Sentences written after the rules, not used to tune them first: records, plans, weak and chatty ones.
+    func testHeldOutSentencesAreClassifiedAsDecided() {
+        let rows: [(String, String)] = [
+        ("朵朵今天自己穿好了鞋子", "R"),
+        ("团团昨晚睡得很香", "R"),
+        ("宝宝早上喝了一瓶奶", "R"),
+        ("今天下午带朵朵去游乐场玩了很久", "R"),
+        ("团团今天有点咳嗽", "R"),
+        ("今天他在幼儿园和小朋友分享了玩具", "R"),
+        ("朵朵会数到二十了", "R"),
+        ("宝宝中午没睡觉，一直在玩", "R"),
+        ("团团今天画了一幅画", "R"),
+        ("晚上宝宝哭闹了半个小时", "R"),
+        ("今天朵朵吃饭特别香", "R"),
+        ("团团刚才叫了爸爸", "R"),
+        ("宝宝昨天拉肚子", "R"),
+        ("今天朵朵第一次游了二十五米", "R"),
+        ("上周团团发烧了", "R"),
+        ("团团今天看了半小时动画片", "R"),
+        ("今天下午朵朵跟小朋友吵架了", "R"),
+        ("宝宝8点才醒", "R"),
+        ("朵朵昨天晚上9点睡的", "R"),
+        ("今天他主动整理了玩具", "R"),
+        ("记一下：团团今天没吃青菜", "R"),
+        ("爸爸今天陪团团搭了积木", "R"),
+        ("朵朵最近特别爱笑", "R"),
+        ("团团今天拉了三次", "R"),
+        ("下周一团团要带画笔", "A"),
+        ("提醒我明天给朵朵交学费", "A"),
+        ("周三下午3点朵朵钢琴课", "A"),
+        ("明天上午带团团去医院", "A"),
+        ("后天团团幼儿园春游", "A"),
+        ("记得周五给团团带泳衣", "A"),
+        ("11月2日朵朵打疫苗", "A"),
+        ("明天晚上7点给团团洗澡", "A"),
+        ("下周二要开家长会", "A"),
+        ("今晚8点提醒我给宝宝喂药", "A"),
+        ("周日上午团团踢足球", "A"),
+        ("别忘了明天带朵朵去体检", "A"),
+        ("今天下午4点团团英语课", "A"),
+        ("预约下周四的儿保", "A"),
+        ("周六要去给团团买鞋", "A"),
+        ("明早给朵朵带早饭", "A"),
+        ("读绘本", "R"),
+        ("给团团洗澡", "R"),
+        ("晚上带朵朵散步", "ASK"),
+        ("画画课", "ASK"),
+        ("朵朵今天吃饭了吗", "U"),
+        ("你好", "U"),
+        ("好的谢谢", "U"),
+        ("明天天气怎么样", "U"),
+        ("今天团团有什么安排", "Q"),
+        ("下周有什么安排", "Q"),
+        ]
+        var wrong: [String] = []
+        for (text, expected) in rows where verdict(text) != expected { wrong.append("\(expected)≠\(verdict(text)) \(text)") }
+        XCTAssertEqual(wrong, [])
+    }
+
     // MARK: Missing-field follow-up (one question, only what is missing)
     func testAskingForTheChildOnlyWhenSeveralChildrenAndNoneIsNamed() {
         let ctx = context(children: [tuan, duo])
@@ -111,18 +349,28 @@ final class ParentingNaturalInputTests: XCTestCase {
         XCTAssertTrue(p.missing.isEmpty)
     }
 
-    func testMissingDateThenTimeAreAskedOneAtATime() {
+    func testBareScheduleNounAsksRecordOrReminderThenDateThenDefaultsTheHour() {
         let ctx = context(children: [tuan])
         var p = classify("游泳课", ctx)
+        XCTAssertEqual(p.kind, .unknown)
+        XCTAssertTrue(p.ambiguousIntent)
+        var ask = ParentingNaturalInput.followUp(for: p, context: ctx, calendar: calendar)
+        XCTAssertEqual(ask?.field, .intent)
+        XCTAssertEqual(ask?.options.map(\.id), ["intent.observation", "intent.newArrangement"], "记下来 on the left, 安排提醒 on the right")
+        XCTAssertEqual(ask?.options.map(\.label), [.key("记下来"), .key("安排提醒")])
+        p = ParentingNaturalInput.applying(.intent(.newArrangement), to: p, context: ctx, now: now, calendar: calendar)
         XCTAssertEqual(p.kind, .newArrangement)
-        XCTAssertEqual(ParentingNaturalInput.followUp(for: p, context: ctx, calendar: calendar)?.field, .date)
+        ask = ParentingNaturalInput.followUp(for: p, context: ctx, calendar: calendar)
+        XCTAssertEqual(ask?.field, .date, "never a question about the hour")
         p = ParentingNaturalInput.applying(.text("周五"), to: p, context: ctx, now: now, calendar: calendar)
-        XCTAssertEqual(p.missing, [.time])
-        XCTAssertEqual(ParentingNaturalInput.followUp(for: p, context: ctx, calendar: calendar)?.field, .time)
-        p = ParentingNaturalInput.applying(.text("下午5点"), to: p, context: ctx, now: now, calendar: calendar)
+        XCTAssertEqual(p.kind, .newArrangement, "the choice stays locked")
         XCTAssertTrue(p.isReadyToConfirm)
         XCTAssertEqual(p.title, "游泳课")
-        XCTAssertEqual(p.dueAt, at(2026, 10, 30, 17, 0))
+        XCTAssertEqual(p.dueAt, at(2026, 10, 30, 9, 0))
+        XCTAssertTrue(p.defaultedTime)
+        p = ParentingNaturalInput.applying(.text("下午5点"), to: p, context: ctx, now: now, calendar: calendar)
+        XCTAssertEqual(p.dueAt, at(2026, 10, 30, 17, 0), "a stated clock replaces the default")
+        XCTAssertFalse(p.defaultedTime)
     }
 
     func testAnUnclearHourOffersMorningAndAfternoonInsteadOfGuessing() {
@@ -162,6 +410,7 @@ final class ParentingNaturalInputTests: XCTestCase {
         let ctx = context(children: [tuan])
         let p = classify("嗯", ctx)
         XCTAssertEqual(p.missing, [.intent])
+        XCTAssertFalse(p.ambiguousIntent, "chit-chat is not a conflict")
         let ask = ParentingNaturalInput.followUp(for: p, context: ctx, calendar: calendar)
         XCTAssertEqual(ask?.options.count, 2)
         let obs = ParentingNaturalInput.applying(.intent(.observation), to: p, context: ctx, now: now, calendar: calendar)

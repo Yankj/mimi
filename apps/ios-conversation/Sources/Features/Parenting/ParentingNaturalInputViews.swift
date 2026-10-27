@@ -205,6 +205,7 @@ extension View {
                 VStack(alignment: .leading, spacing: 16) {
                     if let proposal = input.proposal {
                         understood(proposal)
+                        if input.canSwitchType { typeSwitch(proposal) }
                         switch input.phase {
                         case .asking: asking(proposal)
                         case .confirming, .saving, .failed: confirming(proposal)
@@ -253,7 +254,7 @@ extension View {
                         .background(catColors.action.opacity(0.12), in: Capsule())
                         .foregroundStyle(catColors.actionText)
                 }
-                Text(ui(p.kind == .unknown ? "小咪还没听明白" : p.kind.title)).font(catTypography.Role.caption.font)
+                Text(ui(p.kind == .unknown ? (p.ambiguousIntent ? "这句话有两种理解" : "小咪还没听明白") : p.kind.title)).font(catTypography.Role.caption.font)
                     .foregroundStyle(catColors.calmSecondary)
             }
             .accessibilityElement(children: .combine)
@@ -261,12 +262,44 @@ extension View {
         }
     }
 
+    /// 记一笔 | 加安排: one tap re-reads the same words as the other kind. The card (or the next question) follows at once.
+    private func typeSwitch(_ p: ParentingNaturalProposal) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                typeSegment("记一笔", kind: .observation, current: p.kind)
+                typeSegment("加安排", kind: .newArrangement, current: p.kind)
+            }
+            .padding(4)
+            .background(catColors.fillSelected.opacity(0.7), in: Capsule())
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("parenting.natural.typeSwitch")
+            Text(ui(p.kind == .observation ? "只记录，不提醒。要提醒就点“加安排”。" : "到点提醒你。只想记下来就点“记一笔”。"))
+                .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
+        }
+    }
+
+    private func typeSegment(_ title: String, kind: ParentingIntentKind, current: ParentingIntentKind) -> some View {
+        let selected = kind == current
+        return Button { input.switchType(to: kind, context: context, now: now) } label: {
+            Text(ui(title)).font(.subheadline.weight(selected ? .semibold : .regular))
+                .frame(maxWidth: .infinity, minHeight: 36)
+                .foregroundStyle(selected ? catColors.actionText : catColors.ink)
+                .background { if selected { Capsule().fill(catColors.card) } }
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("parenting.natural.switch." + kind.rawValue)
+    }
+
     @ViewBuilder private func asking(_ p: ParentingNaturalProposal) -> some View {
         if let ask = ParentingNaturalInput.followUp(for: p, context: context) {
             VStack(alignment: .leading, spacing: 14) {
                 Label(ui(ask.question), systemImage: "questionmark.bubble").font(.headline)
                     .accessibilityIdentifier("parenting.natural.question")
-                if !ask.options.isEmpty {
+                if ask.field == .intent {
+                    intentChoice(ask.options)
+                } else if !ask.options.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], alignment: .leading, spacing: 8) {
                         ForEach(ask.options) { option in
                             Button { input.answer(option.answer, context: context, now: now) } label: {
@@ -293,7 +326,7 @@ extension View {
                         .accessibilityIdentifier("parenting.natural.addChild")
                 }
                 if ask.field == .target && ask.options.isEmpty {
-                    Button(ui("改为记一件安排")) { input.answer(.intent(.newArrangement), context: context, now: now) }
+                    Button(ui("改为加安排")) { input.answer(.intent(.newArrangement), context: context, now: now) }
                         .parentingSecondaryButton()
                 }
                 if ask.allowsText {
@@ -317,6 +350,31 @@ extension View {
             .parentingCard()
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("parenting.natural.asking")
+        }
+    }
+
+    /// The one question for an unclear sentence: two big buttons side by side (stacked only at accessibility sizes).
+    private func intentChoice(_ options: [ParentingFollowUp.Option]) -> some View {
+        let buttons = ForEach(options) { option in
+            Button { input.answer(option.answer, context: context, now: now) } label: {
+                VStack(spacing: 4) {
+                    optionLabel(option.label).font(.headline)
+                    if let subtitle = option.subtitle {
+                        Text(ui(subtitle)).font(catTypography.Role.caption.font).multilineTextAlignment(.center)
+                            .foregroundStyle(catColors.calmSecondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 72)
+                .padding(.horizontal, 8)
+                .background(catColors.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(catColors.hairline, lineWidth: 0.5))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("parenting.natural." + option.id)
+        }
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) { buttons }
+            VStack(spacing: 10) { buttons }
         }
     }
 

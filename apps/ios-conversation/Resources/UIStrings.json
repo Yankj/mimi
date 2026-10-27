@@ -9390,5 +9390,61 @@
   "这个目标还没有记录。": {
     "en": "Nothing has been written for this goal yet.",
     "zh-Hans": "这个目标还没有记录。"
+  },
+  "加安排": {
+    "en": "Add a plan",
+    "zh-Hans": "加安排"
+  },
+  "记下来": {
+    "en": "Just note it",
+    "zh-Hans": "记下来"
+  },
+  "安排提醒": {
+    "en": "Set a reminder",
+    "zh-Hans": "安排提醒"
+  },
+  "已经发生，只记录，不提醒": {
+    "en": "Already happened. Saved only, no reminder.",
+    "zh-Hans": "已经发生，只记录，不提醒"
+  },
+  "还没发生，到点提醒我": {
+    "en": "Not yet. Remind me when it's time.",
+    "zh-Hans": "还没发生，到点提醒我"
+  },
+  "这条怎么记？": {
+    "en": "How should I save this?",
+    "zh-Hans": "这条怎么记？"
+  },
+  "小咪没太听明白，这条怎么记？": {
+    "en": "I didn't quite get that. How should I save it?",
+    "zh-Hans": "小咪没太听明白，这条怎么记？"
+  },
+  "这句话有两种理解": {
+    "en": "This could mean two things",
+    "zh-Hans": "这句话有两种理解"
+  },
+  "这条是": {
+    "en": "This is",
+    "zh-Hans": "这条是"
+  },
+  "只记录，不提醒。要提醒就点“加安排”。": {
+    "en": "Saved only, no reminder. Tap “Add a plan” to be reminded.",
+    "zh-Hans": "只记录，不提醒。要提醒就点“加安排”。"
+  },
+  "到点提醒你。只想记下来就点“记一笔”。": {
+    "en": "You'll be reminded. Tap “Jot down” to only save it.",
+    "zh-Hans": "到点提醒你。只想记下来就点“记一笔”。"
+  },
+  "改为加安排": {
+    "en": "Add a plan instead",
+    "zh-Hans": "改为加安排"
+  },
+  "没说几点，先定在 9:00；不对可以点“手动调整”。": {
+    "en": "No time was said, so it's set to 9:00. Tap “Adjust manually” to change it.",
+    "zh-Hans": "没说几点，先定在 9:00；不对可以点“手动调整”。"
+  },
+  "只记录这一笔，不会提醒你，也不会写入长期记忆；之后可以修改或删除。要提醒就点上面的“加安排”。": {
+    "en": "Saved only, with no reminder and nothing written to long-term memory. You can edit or delete it later. Tap “Add a plan” above to be reminded.",
+    "zh-Hans": "只记录这一笔，不会提醒你，也不会写入长期记忆；之后可以修改或删除。要提醒就点上面的“加安排”。"
   }
 }

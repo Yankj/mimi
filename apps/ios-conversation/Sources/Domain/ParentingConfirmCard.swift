@@ -53,6 +53,7 @@ public struct ParentingConfirmCard: Equatable, Sendable {
             let conflicts = conflictItems(workspace, excluding: nil, at: due)
             if !conflicts.isEmpty { blocks.append(.conflicts(title: "同一时间已有安排，请核对", items: conflicts)) }
             if due < now { blocks.append(.note("这个时间已经过去，请确认。", .warning)) }
+            if p.defaultedTime { blocks.append(.note("没说几点，先定在 9:00；不对可以点“手动调整”。", .unknown)) }
             blocks.append(.quote(label: "你说的原话", text: p.sourceText))
             blocks.append(.note("确认后才进入今天的安排。", .normal))
             if let line = reminderNote(remindersEnabled) { blocks.append(line) }
@@ -80,7 +81,7 @@ public struct ParentingConfirmCard: Equatable, Sendable {
                 .headline(title: "成长观察", symbol: "leaf"),
                 .fields([.init(label: "孩子", value: .text(childName), tone: .normal)]),
                 .quote(label: "记下的内容", text: text),
-                .note("只保存这条观察，不会写入长期记忆；之后可以修改或删除。", .normal),
+                .note("只记录这一笔，不会提醒你，也不会写入长期记忆；之后可以修改或删除。要提醒就点上面的“加安排”。", .normal),
             ], confirmTitle: "保存观察", writes: true)
         case .viewToday, .viewPlan, .reviewGrowth:
             let title = p.kind == .reviewGrowth ? "看成长回顾" : (p.kind == .viewPlan ? "看计划" : "看今天")

@@ -15,6 +15,22 @@ enum ParentingNaturalLexicon {
     static let observationLeads = ["记一下", "记下", "记录一下", "记录"]
     static let arrangementWords = ["课", "班", "要带", "带", "接", "送", "提醒", "家长会", "考试", "体检", "预约", "活动", "比赛", "疫苗", "作业", "缴费", "交费", "报名", "游泳", "钢琴", "画画", "舞蹈", "英语", "足球", "篮球"]
     static let futureDateWords = ["明天", "明早", "明晚", "后天", "大后天"]
+
+    // Evidence vocabulary for "record or arrangement?". A bare 今天/今晚 is neither: an arrangement needs a future anchor,
+    // and a record is told by what already happened. Weights live in `intentEvidence`.
+    static let needPattern = "(?<![不想主重自])要(?![是求紧])|得(?=[带去交打做买准给])|需要|记得|别忘|不要忘|打算|准备|约好|约了"
+    static let reminderWords = ["提醒", "预约", "报名", "缴费", "交费", "帮我安排"]
+    static let scheduleNouns = ["课", "班", "家长会", "考试", "体检", "疫苗", "活动", "比赛", "作业", "游泳", "钢琴", "画画", "舞蹈", "英语", "足球", "篮球", "接种", "面试"]
+    static let pastWords = ["刚才", "刚刚", "刚", "已经", "终于", "昨天", "昨晚", "昨夜", "前天", "上周", "上个月", "以前", "之前", "早就"]
+    static let milestoneWords = ["第一次", "学会", "会了", "自己", "居然", "主动", "开始会", "观察", "今天他", "今天她", "第一声"]
+    static let behaviorWords = ["睡", "吃", "喝", "玩", "哭", "笑", "走", "说", "叫", "拉", "烧", "咳", "看", "读", "夸", "视频", "乖", "不肯", "不愿", "一直", "摔", "醒", "尿", "吐"]
+    static let stateComplementPattern = "[睡吃玩哭笑走说看跑跳写画唱喝]得"
+    static let dayPartPattern = "今晚|晚上|夜里|傍晚|下午|上午|中午|早上|早晨|凌晨"
+    static let lateClockPattern = "[点时]半?才|[点时]半?就(?!要)"
+    static let negationPattern = "没(?!有?问题|关系|事)"
+    static let assistantNames = ["小咪"]
+    static let chitchatWords = ["谢谢", "感谢", "好的", "好吧", "你好", "您好", "嗯", "哦", "哈哈", "在吗", "拜拜", "再见", "晚安", "没事", "算了"]
+    static let softQuestionWords = ["会不会", "是不是", "怎么样", "为什么", "多少", "天气", "下雨", "下雪", "几点了", "什么时候", "能不能", "可不可以"]
     static let fillerPrefixes = ["帮我记一下", "帮我记下", "让小咪记一下", "让小咪记下", "小咪记一下", "小咪", "帮我记", "记一下", "记下", "记录一下", "麻烦", "请", "帮我", "提醒我", "提醒"]
     static let trailingFillers = ["了", "吧", "哦", "啦", "呀", "呢", "。", "！", "!", ".", "，", ",", "、"]
     static let connectors = ["的", "要", "在", "去", "是", "有", "到", "于", "和", "，", ",", "。", "、", " "]
@@ -124,6 +140,103 @@ enum ParentingNaturalLexicon {
 
     static func date(on day: Date, hour: Int, minute: Int, calendar: Calendar) -> Date? {
         calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day)
+    }
+
+    // MARK: Input normalisation
+    /// Full-width digits/letters become ASCII, no-break/ideographic spaces become spaces, and spaces next to Chinese text or
+    /// punctuation are dropped (speech transcripts put a space after "，"). Punctuation itself is kept so the words stay as said.
+    static func normalized(_ raw: String) -> String {
+        var scalars = String.UnicodeScalarView()
+        for u in raw.unicodeScalars {
+            switch u.value {
+            case 0xFF10...0xFF19, 0xFF21...0xFF3A, 0xFF41...0xFF5A: scalars.append(Unicode.Scalar(u.value - 0xFEE0) ?? u)
+            case 0x3000, 0x00A0: scalars.append(" ")
+            default: scalars.append(u)
+            }
+        }
+        var text = String(scalars).trimmingCharacters(in: .whitespacesAndNewlines)
+        let cjk = #"[\u4e00-\u9fff，。、！？：；,.!?:;“”‘’「」（）()]"#
+        for (pattern, template) in [("[ \t]+", " "), ("(?<=" + cjk + ")[ \t]+", ""), ("[ \t]+(?=" + cjk + ")", "")] {
+            text = text.replacingOccurrences(of: pattern, with: template, options: .regularExpression)
+        }
+        return text
+    }
+
+    // MARK: Intent evidence
+    struct IntentEvidence: Equatable {
+        /// Future anchors: a later date, a clock, "要/记得/提醒我", schedule nouns.
+        var arrangement = 0
+        /// Already-happened evidence: 了, 昨天, 刚, 第一次, 睡得…, "记一下".
+        var record = 0
+    }
+
+    private static func matches(_ pattern: String, in text: String) -> Bool {
+        text.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    /// True when the text has a completed-action 了 that is not part of a fixed word (为了, 了解, 受不了…).
+    static func hasCompletedParticle(_ text: String) -> Bool {
+        var t = text
+        for word in ["为了", "了解", "了不起", "了得", "受不了", "不了", "除了", "最后了"] { t = t.replacingOccurrences(of: word, with: "") }
+        return t.contains("了")
+    }
+
+    /// A month-day earlier this year ("10月20日打了疫苗") is the past; `read` rolls it to next year, which must not count as future.
+    private static func isPastMonthDay(_ text: String, today: Date, calendar: Calendar) -> Bool {
+        let ns = text as NSString
+        guard !text.contains("明年"), let m = first(monthDayPattern, in: text, range: NSRange(location: 0, length: ns.length)),
+              let mo = int(m, 1, ns), let d = int(m, 2, ns) else { return false }
+        let year = calendar.component(.year, from: today)
+        guard let date = calendar.date(from: DateComponents(year: year, month: mo, day: d)),
+              calendar.component(.month, from: date) == mo, calendar.component(.day, from: date) == d else { return false }
+        return date < today
+    }
+
+    static func intentEvidence(_ text: String, reading: TimeReading, now: Date, calendar: Calendar) -> IntentEvidence {
+        func has(_ words: [String]) -> Bool { words.contains { text.contains($0) } }
+        let today = calendar.startOfDay(for: now)
+        let pastMonthDay = isPastMonthDay(text, today: today, calendar: calendar)
+        let pastDay = reading.day.map { $0 < today } ?? false
+        let future = ((reading.day.map { $0 > today } ?? false) && !pastMonthDay) || has(futureDateWords)
+        let pastWord = has(pastWords) || pastMonthDay || pastDay
+        let completed = hasCompletedParticle(text)
+        let pastMark = completed || pastWord
+        let lateClock = matches(lateClockPattern, in: text)
+        let lead = observationLeads.contains { text.hasPrefix($0) }
+        var e = IntentEvidence()
+        if future { e.arrangement += 3 }
+        if reading.hasClock && !pastMark && !lateClock { e.arrangement += 2 }
+        if matches(needPattern, in: text) { e.arrangement += 2 }
+        if has(reminderWords) { e.arrangement += text.contains("提醒") ? 3 : 2 }
+        if has(scheduleNouns) { e.arrangement += 1 }
+        if matches(dayPartPattern, in: text) && !pastMark && !reading.hasClock { e.arrangement += 1 }
+        if pastWord { e.record += 3 }
+        if completed { e.record += 3 }
+        if has(milestoneWords) { e.record += 2 }
+        if matches(stateComplementPattern, in: text) { e.record += 2 }
+        if matches(negationPattern, in: text) || lateClock { e.record += 2 }
+        if has(behaviorWords) { e.record += 1 }
+        if lead && !future { e.record += 3 }
+        return e
+    }
+
+    /// The words minus spaces, punctuation, "记一下"-style leads and the assistant's name: empty when nothing is left to record.
+    static func contentWithoutLeads(_ text: String) -> String {
+        var stripped = text.filter { !$0.isWhitespace && !$0.isPunctuation }
+        for word in observationLeads + assistantNames { stripped = stripped.replacingOccurrences(of: word, with: "") }
+        return stripped
+    }
+
+    /// Chit-chat or a question that is not about the child ("谢谢小咪", "明天会不会下雨") has nothing to record or schedule.
+    static func isChitchatOrQuestion(_ text: String, evidence: IntentEvidence) -> Bool {
+        func has(_ words: [String]) -> Bool { words.contains { text.contains($0) } }
+        let body = text.filter { !$0.isWhitespace && !$0.isPunctuation }
+        let stripped = contentWithoutLeads(text)
+        if body.count < 2 { return true }
+        if chitchatWords.contains(where: { stripped.hasPrefix($0) }) && stripped.count <= 6 && evidence.arrangement == 0 && evidence.record == 0 { return true }
+        let asks = matches("(吗|呢|[?？])[。.!！~～ ]*$", in: text)
+        let soft = has(softQuestionWords) && evidence.record == 0
+        return (asks || soft) && !matches(needPattern, in: text) && !text.contains("提醒")
     }
 
     // MARK: Text helpers
