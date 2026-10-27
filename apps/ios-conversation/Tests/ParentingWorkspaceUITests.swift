@@ -49,19 +49,22 @@ final class ParentingWorkspaceUITests: XCTestCase {
         option.tap()
         enter(app, id: "parenting.arrangement.source", text: source)
         requestAndAllow(app)
-        // The candidate is an accessibility container (children: .contain). Its AX frame mid-point can sit
-        // outside the viewport while the adopt button (already revealed by requestAndAllow) is on screen;
-        // reveal() then blind-drags and dismisses the editor sheet. Assert existence only.
+        // Candidate is a .contain AX group — never reveal() it (blind-drag dismisses the sheet).
         let candidate = element(app, "parenting.inline.candidate")
         XCTAssertTrue(candidate.waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertFalse(input(app, "parenting.arrangement.title").value as? String == "Synthetic reading together",
+        // Read title without input()/reveal(): scrolling to the title before adopt moves the
+        // form and has left adopt's fill as a no-op (title stayed "").
+        let titleBefore = app.textFields["parenting.arrangement.title"]
+        XCTAssertTrue(titleBefore.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertFalse(titleBefore.value as? String == "Synthetic reading together",
                        "A candidate must not apply itself to the arrangement.")
         assertSaveDisabled(app)
         capture(app, "success-candidate-not-saved")
         tap(app, app.buttons["parenting.inline.adopt"])
-        let title = input(app, "parenting.arrangement.title")
-        reveal(app, title)
-        XCTAssertEqual(title.value as? String, "Synthetic reading together")
+        let title = app.textFields["parenting.arrangement.title"]
+        XCTAssertTrue(ParentingUI.waitUntil(timeout: 8) {
+            (title.value as? String) == "Synthetic reading together"
+        }, "Adopt should fill the title; got \(String(describing: title.value))\n" + app.debugDescription)
         assertSaveDisabled(app)
         reveal(app, title)
         title.tap()
@@ -694,7 +697,23 @@ final class ParentingWorkspaceUITests: XCTestCase {
                                  "CF_UI_TEST_NO_AUTODISMISS": "1"]
         for (key, value) in display { app.launchEnvironment[key] = value }
         currentApp = app
-        app.launch()
+        // Large Dynamic Type / a loaded simulator occasionally times out on the first launch();
+        // one terminate+relaunch absorbs that flake (seen on testInteractionFloatingTabBarAtLargestAccessibilityText).
+        let previousContinue = continueAfterFailure
+        continueAfterFailure = true
+        var launched = false
+        for attempt in 1...2 {
+            app.launch()
+            if app.state == .runningForeground {
+                launched = true
+                break
+            }
+            app.terminate()
+            RunLoop.current.run(until: Date().addingTimeInterval(1.5))
+            _ = attempt
+        }
+        continueAfterFailure = previousContinue
+        XCTAssertTrue(launched, "Failed to launch the parenting UI-test host after one retry.\n" + app.debugDescription)
         ready(app)
         return app
     }
@@ -1014,12 +1033,11 @@ final class ParentingWorkspaceUITests: XCTestCase {
             let navigationFrames = app.navigationBars.allElementsBoundByIndex.filter { $0.isHittable }.map { $0.frame }
             var targetFrame: CGRect?
             if target.exists {
-                // A hittable control is already on screen; do not drag (dragging a sheet dismisses it).
-                if target.isHittable { return }
                 // Only the intake candidate container skips blind-drag: it is an accessibility
                 // `.contain` group whose AX frame is empty or taller than the viewport; dragging
-                // then dismisses the editor sheet. Other empty frames (fields still laying out)
-                // must keep searching — returning early left title/source without keyboard focus.
+                // then dismisses the editor sheet. Do NOT early-return on isHittable alone —
+                // source/title can report hittable while still under the nav bar (y≈0), and
+                // tapping then fails with "no keyboard focus".
                 if target.identifier == "parenting.inline.candidate" { return }
                 let rect = target.frame
                 if !rect.isEmpty {
