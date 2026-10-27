@@ -7,9 +7,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 layout = json.loads((ROOT / 'docs/development/repository-layout.json').read_text())
 assert layout['schema_version'] == 1
-paths = [layout[k] for k in ['native_host', 'native_project', 'native_entry',
+paths = [layout[k] for k in ['native_host', 'native_project', 'native_entry', 'android_host',
          'backend_maintenance', 'backend_shared', 'deployed_snapshots',
-         'public_design', 'public_research', 'live_status', 'current_goal', 'website']]
+         'public_design', 'public_research', 'live_status', 'current_goal', 'website_stub']]
 for key in ['backend_entries_present', 'swift_packages', 'frozen_app_roots',
             'historical_service_roots', 'upstream_sources', 'retained_input_roots']:
     paths.extend(layout[key])
@@ -17,10 +17,16 @@ for name in paths:
     path = Path(name)
     assert not path.is_absolute() and '..' not in path.parts, name
     assert (ROOT / path).exists(), name
-declared_apps = {Path(layout['native_host']).name, *(Path(p).name for p in layout['frozen_app_roots'])}
-declared_apps.add(Path(layout['website']).name)
-assert (ROOT / layout['website'] / 'package.json').is_file(), 'Website build manifest missing'
-assert not list((ROOT / layout['website']).rglob('*.xcodeproj')), 'Website cannot become another native host'
+declared_apps = {Path(layout['native_host']).name, Path(layout['android_host']).name,
+                 *(Path(p).name for p in layout['frozen_app_roots'])}
+# The marketing site moved to Yankj/heydusk-site; only the stub directory stays in apps/.
+website_stub = Path(layout['website_stub'])
+declared_apps.add(website_stub.parent.name)
+assert not list((ROOT / website_stub.parent).rglob('*.xcodeproj')), 'Website cannot become another native host'
+android = ROOT / layout['android_host']
+for required in ['settings.gradle.kts', 'gradlew', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties']:
+    assert (android / required).is_file(), 'Android host is missing ' + required
+assert not list(android.rglob('*.xcodeproj')) and not list(android.rglob('*.swift')), 'Android host cannot contain a second iOS host'
 actual_apps = {p.name for p in (ROOT / 'apps').iterdir() if p.is_dir() and not p.name.startswith('.')}
 assert actual_apps == declared_apps, 'Undeclared App root; update reviewed layout roles first'
 assert not (ROOT / 'CatCompanion').exists(), 'Second App skeleton cannot be imported as the active host'

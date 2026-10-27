@@ -3,6 +3,8 @@
   "native_host": "apps/ios-conversation",
   "native_project": "apps/ios-conversation/cat.xcodeproj",
   "native_entry": "apps/ios-conversation/Sources/App/catApp.swift",
+  "android_host": "apps/android-conversation",
+  "android_host_role": "Android line at product parity with the iOS host (docs/android/PLAN.md): its own Gradle project, the same backend contract and product design; never a second iOS host, no backend or auth authority of its own",
   "backend_maintenance": "services/edge/supabase/functions",
   "backend_entries_present": [
     "services/edge/supabase/functions/catpaw-api/index.ts"
@@ -39,5 +41,6 @@
   "component_owned_model_or_auth_allowed": false,
   "deployment_implied_by_checks": false,
   "website": "Yankj/heydusk-site/apps/mimi (marketing site moved out; stub at apps/website/README.md)",
+  "website_stub": "apps/website/README.md",
   "website_role": "Static product website; independent build and deployment; no native host or backend authority"
 }

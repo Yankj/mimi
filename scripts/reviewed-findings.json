@@ -3,6 +3,12 @@
   "policy": "An exception applies only to the exact path, category, line and file SHA256. Any byte change requires fresh review.",
   "findings": [
     {
+      "path": "apps/android-conversation/gradle/wrapper/gradle-wrapper.jar",
+      "category": "unexpected_binary",
+      "sha256": "7a9ce74cff467ca1bf60a4fcd9f05185acceda4d0f382434d393e17864262c5d",
+      "reason": "Official Gradle 9.7.0 wrapper JAR produced by `gradle wrapper`; its SHA-256 equals the checksum published by Gradle (services.gradle.org/distributions/gradle-9.7.0-wrapper.jar.sha256, gradle.org/release-checksums). Executable build bootstrap, not a credential or data file."
+    },
+    {
       "path": "docs/assets/ios-v1/CatpawM-v1-final-light-approval.png",
       "category": "png_metadata_requires_review",
       "sha256": "f2267b18f737fe97b9d0b6103a9d67464939e29f9b19332994272ed2870ee4ab",

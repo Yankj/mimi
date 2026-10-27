@@ -5,14 +5,14 @@
 ## Quick context (human + AI)
 
 - Stack: Swift 5 / SwiftUI (iOS 17+), SwiftData, URLSession SSE, EventKit; backend Supabase Edge Functions (Deno) + PostgreSQL.
-- Edit only `apps/ios-conversation` (native) and `services/edge/supabase/functions` (backend); other app/service roots are frozen sources.
+- Edit only `apps/ios-conversation` (iOS native), `apps/android-conversation` (Android native, parity line from `docs/android/PLAN.md`, own Gradle project; build/test notes in its README) and `services/edge/supabase/functions` (backend); other app/service roots are frozen sources.
 - Layers: Views -> `*Service` -> Domain contracts; Providers wrap network/auth/system frameworks; Persistence wraps SwiftData.
 - Domain: Conversation/Turn, TaskPlan, TaskAction (approval), TaskControl, DeviceEffect (calendar/notification), Artifact, Inbox, Memory, GenerativeUI.
 - Overview: [README](README.md), [architecture](docs/architecture.md), [docs index](docs/README.md).
 
 ## Repository architecture and Git rules
 
-- Directory roles are fixed by `docs/development/repository-layout.json`; read `docs/architecture/repository-review-2026-10-13.md` before restructuring. One active native App and one backend maintenance source; historical apps, deployed snapshots and pinned upstreams are separate roles, never competing maintenance roots.
+- Directory roles are fixed by `docs/development/repository-layout.json`; read `docs/architecture/repository-review-2026-10-13.md` before restructuring. One active native App per platform (iOS `apps/ios-conversation`, Android `apps/android-conversation`) and one backend maintenance source; historical apps, deployed snapshots and pinned upstreams are separate roles, never competing maintenance roots.
 - Use the short branches in `docs/development/branch-management.md`. Do not develop or commit directly on main. The temporary `docs/restart-design-integration` checkout holds the existing uncommitted restart documents; preserve other owners' edits and commit only an explicit reviewed path set.
 - Never merge or push legacy-local history into origin. Selectively import reviewed bytes with provenance. Unmerged candidate branches must retain their original evidence layer; synthetic kernels or memory-only UI are not production implementations.
 - UI calls application services through typed contracts; components do not own accounts, HTTP admission or task execution. Persistence/effect authority stays in the existing scoped backend; presentation and stream termination cannot grant authority or declare completion.
