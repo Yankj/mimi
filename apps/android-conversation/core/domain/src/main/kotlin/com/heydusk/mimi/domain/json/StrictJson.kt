@@ -107,7 +107,15 @@ object StrictJson {
             val sb = StringBuilder()
             while (index < s.length) {
                 val c = s[index++]
-                if (c == '"') return sb.toString()
+                if (c == '"') {
+                    // 原始字节已按 UTF-8 校验；只有 \uXXXX 转义可能带来不成对的代理项，iOS 解码成 String 时同样拒绝。
+                    for (i in 0 until sb.length) {
+                        val ch = sb[i]
+                        if (Character.isHighSurrogate(ch)) { if (i + 1 >= sb.length || !Character.isLowSurrogate(sb[i + 1])) fail() }
+                        else if (Character.isLowSurrogate(ch) && (i == 0 || !Character.isHighSurrogate(sb[i - 1]))) fail()
+                    }
+                    return sb.toString()
+                }
                 if (c.code < 32) fail()
                 if (c == '\\') {
                     if (index >= s.length) fail()

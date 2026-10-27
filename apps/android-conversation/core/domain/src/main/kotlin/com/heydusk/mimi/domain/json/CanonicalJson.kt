@@ -77,8 +77,15 @@ object CanonicalJson {
     fun jsNumber(v: Double): String {
         if (v == 0.0) return "0"
         val negative = v < 0
-        // JDK 19+ 的 Double.toString 给最短往返十进制，据此取出有效数字与指数。
-        val bd = BigDecimal(java.lang.Double.toString(kotlin.math.abs(v))).stripTrailingZeros()
+        // ECMAScript Number::toString：取能往返的最少有效位，同样位数里取最接近的。
+        // （不能用 Double.toString：它对 5e-324 这类次正规数会给 4.9E-324。）
+        val exact = BigDecimal(kotlin.math.abs(v))
+        var bd = exact
+        for (precision in 1..17) {
+            val candidate = exact.round(java.math.MathContext(precision, java.math.RoundingMode.HALF_EVEN))
+            if (candidate.toDouble() == kotlin.math.abs(v)) { bd = candidate; break }
+        }
+        bd = bd.stripTrailingZeros()
         val digits = bd.unscaledValue().toString()
         val k = digits.length
         val n = k - bd.scale() // 十进制点位置：值 = 0.digits × 10^n
