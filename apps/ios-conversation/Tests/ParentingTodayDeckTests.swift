@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import XCTest
 @testable import cat
 
@@ -184,5 +185,21 @@ final class ParentingTodayDeckTests: XCTestCase {
         XCTAssertEqual(ParentingStartAction.resolve(.growth, workspace: ws, now: monday10, calendar: calendar, context: stale), .weeklyReview(reason: .sevenDaysSinceLastReview))
         let fresh = ParentingStartContext(lastWeeklyReviewAt: at(25, 9))
         XCTAssertEqual(ParentingStartAction.resolve(.growth, workspace: ws, now: monday10, calendar: calendar, context: fresh), .recordObservation(childID: child))
+    }
+
+    // MARK: 确认卡的两个按钮: 左右布局，辅助功能字号回退为上下
+
+    func testActionPairIsSideBySideUntilAccessibilitySizes() {
+        for size in [DynamicTypeSize.xSmall, .small, .medium, .large, .xLarge, .xxLarge, .xxxLarge] {
+            XCTAssertEqual(ParentingActionPairLayout.resolve(dynamicTypeSize: size), .sideBySide, "\(size)")
+        }
+        for size in [DynamicTypeSize.accessibility1, .accessibility2, .accessibility3, .accessibility4, .accessibility5] {
+            XCTAssertEqual(ParentingActionPairLayout.resolve(dynamicTypeSize: size), .stacked, "\(size)")
+        }
+    }
+
+    /// 全部安排 no longer shows the 周复盘 card, but its stored date and the per-subject key keep working (sign-out erases them).
+    func testWeeklyReviewKeyPrefixStaysStableForSignOutPurge() {
+        XCTAssertEqual(ParentingWeeklyReviewStore.keyPrefix, "mimi.parenting.weeklyReview.lastAt.v1.")
     }
 }
