@@ -37,7 +37,7 @@ import UIKit
                 if chrome && dismissDrag == .zero { controls.transition(.opacity) }
                 if let toastKey {
                     Text(ui(toastKey)).font(catTypography.Role.secondary.font).foregroundStyle(catColors.ink)
-                        .padding(.horizontal, 14).padding(.vertical, 8).background(.regularMaterial, in: Capsule())
+                        .padding(.horizontal, 14).padding(.vertical, 8).catGlass(in: Capsule())
                 }
             }
         }
@@ -63,7 +63,7 @@ import UIKit
     private func circleButton(_ symbol: String, _ key: String, _ run: @escaping () -> Void) -> some View {
         Button(action: run) {
             Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(catColors.ink)
-                .frame(width: 44, height: 44).background(.regularMaterial, in: Circle())
+                .frame(width: 44, height: 44).catGlass(in: Circle(), interactive: true)
         }.buttonStyle(catPressButtonStyle()).accessibilityLabel(Text(ui(key)))
     }
 

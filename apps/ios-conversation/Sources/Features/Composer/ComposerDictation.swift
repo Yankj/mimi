@@ -20,7 +20,8 @@ let voiceChatLog = Logger(subsystem: "catpaw", category: "voiceChat")
 ///   right away; slide left past the threshold = cancel and discard. Haptics fire when a threshold is crossed.
 /// VoiceOver: the mic is a plain toggle (tap start/stop) with explicit 取消听写 / 发送 actions; holding is never required.
 @MainActor final class ComposerDictation: ObservableObject {
-    enum Notice: Equatable { case permissionDenied, unsupported, failed }
+    /// `empty` / `interrupted` are only raised when `reportsSilenceAndInterruption` is on (the parenting composer); chat dictation never shows them.
+    enum Notice: Equatable { case permissionDenied, unsupported, failed, empty, interrupted }
     enum Mode: Equatable { case tap, hold }
     enum HoldZone: Equatable { case none, cancel, send }
     static let shared = ComposerDictation()
@@ -33,7 +34,19 @@ let voiceChatLog = Logger(subsystem: "catpaw", category: "voiceChat")
     @Published var notice: Notice?
 
     let voice: NativeVoiceController
-    private weak var model: ConversationFirstModel?
+    /// The recognizer behind the session. Defaults to `voice`; tests inject a scripted fake.
+    let engine: any DictationTranscribing
+    /// Never fall back to Apple's server recognition (mimi's parenting composer). Chat dictation keeps the tiered engine.
+    let onDeviceOnly: Bool
+    /// Show a hint for an empty result and for an interruption (call, Siri, background) instead of ending silently.
+    var reportsSilenceAndInterruption = false
+    /// Where a notice returns the cursor (chat: the composer text view; parenting: its own field).
+    var focusInput: () -> Void = { ConversationTextView.focusComposer() }
+    /// Known-terminal permission states answer inline without flashing a session in and out. Injectable for tests.
+    var permissionDenied: () -> Bool = {
+        AVAudioSession.sharedInstance().recordPermission == .denied || [.denied, .restricted].contains(SFSpeechRecognizer.authorizationStatus())
+    }
+    private weak var sink: (any DictationDraftSink)?
     var onSend: (() -> Void)?
     private var prefix = ""
     private var lastWritten: String?
@@ -43,9 +56,11 @@ let voiceChatLog = Logger(subsystem: "catpaw", category: "voiceChat")
     private let soft = UIImpactFeedbackGenerator(style: .light)
     #endif
 
-    init(voice: NativeVoiceController = .shared) { self.voice = voice }
+    init(voice: NativeVoiceController = .shared, engine: (any DictationTranscribing)? = nil, onDeviceOnly: Bool = false) {
+        self.voice = voice; self.engine = engine ?? voice; self.onDeviceOnly = onDeviceOnly
+    }
 
-    func attach(_ model: ConversationFirstModel) { self.model = model }
+    func attach(_ sink: any DictationDraftSink) { self.sink = sink }
 
     func toggle() { dictating ? stop() : start(.tap) }
 
@@ -82,18 +97,16 @@ let voiceChatLog = Logger(subsystem: "catpaw", category: "voiceChat")
     // MARK: Session
 
     private func start(_ mode: Mode) {
-        guard let model, !dictating else { return }
+        guard let sink, !dictating else { return }
         // A stale session (e.g. another screen's capture) must never block the mic: clear it first.
-        if voice.dictationPhase != .idle { voice.cancelDictation() }
+        if engine.dictationPhase != .idle { engine.cancelDictation(.cancelled) }
         // Known-terminal states answer inline without flashing a session in and out.
-        if AVAudioSession.sharedInstance().recordPermission == .denied || [.denied, .restricted].contains(SFSpeechRecognizer.authorizationStatus()) {
-            notice = .permissionDenied; ConversationTextView.focusComposer(); return
-        }
-        prefix = model.draft; lastWritten = model.draft; sendWhenDone = false
+        if permissionDenied() { notice = .permissionDenied; focusInput(); return }
+        prefix = sink.draft; lastWritten = sink.draft; sendWhenDone = false; userCancelled = false
         self.mode = mode
         dictating = true; userStopped = false; notice = nil
-        let accepted = voice.startDictation(onText: { [weak self] text in self?.apply(text) },
-                                            onEnd: { [weak self] reason in self?.ended(reason) })
+        let accepted = engine.startDictation(onDeviceOnly: onDeviceOnly, onText: { [weak self] text in self?.apply(text) },
+                                             onEnd: { [weak self] reason in self?.ended(reason) })
         if !accepted { dictating = false; lastWritten = nil }
     }
 
@@ -101,10 +114,12 @@ let voiceChatLog = Logger(subsystem: "catpaw", category: "voiceChat")
     /// Set when the user ends the session (2nd tap / ✓ / release / ✕). Errors the recognizer reports
     /// after a user stop ("no speech", end-of-audio timeout) are not failures and must never alert.
     private var userStopped = false
+    /// ✕ / slide left: an empty outcome is then expected, never a hint.
+    private var userCancelled = false
     func stop() {
         guard dictating else { return }
         userStopped = true
-        if voice.dictationPhase == .idle { ended(.cancelled) } else { voice.stopDictation() }
+        if engine.dictationPhase == .idle { ended(.cancelled) } else { engine.stopDictation() }
     }
     /// Slide up / VoiceOver 发送: finish, then send once the final text has landed.
     func confirmAndSend() {
@@ -114,41 +129,48 @@ let voiceChatLog = Logger(subsystem: "catpaw", category: "voiceChat")
     }
     /// ✕ / slide left: discard everything dictated in this session and restore the previous draft.
     func cancel() {
-        guard dictating, let model else { return }
+        guard dictating, let sink else { return }
         let restore = prefix
-        sendWhenDone = false
+        sendWhenDone = false; userCancelled = true
         stopNow()
-        model.editDraft(restore)
+        sink.editDraft(restore)
     }
 
     /// Send / background / disappear: stop now and keep exactly what is in the draft.
     func stopNow() {
         guard dictating else { return }
         sendWhenDone = false; userStopped = true
-        voice.cancelDictation()
+        engine.cancelDictation(.cancelled)
         if dictating { ended(.cancelled) }   // controller was already idle
     }
 
     private func ended(_ reason: NativeVoiceController.DictationEnd) {
         let hadText = lastWritten != nil && lastWritten != prefix
         let send = sendWhenDone && hadText
-        dictating = false; lastWritten = nil; sendWhenDone = false; zone = .none; defer { userStopped = false }
+        let cancelledByUser = userCancelled
+        dictating = false; lastWritten = nil; sendWhenDone = false; zone = .none; defer { userStopped = false; userCancelled = false }
         switch reason {
-        case .denied: notice = .permissionDenied; ConversationTextView.focusComposer()
-        case .unsupported: notice = .unsupported; ConversationTextView.focusComposer()
-        case .failed, .timedOut: if !hadText && !userStopped { notice = .failed; ConversationTextView.focusComposer() }
-        case .finished, .cancelled, .interrupted: break
+        case .denied: notice = .permissionDenied; focusInput()
+        case .unsupported: notice = .unsupported; focusInput()
+        case .failed, .timedOut:
+            if !hadText && !userStopped { notice = .failed; focusInput() }
+            else if !hadText && reportsSilenceAndInterruption && !cancelledByUser { notice = .empty }
+        case .finished:
+            if !hadText && reportsSilenceAndInterruption && !cancelledByUser { notice = .empty }
+        case .interrupted:
+            if reportsSilenceAndInterruption { notice = .interrupted }
+        case .cancelled: break
         }
         if send, reason != .interrupted { onSend?() }
     }
 
     private func apply(_ text: String) {
-        guard dictating, let model else { return }
+        guard dictating, let sink else { return }
         // The user typed during dictation: hand the composer back to them.
-        if let lastWritten, model.draft != lastWritten { stopNow(); return }
+        if let lastWritten, sink.draft != lastWritten { stopNow(); return }
         let joined = DictationPolicy.join(prefix, text)   // no extra space before Chinese
-        model.editDraft(joined)
-        lastWritten = model.draft   // whatever the model actually stored (it may refuse/normalize)
+        sink.editDraft(joined)
+        lastWritten = sink.draft   // whatever the sink actually stored (it may refuse/normalize)
     }
 
     static func openSettings() {
@@ -217,7 +239,7 @@ let voiceChatLog = Logger(subsystem: "catpaw", category: "voiceChat")
                         Button { voiceChat.exit() } label: { Image(systemName: "xmark").font(catTypography.Role.caption.font) }
                             .accessibilityLabel(ui("结束语音对话")).accessibilityIdentifier("chat.voiceChat.capsule.close")
                     }
-                    .padding(.horizontal, 12).padding(.vertical, 8).background(.regularMaterial, in: Capsule())
+                    .padding(.horizontal, 12).padding(.vertical, 8).catGlass(in: Capsule())
                     .fixedSize(horizontal: false, vertical: true).frame(width: 300, alignment: .trailing).offset(y: -56)
                     .accessibilityElement(children: .contain).accessibilityIdentifier("chat.voiceChat.capsule")
                 }
@@ -225,7 +247,7 @@ let voiceChatLog = Logger(subsystem: "catpaw", category: "voiceChat")
             .overlay(alignment: .top) {
                 if comingSoon {
                     Text(ui("语音对话即将支持")).font(catTypography.Role.caption.font).foregroundStyle(catColors.ink)
-                        .padding(.horizontal, 12).padding(.vertical, 6).background(.regularMaterial, in: Capsule())
+                        .padding(.horizontal, 12).padding(.vertical, 6).catGlass(in: Capsule())
                         .fixedSize().offset(y: -44).transition(.opacity).accessibilityIdentifier("chat.composer.voice.comingSoon")
                 }
             }
@@ -236,7 +258,7 @@ let voiceChatLog = Logger(subsystem: "catpaw", category: "voiceChat")
                         Text(noticeMessage).font(catTypography.Role.caption.font).foregroundStyle(catColors.ink).lineLimit(3).fixedSize(horizontal: false, vertical: true)
                         if dictation.notice == .permissionDenied { Button(ui("去设置")) { ComposerDictation.openSettings() }.font(catTypography.Role.caption.font.weight(.semibold)) }
                     }
-                    .padding(.horizontal, 12).padding(.vertical, 8).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .padding(.horizontal, 12).padding(.vertical, 8).catGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     // Anchored to the narrow mic button: give the hint its own width so it never truncates.
                     .fixedSize(horizontal: false, vertical: true).frame(width: 280, alignment: .trailing).offset(y: -56)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -248,7 +270,7 @@ let voiceChatLog = Logger(subsystem: "catpaw", category: "voiceChat")
             .overlay(alignment: .topTrailing) {
                 if let voiceChatNotice {
                     Text(voiceChatNotice).font(catTypography.Role.caption.font).foregroundStyle(catColors.ink).lineLimit(3).fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 12).padding(.vertical, 8).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .padding(.horizontal, 12).padding(.vertical, 8).catGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .fixedSize(horizontal: false, vertical: true).frame(width: 280, alignment: .trailing).offset(y: -56)
                         .onTapGesture { self.voiceChatNotice = nil }
                         .task(id: voiceChatNotice) { try? await Task.sleep(nanoseconds: 4_000_000_000); withAnimation { self.voiceChatNotice = nil } }

@@ -44,9 +44,7 @@ import UniformTypeIdentifiers
             }
         }
         .padding(14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(catColors.separator.opacity(0.6), lineWidth: 0.5))
-        .shadow(color: catColors.ink.opacity(0.18), radius: 24, y: 8)
+        .catGlass(in: RoundedRectangle(cornerRadius: 26, style: .continuous), fallback: .ultraThinMaterial, shadowed: true)
         .animation(.snappy(duration: 0.25), value: selected.isEmpty)
         .task { await library.load() }
         .accessibilityElement(children: .contain)

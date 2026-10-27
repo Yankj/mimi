@@ -181,6 +181,26 @@ public struct ParentingWorkspace: Codable, Sendable, Equatable {
             next.records.append(.init(id: recordID, childID: arrangement.childID, goalID: arrangement.goalID, arrangementID: id, kind: .completion, text: trimmed.isEmpty ? arrangement.title : trimmed, sourceText: note, createdAt: now, updatedAt: now))
             next.arrangements[i].state = .completed; next.arrangements[i].updatedAt = now
             next.supersedeEdits(arrangementID: id, now: now)
+        case .reopenArrangement(let id):
+            // Undo of completeArrangement. Already planned is a no-op, so a double tap or retry cannot fail or duplicate.
+            let i = try next.arrangementIndex(id)
+            switch next.arrangements[i].state {
+            case .planned: break
+            case .draft: throw catError.invalid("尚未确认的安排不需要重新打开。")
+            case .cancelled: throw catError.invalid("已取消的安排不能重新打开。")
+            case .completed:
+                for r in next.records.indices.reversed() where next.records[r].arrangementID == id {
+                    let record = next.records[r]
+                    // The untouched, automatically written completion goes away. Words the parent typed or edited are kept as an observation.
+                    let parentWrote = !record.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || record.updatedAt != record.createdAt
+                    if parentWrote {
+                        next.records[r].kind = .observation; next.records[r].arrangementID = nil; next.records[r].updatedAt = now
+                    } else {
+                        next.records.remove(at: r)
+                    }
+                }
+                next.arrangements[i].state = .planned; next.arrangements[i].updatedAt = now
+            }
         case .deleteArrangement(let id):
             _ = try next.arrangementIndex(id)
             next.arrangements.removeAll { $0.id == id }
@@ -288,6 +308,7 @@ public enum ParentingCommand: Codable, Sendable, Equatable {
     case confirmArrangement(id: UUID)
     case cancelArrangement(id: UUID)
     case completeArrangement(id: UUID, recordID: UUID, note: String)
+    case reopenArrangement(id: UUID)
     case deleteArrangement(id: UUID)
     case addObservation(id: UUID, childID: UUID, goalID: UUID?, text: String)
     case editRecord(id: UUID, text: String)

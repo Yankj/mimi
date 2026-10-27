@@ -317,9 +317,8 @@ struct ComposerGlass: ViewModifier {
             Image(systemName: "arrow.down").font(.footnote.weight(.bold))
                 .foregroundStyle(catColors.ink)
                 .frame(width: 36, height: 36)
-                .background(.ultraThinMaterial, in: Circle())
+                .catGlass(in: Circle(), interactive: true, fallback: .ultraThinMaterial, shadowed: true)
                 .overlay(Circle().strokeBorder(catBrand.paw, lineWidth: hasNewContent ? 2 : 0))
-                .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
                 .frame(minWidth: 44, minHeight: 44)
         }
         .buttonStyle(catPressButtonStyle())

@@ -157,7 +157,7 @@ extension View { func catpawTextSelection() -> some View { modifier(catTextSelec
                         .scaleEffect(shown ? 1.03 : 1, anchor: alignment == .trailing ? .trailing : .leading)
                         .shadow(color: .black.opacity(shown ? 0.28 : 0), radius: 18, y: 8)
                     menu
-                    if let toastKey { Text(ui(toastKey)).font(catTypography.Role.secondary.font).foregroundStyle(catColors.ink).padding(.horizontal, 12).padding(.vertical, 6).background(.regularMaterial, in: Capsule()) }
+                    if let toastKey { Text(ui(toastKey)).font(catTypography.Role.secondary.font).foregroundStyle(catColors.ink).padding(.horizontal, 12).padding(.vertical, 6).catGlass(in: Capsule()) }
                 }
                 .padding(.horizontal, 16).padding(.vertical, 48)
                 .frame(maxWidth: .infinity, alignment: frameAlignment)
@@ -183,7 +183,7 @@ extension View { func catpawTextSelection() -> some View { modifier(catTextSelec
             }
         }
         .padding(.horizontal, 8).padding(.vertical, 4)
-        .background(.regularMaterial, in: Capsule())
+        .catGlass(in: Capsule())
         .overlay(Capsule().strokeBorder(catColors.hairline, lineWidth: 0.5))
         .scaleEffect(shown ? 1 : 0.85, anchor: .bottom).opacity(shown ? 1 : 0)
         .accessibilityIdentifier("chat.message.reactionBar")
@@ -227,7 +227,7 @@ extension View { func catpawTextSelection() -> some View { modifier(catTextSelec
         }
         .padding(.vertical, 6)
         .frame(maxWidth: 280)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .catGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(catColors.hairline, lineWidth: 0.5))
         .scaleEffect(shown ? 1 : 0.9, anchor: .top).opacity(shown ? 1 : 0)
         .accessibilityIdentifier("chat.message.menu")

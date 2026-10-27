@@ -6,25 +6,27 @@ import AppKit
 #endif
 
 /// R5 semantic roles, mapped from mobile-conversation-reference-r5.json.
+/// Neutral surface / text / status roles now read the selected palette (`CatTheme`, CatTheme.swift: C 素白墨黑 by default,
+/// B 雾粉+燕麦); orange action roles, `onInk`, `send*`, `voice*`, `controlEdge` and the calm accent roles are unchanged.
 /// Reading, temporary surfaces, sending and exact approval are independent roles:
 /// changing an action tint cannot recolor a message or grant an approval emphasis.
 enum catColors {
     // Surfaces — brand Background #FFFCF8
-    static let background = adaptive(light: catBrandTokens.background, dark: catBrandTokens.canvasDark)
-    static let panel = adaptive(light: catBrandTokens.panelLight, dark: catBrandTokens.panelDark)
-    static let input = adaptive(light: catBrandTokens.panelLight, dark: 0x141414)
-    static let drawer = adaptive(light: 0xF5F5F5, dark: 0x141414)
+    static let background = CatTheme.color(.canvas)
+    static let panel = CatTheme.color(.surface)
+    static let input = CatTheme.color(.surface)
+    static let drawer = CatTheme.color(.surface)
     /// Brand Ink #292622 — primary text
-    static let ink = adaptive(light: catBrandTokens.ink, dark: catBrandTokens.inkDark)
+    static let ink = CatTheme.color(.ink)
     static let onInk = adaptive(light: 0xFFFFFF, dark: 0x151515)
     /// Brand Grey #929298 — secondary text / captions
-    static let secondary = adaptive(light: catBrandTokens.secondaryLight, dark: catBrandTokens.greyDark)
-    static let tertiary = adaptive(light: catBrandTokens.grey, dark: 0x6B6662)  // sheet Grey (muted)
-    static let groupedBackground = adaptive(light: catBrandTokens.background, dark: 0x121110)
-    static let card = adaptive(light: 0xFFFFFF, dark: 0x1C1B19)
-    static let fillSelected = adaptive(light: 0xEAE6E1, dark: 0x2E2B28)
-    static let hairline = adaptiveAlpha(light: catBrandTokens.ink, lightAlpha: 0.08, dark: 0xFFFFFF, darkAlpha: 0.10)
-    static let destructive = adaptive(light: 0xD9402B, dark: 0xFF6B57)
+    static let secondary = CatTheme.color(.ink2)
+    static let tertiary = CatTheme.color(.ink3)  // tertiary text: ink3 is ≥4.5:1 on canvas, card and surface (adjusted from the proposal)
+    static let groupedBackground = CatTheme.color(.canvas)
+    static let card = CatTheme.color(.card)
+    static let fillSelected = CatTheme.color(.track)
+    static let hairline = CatTheme.color(.hairline)
+    static let destructive = CatTheme.color(.danger)
     /// Brand Primary #FF702A — fills / icons / non-text only (never body copy).
     static let action = adaptive(light: catBrandTokens.fillLight, dark: catBrandTokens.primaryDark)
     /// Semantic alias for brand fill (same as `action`).
@@ -38,19 +40,19 @@ enum catColors {
     static let voiceFill = adaptive(light: catBrandTokens.ink, dark: 0x000000)
     /// Hairline so the black circle still separates from the dark composer surface (dark only).
     static let voiceRing = adaptiveAlpha(light: 0xFFFFFF, lightAlpha: 0, dark: 0xFFFFFF, darkAlpha: 0.22)
-    static let userMessageBackground = adaptive(light: 0xF2EFEB, dark: 0x262422)
-    static let userMessageInk = adaptive(light: catBrandTokens.ink, dark: catBrandTokens.inkDark)
+    static let userMessageBackground = CatTheme.color(.surface)
+    static let userMessageInk = CatTheme.color(.ink)
     static let controlEdge = adaptive(light: 0x858585, dark: 0x777777)
-    static let separator = adaptive(light: 0xDEDEDE, dark: 0x383838)
-    static let success = adaptive(light: 0x267146, dark: 0x9BD4AF)
-    static let attention = adaptive(light: 0x895700, dark: 0xE9BC69)
-    static let failure = adaptive(light: 0xB3261E, dark: 0xFFB4AB)
+    static let separator = CatTheme.color(.hairline)
+    static let success = CatTheme.color(.success)
+    static let attention = CatTheme.color(.attention)
+    static let failure = CatTheme.color(.danger)
     // Calm launch / onboarding / voice (warm page + orb)
     // first-run-polish (Grok Bot 12:33): the calm tokens get real dark values — launch screen, splash and chat share one
     // canvas per mode, so nothing inverts and the system-coloured status bar stays legible.
-    static let calmPage = adaptive(light: catBrandTokens.background, dark: catBrandTokens.canvasDark)
+    static let calmPage = CatTheme.color(.canvas)
     /// Splash secondary text: 6.7:1 light / 8.8:1 dark on the canvas (≥4.5 on the ring wash tail).
-    static let calmSecondary = adaptive(light: 0x5F5A55, dark: 0xB3ADA6)
+    static let calmSecondary = CatTheme.color(.ink2)
     /// Auxiliary icons only (#929298 in both modes; ≥3:1 on calmSurface white / #1F1B18).
     static let calmIcon = adaptive(light: catBrandTokens.grey, dark: catBrandTokens.grey)
     /// SPEC-E §1 landing chip icon (icon only, never text): 4.79:1 / 7.36:1 on calmSurface.
@@ -65,7 +67,7 @@ enum catColors {
     static let calmLavender = adaptive(light: catBrandTokens.lavender, dark: catBrandTokens.lavender)
     static let orbLight = adaptive(light: catBrandTokens.orbLight, dark: catBrandTokens.orbLight)
     static let orbDeep = adaptive(light: catBrandTokens.primary, dark: catBrandTokens.primary)
-    static let calmSurface = adaptive(light: 0xFFFFFF, dark: 0x1F1B18)
+    static let calmSurface = CatTheme.color(.card)
     static let calmGlyph = adaptive(light: 0xFFFFFF, dark: 0xFFFFFF)
     static let calmShadow = adaptive(light: 0x000000, dark: 0x000000)
     // Compatibility aliases — never a second palette.
@@ -212,8 +214,7 @@ struct catPrimaryButtonStyle: ButtonStyle {
             .fixedSize(horizontal:false,vertical:true)
             .frame(minHeight: 24).padding(.horizontal, 20).padding(.vertical, 14)
             .foregroundStyle(isEnabled ? catColors.onInk : catColors.secondary)
-            .background(isEnabled ? catColors.ink : catColors.input,
-                        in: RoundedRectangle(cornerRadius: catLayout.controlRadius, style: .continuous))
+            .modifier(catGlassButtonBackground(enabled: isEnabled, shape: RoundedRectangle(cornerRadius: catLayout.controlRadius, style: .continuous)))
             // Press-down answers in the touch frame with scale + soft haptic; release springs back.
             .modifier(catPressEffect(pressed: configuration.isPressed && isEnabled, scale: catInteractionMotion.primaryPressScale, dimmed: 0.86))
     }
@@ -294,7 +295,7 @@ struct catSheetPrimaryButtonStyle: ButtonStyle {
         configuration.label.font(.headline)
             .frame(maxWidth: .infinity, minHeight: 52)
             .foregroundStyle(isEnabled ? catColors.onInk : catColors.secondary)
-            .background(isEnabled ? catColors.ink : catColors.input, in: Capsule())
+            .modifier(catGlassButtonBackground(enabled: isEnabled, shape: Capsule()))
             .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.78 : 1)
     }
@@ -307,5 +308,85 @@ struct catSheetSecondaryButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Rectangle())
             .opacity(configuration.isPressed ? 0.6 : 1)
+    }
+}
+
+
+// MARK: - Liquid Glass (iOS 26+) with a material fallback
+
+/// One place for glass surfaces. iOS 26+ uses the system `glassEffect` (the system also handles Reduce Transparency);
+/// earlier systems get a material with a hairline, or an opaque card when Reduce Transparency is on.
+struct catGlassSurface<S: InsettableShape>: ViewModifier {
+    let shape: S
+    var interactive = false
+    var tint: Color?
+    var fallback: Material = .regularMaterial
+    var shadowed = false
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(glass, in: shape)
+        } else {
+            content
+                .background(reduceTransparency ? AnyShapeStyle(catColors.card) : AnyShapeStyle(fallback), in: shape)
+                .overlay(shape.stroke(catColors.hairline, lineWidth: 0.5))
+                .shadow(color: .black.opacity(shadowed ? 0.10 : 0), radius: 14, y: 4)
+        }
+    }
+    @available(iOS 26.0, *)
+    private var glass: Glass {
+        var g = Glass.regular
+        if let tint { g = g.tint(tint) }
+        return interactive ? g.interactive() : g
+    }
+}
+
+extension View {
+    /// Liquid Glass surface (iOS 26+) with material fallback. Use for floating controls only, never on top of other glass.
+    func catGlass<S: InsettableShape>(in shape: S, interactive: Bool = false, tint: Color? = nil,
+                                      fallback: Material = .regularMaterial, shadowed: Bool = false) -> some View {
+        modifier(catGlassSurface(shape: shape, interactive: interactive, tint: tint, fallback: fallback, shadowed: shadowed))
+    }
+}
+
+/// Primary action background: tinted interactive Liquid Glass on iOS 26+, the solid ink fill before that.
+struct catGlassButtonBackground<S: InsettableShape>: ViewModifier {
+    let enabled: Bool
+    let shape: S
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), enabled {
+            content.glassEffect(.regular.tint(catColors.ink).interactive(), in: shape)
+        } else {
+            content.background(enabled ? catColors.ink : catColors.input, in: shape)
+        }
+    }
+}
+
+extension View {
+    /// Content scrolls under floating glass bars: the system soft edge effect on iOS 26+, no-op before.
+    @ViewBuilder func catSoftScrollEdges() -> some View {
+        if #available(iOS 26.0, *) { self.scrollEdgeEffectStyle(.soft, for: .all) } else { self }
+    }
+}
+
+/// Groups nearby glass surfaces so they blend and morph together on iOS 26+; a plain container before that.
+struct catGlassGroup<Content: View>: View {
+    var spacing: CGFloat = 10
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        if #available(iOS 26.0, *) { GlassEffectContainer(spacing: spacing) { content() } } else { content() }
+    }
+}
+
+extension View {
+    /// Bottom bar that content scrolls under: `safeAreaBar` (soft edge effect, iOS 26+) or a plain bottom safe-area inset.
+    @ViewBuilder func catBottomBar<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        if #available(iOS 26.0, *) { self.safeAreaBar(edge: .bottom, spacing: 0) { content() } }
+        else { self.safeAreaInset(edge: .bottom, spacing: 0) { content() } }
+    }
+    /// Partial-height sheets take the system glass on iOS 26+; the brand canvas is kept before that.
+    @ViewBuilder func catSheetCanvas() -> some View {
+        if #available(iOS 26.0, *) { self } else { self.background(catColors.background.ignoresSafeArea()) }
     }
 }

@@ -8599,6 +8599,38 @@
     "en": "What",
     "zh-Hans": "事项"
   },
+  "按住说话": {
+    "en": "Hold to talk",
+    "zh-Hans": "按住说话"
+  },
+  "切换到键盘": {
+    "en": "Switch to keyboard",
+    "zh-Hans": "切换到键盘"
+  },
+  "切换到语音": {
+    "en": "Switch to voice",
+    "zh-Hans": "切换到语音"
+  },
+  "更多": {
+    "en": "More",
+    "zh-Hans": "更多"
+  },
+  "手动添加安排": {
+    "en": "Add an arrangement manually",
+    "zh-Hans": "手动添加安排"
+  },
+  "手动记一笔": {
+    "en": "Add a note manually",
+    "zh-Hans": "手动记一笔"
+  },
+  "正在听…": {
+    "en": "Listening…",
+    "zh-Hans": "正在听…"
+  },
+  "语音输入暂未开放，点这里改用键盘": {
+    "en": "Voice input is not available yet; tap to use the keyboard",
+    "zh-Hans": "语音输入暂未开放，点这里改用键盘"
+  },
   "交给小咪": {
     "en": "Hand to mimi",
     "zh-Hans": "交给小咪"
@@ -8942,5 +8974,421 @@
   "新安排": {
     "en": "New arrangement",
     "zh-Hans": "新安排"
+  },
+  "全部安排": {
+    "en": "All arrangements",
+    "zh-Hans": "全部安排"
+  },
+  "今天下午宝宝第一次自己拿勺子吃饭": {
+    "en": "This afternoon the baby ate with a spoon alone for the first time",
+    "zh-Hans": "今天下午宝宝第一次自己拿勺子吃饭"
+  },
+  "周六上午10点带宝宝去公园": {
+    "en": "Take the baby to the park on Saturday at 10 AM",
+    "zh-Hans": "周六上午10点带宝宝去公园"
+  },
+  "宝宝今天自己扶着沙发走了几步": {
+    "en": "The baby walked a few steps holding the sofa today",
+    "zh-Hans": "宝宝今天自己扶着沙发走了几步"
+  },
+  "明天早上8点带宝宝打疫苗": {
+    "en": "Take the baby for a vaccine tomorrow at 8 AM",
+    "zh-Hans": "明天早上8点带宝宝打疫苗"
+  },
+  "晚上8点半给宝宝读绘本": {
+    "en": "Read a picture book to the baby at 8:30 PM",
+    "zh-Hans": "晚上8点半给宝宝读绘本"
+  },
+  "{0} 件·已完成 {1}": {
+    "en": "{0} planned · {1} done",
+    "zh-Hans": "{0} 件·已完成 {1}"
+  },
+  "今天暂无安排": {
+    "en": "Nothing planned today",
+    "zh-Hans": "今天暂无安排"
+  },
+  "尚未确认的安排不需要重新打开。": {
+    "en": "An arrangement that has not been confirmed does not need reopening.",
+    "zh-Hans": "尚未确认的安排不需要重新打开。"
+  },
+  "已取消的安排不能重新打开。": {
+    "en": "A cancelled arrangement cannot be reopened.",
+    "zh-Hans": "已取消的安排不能重新打开。"
+  },
+  "一句话就好，小咪会先给你一张确认卡。": {
+    "en": "One sentence is enough. mimi shows you a confirm card first.",
+    "zh-Hans": "一句话就好，小咪会先给你一张确认卡。"
+  },
+  "上次复盘：{0} 天前（{1}）": {
+    "en": "Last review: {0} days ago ({1})",
+    "zh-Hans": "上次复盘：{0} 天前（{1}）"
+  },
+  "下一件": {
+    "en": "Next up",
+    "zh-Hans": "下一件"
+  },
+  "今天已经复盘过。": {
+    "en": "You already reviewed today.",
+    "zh-Hans": "今天已经复盘过。"
+  },
+  "今天有什么小事想记下？": {
+    "en": "Any small moment from today to note down?",
+    "zh-Hans": "今天有什么小事想记下？"
+  },
+  "今晚": {
+    "en": "Tonight",
+    "zh-Hans": "今晚"
+  },
+  "先核对一下": {
+    "en": "Take a look first",
+    "zh-Hans": "先核对一下"
+  },
+  "先看看这些": {
+    "en": "Start with these",
+    "zh-Hans": "先看看这些"
+  },
+  "全部确认": {
+    "en": "Confirm all",
+    "zh-Hans": "全部确认"
+  },
+  "去处理": {
+    "en": "Go and sort them out",
+    "zh-Hans": "去处理"
+  },
+  "只记下时间，用来决定什么时候再提醒你复盘。": {
+    "en": "Only the time is saved. It decides when to nudge you to review again.",
+    "zh-Hans": "只记下时间，用来决定什么时候再提醒你复盘。"
+  },
+  "可以到「成长」里回看。": {
+    "en": "You can look back in Growth.",
+    "zh-Hans": "可以到「成长」里回看。"
+  },
+  "周复盘": {
+    "en": "Weekly review",
+    "zh-Hans": "周复盘"
+  },
+  "周日晚上，适合回看这一周。": {
+    "en": "It is Sunday evening, a good time to look back on the week.",
+    "zh-Hans": "周日晚上，适合回看这一周。"
+  },
+  "它们不会被自动算作完成。可以逐件完成、调整时间或取消。": {
+    "en": "They are never marked done automatically. Finish, reschedule or cancel them one by one.",
+    "zh-Hans": "它们不会被自动算作完成。可以逐件完成、调整时间或取消。"
+  },
+  "已完成：{0}": {
+    "en": "Done: {0}",
+    "zh-Hans": "已完成：{0}"
+  },
+  "接下来": {
+    "en": "Coming up",
+    "zh-Hans": "接下来"
+  },
+  "接下来没有别的安排。": {
+    "en": "Nothing else is planned after this.",
+    "zh-Hans": "接下来没有别的安排。"
+  },
+  "放进输入栏": {
+    "en": "Put in the input bar",
+    "zh-Hans": "放进输入栏"
+  },
+  "时间已过，做完了就点完成": {
+    "en": "The time has passed. Tap Done if it is finished.",
+    "zh-Hans": "时间已过，做完了就点完成"
+  },
+  "有 {0} 件以前的安排还没标记": {
+    "en": "{0} earlier arrangements are not marked yet",
+    "zh-Hans": "有 {0} 件以前的安排还没标记"
+  },
+  "有 {0} 件待确认": {
+    "en": "{0} waiting for confirmation",
+    "zh-Hans": "有 {0} 件待确认"
+  },
+  "标记本周已复盘": {
+    "en": "Mark this week as reviewed",
+    "zh-Hans": "标记本周已复盘"
+  },
+  "确认后才会进入安排，也才会提醒。不确定的可以先逐件查看。": {
+    "en": "Only confirmed ones enter your plan and get reminders. Review them one by one if unsure.",
+    "zh-Hans": "确认后才会进入安排，也才会提醒。不确定的可以先逐件查看。"
+  },
+  "试试这样说": {
+    "en": "Try saying it like this",
+    "zh-Hans": "试试这样说"
+  },
+  "说一句": {
+    "en": "Say one line",
+    "zh-Hans": "说一句"
+  },
+  "距离上次复盘已满 7 天。": {
+    "en": "It has been 7 days since your last review.",
+    "zh-Hans": "距离上次复盘已满 7 天。"
+  },
+  "还剩 {0} 秒": {
+    "en": "{0} seconds left",
+    "zh-Hans": "还剩 {0} 秒"
+  },
+  "还有 {0} 件": {
+    "en": "{0} more",
+    "zh-Hans": "还有 {0} 件"
+  },
+  "还没有记录过周复盘。": {
+    "en": "No weekly review recorded yet.",
+    "zh-Hans": "还没有记录过周复盘。"
+  },
+  "逐件查看": {
+    "en": "Review one by one",
+    "zh-Hans": "逐件查看"
+  },
+  "添加孩子的昵称": {
+    "en": "Add your child's nickname",
+    "zh-Hans": "添加孩子的昵称"
+  },
+  "记下第一件安排或观察": {
+    "en": "Record a first arrangement or observation",
+    "zh-Hans": "记下第一件安排或观察"
+  },
+  "写下一个成长目标": {
+    "en": "Write one growth goal",
+    "zh-Hans": "写下一个成长目标"
+  },
+  "{0} 个目标 · {1} 条观察": {
+    "en": "{0} goals · {1} observations",
+    "zh-Hans": "{0} 个目标 · {1} 条观察"
+  },
+  "启航 {0}/{1}": {
+    "en": "Getting started {0}/{1}",
+    "zh-Hans": "启航 {0}/{1}"
+  },
+  "已有记录": {
+    "en": "Saved so far",
+    "zh-Hans": "已有记录"
+  },
+  "这里只显示已经记下的昵称、目标和观察。": {
+    "en": "This page only shows the nickname, goals and observations already saved.",
+    "zh-Hans": "这里只显示已经记下的昵称、目标和观察。"
+  },
+  "这台设备暂不发送提醒。安排只保存在本机，不会添加系统日历。": {
+    "en": "This device is not sending reminders. Arrangements stay on this device and are not added to the system calendar.",
+    "zh-Hans": "这台设备暂不发送提醒。安排只保存在本机，不会添加系统日历。"
+  },
+  "账户、回顾提示、数据与版本": {
+    "en": "Account, review hints, data and version",
+    "zh-Hans": "账户、回顾提示、数据与版本"
+  },
+  "这台设备暂不发送提醒": {
+    "en": "This device is not sending reminders",
+    "zh-Hans": "这台设备暂不发送提醒"
+  },
+  "已开启 · 每天最多 2 条，晚 9 点到早 8 点不打扰": {
+    "en": "On · up to 2 a day, none from 9 pm to 8 am",
+    "zh-Hans": "已开启 · 每天最多 2 条，晚 9 点到早 8 点不打扰"
+  },
+  "未开启 · 每天最多 2 条，晚 9 点到早 8 点不打扰": {
+    "en": "Off · up to 2 a day, none from 9 pm to 8 am",
+    "zh-Hans": "未开启 · 每天最多 2 条，晚 9 点到早 8 点不打扰"
+  },
+  "在听…": {
+    "en": "Listening…",
+    "zh-Hans": "在听…"
+  },
+  "清除": {
+    "en": "Clear",
+    "zh-Hans": "清除"
+  },
+  "切换到键盘输入": {
+    "en": "Switch to keyboard",
+    "zh-Hans": "切换到键盘输入"
+  },
+  "切换到语音输入": {
+    "en": "Switch to voice input",
+    "zh-Hans": "切换到语音输入"
+  },
+  "停止说话": {
+    "en": "Stop talking",
+    "zh-Hans": "停止说话"
+  },
+  "双击开始说话，再双击完成": {
+    "en": "Double-tap to start talking, double-tap again to finish",
+    "zh-Hans": "双击开始说话，再双击完成"
+  },
+  "正在准备语音模型…": {
+    "en": "Preparing the speech model…",
+    "zh-Hans": "正在准备语音模型…"
+  },
+  "再点一下完成": {
+    "en": "Tap again to finish",
+    "zh-Hans": "再点一下完成"
+  },
+  "松开发送": {
+    "en": "Release to send",
+    "zh-Hans": "松开发送"
+  },
+  "松开取消": {
+    "en": "Release to cancel",
+    "zh-Hans": "松开取消"
+  },
+  "上滑发送 · 左滑取消": {
+    "en": "Swipe up to send · swipe left to cancel",
+    "zh-Hans": "上滑发送 · 左滑取消"
+  },
+  "说话": {
+    "en": "Talk",
+    "zh-Hans": "说话"
+  },
+  "小咪的语音识别只在你的手机上完成，不会上传。接下来 iOS 会请你允许麦克风和语音识别。": {
+    "en": "mimi recognizes your voice on this phone only; nothing is uploaded. Next, iOS will ask you to allow the microphone and speech recognition.",
+    "zh-Hans": "小咪的语音识别只在你的手机上完成，不会上传。接下来 iOS 会请你允许麦克风和语音识别。"
+  },
+  "改用键盘": {
+    "en": "Use the keyboard",
+    "zh-Hans": "改用键盘"
+  },
+  "需要麦克风和语音识别权限才能说话。可以在“设置”里开启，或直接打字。": {
+    "en": "Talking needs microphone and speech recognition access. You can turn it on in Settings, or just type.",
+    "zh-Hans": "需要麦克风和语音识别权限才能说话。可以在“设置”里开启，或直接打字。"
+  },
+  "这台手机暂时用不了本机语音识别，小咪不会改用在线识别。可以点键盘，用系统键盘上的麦克风听写。": {
+    "en": "On-device speech recognition isn't available on this phone right now, and mimi won't switch to online recognition. Tap the keyboard and use the microphone on the system keyboard to dictate.",
+    "zh-Hans": "这台手机暂时用不了本机语音识别，小咪不会改用在线识别。可以点键盘，用系统键盘上的麦克风听写。"
+  },
+  "没听清，可能是周围太吵。再说一次，或点键盘打字。": {
+    "en": "Couldn't make that out — it may be too noisy. Try again, or tap the keyboard to type.",
+    "zh-Hans": "没听清，可能是周围太吵。再说一次，或点键盘打字。"
+  },
+  "没听到内容。再说一次，或点键盘打字。": {
+    "en": "Didn't hear anything. Try again, or tap the keyboard to type.",
+    "zh-Hans": "没听到内容。再说一次，或点键盘打字。"
+  },
+  "语音被打断了，已听到的内容保留在上面，可以接着改或再说一次。": {
+    "en": "Voice input was interrupted. What was heard is kept above; edit it or say it again.",
+    "zh-Hans": "语音被打断了，已听到的内容保留在上面，可以接着改或再说一次。"
+  },
+  "{0} 个目标": {
+    "en": "{0} goals",
+    "zh-Hans": "{0} 个目标"
+  },
+  "{0} 天前": {
+    "en": "{0} days ago",
+    "zh-Hans": "{0} 天前"
+  },
+  "{0} 条": {
+    "en": "{0}",
+    "zh-Hans": "{0} 条"
+  },
+  "{0} 条记录": {
+    "en": "{0} entries",
+    "zh-Hans": "{0} 条记录"
+  },
+  "{0} 条记录 · {1} 天有记录": {
+    "en": "{0} entries · {1} active days",
+    "zh-Hans": "{0} 条记录 · {1} 天有记录"
+  },
+  "一句话就够，也可以直接对下面的小咪说。": {
+    "en": "One sentence is enough — or just tell Mimi below.",
+    "zh-Hans": "一句话就够，也可以直接对下面的小咪说。"
+  },
+  "上一条记录是 {0} 天前。": {
+    "en": "The last entry was {0} days ago.",
+    "zh-Hans": "上一条记录是 {0} 天前。"
+  },
+  "下一件 {0}": {
+    "en": "Next: {0}",
+    "zh-Hans": "下一件 {0}"
+  },
+  "不用填写生日和健康信息。": {
+    "en": "No birthday or health details needed.",
+    "zh-Hans": "不用填写生日和健康信息。"
+  },
+  "今天有什么想留下的小事？": {
+    "en": "Anything from today worth keeping?",
+    "zh-Hans": "今天有什么想留下的小事？"
+  },
+  "今天有新记录": {
+    "en": "New entry today",
+    "zh-Hans": "今天有新记录"
+  },
+  "先从这里开始": {
+    "en": "Start here",
+    "zh-Hans": "先从这里开始"
+  },
+  "先添加孩子的昵称": {
+    "en": "Start with your child's nickname",
+    "zh-Hans": "先添加孩子的昵称"
+  },
+  "已经 {0} 天没有新记录了。": {
+    "en": "No new entry for {0} days.",
+    "zh-Hans": "已经 {0} 天没有新记录了。"
+  },
+  "已经记下 {0} 条观察，可以给它们起个名字。": {
+    "en": "You've written {0} observations — give them a name.",
+    "zh-Hans": "已经记下 {0} 条观察，可以给它们起个名字。"
+  },
+  "已记 {0} 条": {
+    "en": "{0} entries",
+    "zh-Hans": "已记 {0} 条"
+  },
+  "开始了目标「{0}」": {
+    "en": "Started the goal “{0}”",
+    "zh-Hans": "开始了目标「{0}」"
+  },
+  "成长时间线": {
+    "en": "Growth timeline",
+    "zh-Hans": "成长时间线"
+  },
+  "把这些观察变成一个小目标": {
+    "en": "Turn these observations into a small goal",
+    "zh-Hans": "把这些观察变成一个小目标"
+  },
+  "最近 7 天": {
+    "en": "Last 7 days",
+    "zh-Hans": "最近 7 天"
+  },
+  "最近没有需要补记的事，翻翻这几天吧。": {
+    "en": "Nothing to catch up on — look back over the last few days.",
+    "zh-Hans": "最近没有需要补记的事，翻翻这几天吧。"
+  },
+  "有一阵没记了": {
+    "en": "Quiet for a while",
+    "zh-Hans": "有一阵没记了"
+  },
+  "留下了第一条记录": {
+    "en": "The first entry",
+    "zh-Hans": "留下了第一条记录"
+  },
+  "看时间线": {
+    "en": "Open timeline",
+    "zh-Hans": "看时间线"
+  },
+  "第 {0} 条记录": {
+    "en": "Entry #{0}",
+    "zh-Hans": "第 {0} 条记录"
+  },
+  "给「{0}」添一笔": {
+    "en": "Add a note to “{0}”",
+    "zh-Hans": "给「{0}」添一笔"
+  },
+  "记下今天的第一条观察": {
+    "en": "Write down today's first observation",
+    "zh-Hans": "记下今天的第一条观察"
+  },
+  "记录节点 {0}/{1}": {
+    "en": "Entry milestones {0}/{1}",
+    "zh-Hans": "记录节点 {0}/{1}"
+  },
+  "还没有目标": {
+    "en": "No goals yet",
+    "zh-Hans": "还没有目标"
+  },
+  "这 7 天还没有记录": {
+    "en": "Nothing written in the last 7 days",
+    "zh-Hans": "这 7 天还没有记录"
+  },
+  "这一周的轨迹": {
+    "en": "This week at a glance",
+    "zh-Hans": "这一周的轨迹"
+  },
+  "这个目标还没有记录。": {
+    "en": "Nothing has been written for this goal yet.",
+    "zh-Hans": "这个目标还没有记录。"
   }
 }

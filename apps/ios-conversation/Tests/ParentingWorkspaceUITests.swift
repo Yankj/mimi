@@ -2,6 +2,11 @@ import XCTest
 
 /// Real host UI, SwiftData repository, AES parenting store and inline intake controller.
 /// Only the consent/reply/deletion transport is injected. No probes or controller calls replace UI actions.
+///
+/// Structure under test: three tabs (今天｜成长｜我们家) and one composer card (the "input card") above the tab bar on 今天 and 成长.
+/// Tab navigation goes through `ParentingUI` (Tests/ParentingUITestSupport.swift), which finds the iOS 26 system tab bar's
+/// buttons by position and falls back to the `parenting.tab.*` identifiers on the custom floating bar.
+/// Text entry and scrolling are written to survive a slow, loaded simulator; see `enter`, `input` and `reveal`.
 final class ParentingWorkspaceUITests: XCTestCase {
     private var currentApp: XCUIApplication?
     override func setUp() { continueAfterFailure = false }
@@ -26,7 +31,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         assertEmpty(app)
         capture(app, "success-empty")
         addChild(app, name: child)
-        tab(app, "growth")
+        showTab(app, .growth, mode: .goals)
         openGoalEditor(app)
         enter(app, id: "parenting.goal.title", text: goal)
         tap(app, app.buttons["parenting.name.save"])
@@ -37,26 +42,32 @@ final class ParentingWorkspaceUITests: XCTestCase {
         XCTAssertNotNil(UUID(uuidString: String(goalIdentifier.dropFirst("parenting.goal.".count))))
         capture(app, "success-created-child-and-goal")
 
-        tab(app, "today")
-        tap(app, app.buttons["parenting.addArrangement"])
+        openArrangementForm(app)
         tap(app, element(app, "parenting.editor.goal"))
         let option = app.buttons.matching(NSPredicate(format: "label == %@", goal)).firstMatch
         XCTAssertTrue(option.waitForExistence(timeout: 5), app.debugDescription)
         option.tap()
         enter(app, id: "parenting.arrangement.source", text: source)
         requestAndAllow(app)
+        // Candidate is a .contain AX group: assert it exists, never reveal() it (a blind drag over a sheet dismisses it).
+        // requestAndAllow already scrolled the adopt button into view.
         let candidate = element(app, "parenting.inline.candidate")
-        reveal(app, candidate)
-        XCTAssertTrue(candidate.exists, app.debugDescription)
+        XCTAssertTrue(candidate.waitForExistence(timeout: 5), app.debugDescription)
+        // The title cell sits below the intake section and is virtualized away until scrolled to: use input(),
+        // as testSyntheticUnknownIntakeRequiresOriginalRequestReadback does.
         XCTAssertFalse(input(app, "parenting.arrangement.title").value as? String == "Synthetic reading together",
                        "A candidate must not apply itself to the arrangement.")
         assertSaveDisabled(app)
-        reveal(app, candidate)
+        let adopt = app.buttons["parenting.inline.adopt"]
+        reveal(app, adopt)
         capture(app, "success-candidate-not-saved")
-        tap(app, app.buttons["parenting.inline.adopt"])
+        // adopt silently does nothing while the workspace is busy: wait for idle, then tap.
+        _ = ParentingUI.waitUntilNotBusy(app)
+        tap(app, adopt)
         let title = input(app, "parenting.arrangement.title")
-        reveal(app, title)
-        XCTAssertEqual(title.value as? String, "Synthetic reading together")
+        XCTAssertTrue(ParentingUI.waitUntil(timeout: 8) {
+            (title.value as? String) == "Synthetic reading together"
+        }, "Adopt should fill the title; got \(String(describing: title.value))\n" + app.debugDescription)
         assertSaveDisabled(app)
         reveal(app, title)
         title.tap()
@@ -118,7 +129,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         XCTAssertNotNil(UUID(uuidString: linkedRecordID))
         capture(app, "success-original-arrangement-completed-time-and-record-link")
 
-        tab(app, "records")
+        showTab(app, .growth, mode: .timeline)
         let recordBody = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "parenting.record.body.")).firstMatch
         reveal(app, recordBody)
         XCTAssertEqual(recordBody.label, note)
@@ -127,7 +138,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         XCTAssertEqual(recordID, linkedRecordID, "The record list must show the exact record linked by the completed arrangement.")
         assertRecordGoal(app, recordID: recordID, goal: goal)
         capture(app, "success-completion-record-and-goal-link")
-        tab(app, "growth")
+        showTab(app, .growth, mode: .goals)
         tap(app, app.buttons[goalIdentifier])
         XCTAssertTrue(app.staticTexts["Reviewing this goal"].exists, app.debugDescription)
         let linkedBody = app.staticTexts["parenting.record.body." + recordID]
@@ -140,7 +151,8 @@ final class ParentingWorkspaceUITests: XCTestCase {
         app.terminate()
         app.launch()
         ready(app)
-        XCTAssertFalse(app.buttons["parenting.firstChild"].exists)
+        XCTAssertFalse(firstChildButton(app).exists)
+        showAllArrangements(app)
         let reopenedArrangement = showCompletedArrangement(app, arrangementID: arrangementID)
         XCTAssertTrue(reopenedArrangement.staticTexts[adjustedTitle].exists, app.debugDescription)
         XCTAssertEqual(arrangementTime(app, arrangementID: arrangementID), adjustedTime,
@@ -158,7 +170,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         reveal(app, reopenedBody)
         XCTAssertEqual(reopenedBody.label, note)
         assertRecordGoal(app, recordID: recordID, goal: goal)
-        tab(app, "growth")
+        showTab(app, .growth, mode: .goals)
         XCTAssertTrue(app.staticTexts[child].exists, app.debugDescription)
         tap(app, app.buttons[goalIdentifier])
         reveal(app, app.staticTexts["parenting.record.body." + recordID])
@@ -175,13 +187,12 @@ final class ParentingWorkspaceUITests: XCTestCase {
         let changeSource = "Change to 2027-02-18T17:00:00Z."
         assertEmpty(app)
         addChild(app, name: child)
-        tab(app, "growth")
+        showTab(app, .growth, mode: .goals)
         openGoalEditor(app)
         enter(app, id: "parenting.goal.title", text: goal)
         tap(app, app.buttons["parenting.name.save"])
         wait { !self.inputExists(app, "parenting.goal.title") }
-        tab(app, "today")
-        tap(app, app.buttons["parenting.addArrangement"])
+        openArrangementForm(app)
         tap(app, element(app, "parenting.editor.goal"))
         let goalOption = app.buttons.matching(NSPredicate(format: "label == %@", goal)).firstMatch
         XCTAssertTrue(goalOption.waitForExistence(timeout: 5), app.debugDescription)
@@ -232,6 +243,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         app.terminate()
         app.launch()
         ready(app)
+        showAllArrangements(app)
         XCTAssertEqual(arrangementTime(app, arrangementID: arrangementID), changedTime)
         XCTAssertTrue(element(app, "parenting.arrangement." + arrangementID).staticTexts[title].exists, app.debugDescription)
         assertArrangementGoal(app, arrangementID: arrangementID, goal: goal)
@@ -253,6 +265,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         app.terminate()
         app.launch()
         ready(app)
+        showAllArrangements(app)
         XCTAssertEqual(arrangementTime(app, arrangementID: arrangementID), originalTime)
         XCTAssertTrue(element(app, "parenting.arrangement." + arrangementID).staticTexts[title].exists, app.debugDescription)
         assertArrangementGoal(app, arrangementID: arrangementID, goal: goal)
@@ -264,7 +277,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         reveal(app, reverted)
         XCTAssertFalse(reverted.label.isEmpty, app.debugDescription)
         capture(app, "adjustment-undone-same-id-time-and-history-cold-read")
-        tab(app, "records")
+        showTab(app, .growth, mode: .timeline)
         XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "parenting.record.body.")).count, 0,
                        "Rescheduling and undo must not manufacture a completion record.")
     }
@@ -273,7 +286,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         let app = launch("p0-ui-parenting-preparation-failure")
         assertEmpty(app)
         addChild(app, name: "Synthetic Failure Child")
-        tap(app, app.buttons["parenting.addArrangement"])
+        openArrangementForm(app)
         let source = "Synthetic input retained after preparation was refused."
         enter(app, id: "parenting.arrangement.source", text: source)
         tap(app, app.buttons["parenting.arrangement.aiIntake"])
@@ -286,7 +299,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         capture(app, "failure-preparation-refused-source-retained")
         closeUnsavedArrangement(app)
         assertNoArrangement(app)
-        tap(app, app.buttons["parenting.addArrangement"])
+        openArrangementForm(app)
         let pending = element(app, "parenting.inline.cleanupPending")
         reveal(app, pending)
         XCTAssertTrue(pending.exists, app.debugDescription)
@@ -300,9 +313,9 @@ final class ParentingWorkspaceUITests: XCTestCase {
         XCTAssertEqual(app.launchEnvironment["CF_UI_TEST_STORE"], isolatedStore)
         app.launch()
         ready(app)
-        XCTAssertFalse(app.buttons["parenting.firstChild"].exists)
+        XCTAssertFalse(firstChildButton(app).exists)
         assertNoArrangement(app)
-        tap(app, app.buttons["parenting.addArrangement"])
+        openArrangementForm(app)
         let coldPending = element(app, "parenting.inline.cleanupPending")
         reveal(app, coldPending)
         XCTAssertTrue(coldPending.exists, "The encrypted pending-cleanup reference must survive actual process termination.")
@@ -331,9 +344,10 @@ final class ParentingWorkspaceUITests: XCTestCase {
     func testInteractionScreenshotsConfirmCardTimelineAndFloatingTabBar() {
         let app = launch("p0-ui-parenting-success")
         addChild(app, name: "团团")
-        let field = app.textFields["parenting.natural.field"]
         let entries = ["团团今天下午5点游泳", "团团今天晚上8点练钢琴", "团团今天晚上9点洗澡"]
         for (index, text) in entries.enumerated() {
+            // The composer is voice-first on feat/native-liquid-glass (idle = + · hold-to-talk · keyboard); show its text field.
+            let field = ParentingUI.showKeyboardComposer(app)
             XCTAssertTrue(field.waitForExistence(timeout: 10), app.debugDescription)
             wait { field.isHittable }
             field.tap()
@@ -354,8 +368,9 @@ final class ParentingWorkspaceUITests: XCTestCase {
         }
         capture(app, "Interaction-v05-3-today-timeline-top")
         // Scroll the page under the floating bars: content must still be visible through the glass and the last item reachable.
-        let bar = app.otherElements["parenting.tabBar"]
-        XCTAssertTrue(bar.exists, app.debugDescription)
+        // The bar is the iOS 26 system tab bar or the custom floating capsule; ParentingUI knows both.
+        XCTAssertTrue(ParentingUI.tabBarExists(app), app.debugDescription)
+        let barTop = ParentingUI.tabBarTop(app) ?? app.frame.maxY
         // Coordinates are taken from the app window: the composer chips are also a (horizontal) scroll view.
         // Drag from the upper part of the page: the lower part is covered by the floating bars (and the keyboard, if open).
         func dragPageUp() {
@@ -366,23 +381,91 @@ final class ParentingWorkspaceUITests: XCTestCase {
         capture(app, "Interaction-v05-4-scrolled-under-glass")
         for _ in 0..<14 { dragPageUp() }
         capture(app, "Interaction-v05-5-scrolled-to-end")
-        let last = app.staticTexts["parenting.storageBoundary"]
+        // 今天 is one hero card, a rail and the 「全部安排」 entry (the storage note lives one level down); the entry is the last item.
+        let last = app.buttons["parenting.today.allArrangements"]
         XCTAssertTrue(last.exists, app.debugDescription)
-        XCTAssertLessThanOrEqual(last.frame.maxY, bar.frame.minY + 1, "The last item must stop above the floating bars at the end of the page.")
-        tab(app, "growth")
+        XCTAssertLessThanOrEqual(last.frame.maxY, barTop + 1, "The last item must stop above the floating bars at the end of the page.")
+        showTab(app, .growth, mode: .goals)
         capture(app, "Interaction-v05-6-growth-tab")
-        tab(app, "family")
+        showTab(app, .family)
         capture(app, "Interaction-v05-7-family-tab")
     }
 
     func testInteractionFloatingTabBarAtLargestAccessibilityText() {
         let app = launch("p0-ui-parenting-success", display: ["CATPAW_UI_TEST_TEXT_SIZE": "accessibility5"])
         addChild(app, name: "团团")
-        XCTAssertTrue(app.buttons["parenting.tab.today"].isHittable, app.debugDescription)
-        XCTAssertTrue(app.textFields["parenting.natural.field"].isHittable, app.debugDescription)
+        XCTAssertTrue(ParentingUI.tabButton(app, .today).isHittable, app.debugDescription)
+        // At accessibility text sizes the composer is keyboard-only, so its field is always present.
+        XCTAssertTrue(ParentingUI.showKeyboardComposer(app).isHittable, app.debugDescription)
         capture(app, "Interaction-v05-8-accessibility5-floating-bars")
-        tab(app, "growth")
+        showTab(app, .growth, mode: .goals)
         capture(app, "Interaction-v05-9-accessibility5-growth")
+    }
+
+    // MARK: Three tabs and the composer (v0.6)
+
+    /// 今天｜成长｜我们家 are reachable by position (system tab bar) or by `parenting.tab.*` (custom bar), each shows its own
+    /// large/inline title, and the composer card belongs to 今天 and 成长 only, and only once a child exists.
+    func testThreeTabsAreReachableAndComposerBelongsToTodayAndGrowth() {
+        let app = launch("p0-ui-parenting-success")
+        XCTAssertFalse(ParentingUI.composerBar(app).exists, "Without a child there is nothing to record yet, so no composer.\n" + app.debugDescription)
+        addChild(app, name: "Synthetic Tab Child")
+        XCTAssertTrue(ParentingUI.composerBar(app).waitForExistence(timeout: 10), app.debugDescription)
+        if ParentingUI.usesSystemTabBar(app) {
+            // A minimized system bar shows only the selected tab; ParentingUI.tabButton expands it first.
+            _ = ParentingUI.tabButton(app, .today)
+            XCTAssertEqual(app.tabBars.firstMatch.buttons.count, ParentingUI.tabOrder.count, ParentingUI.tabBarSummary(app))
+        }
+        for tab in ParentingUI.tabOrder + [.today] {
+            showTab(app, tab)
+            let title = ParentingUI.tabTitles[tab] ?? ""
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5),
+                          "Tab \(tab.rawValue) must show the title \(title).\n" + ParentingUI.tabBarSummary(app) + "\n" + app.debugDescription)
+            let expectsComposer = tab != .family
+            wait { ParentingUI.composerBar(app).exists == expectsComposer }
+            XCTAssertEqual(ParentingUI.composerBar(app).exists, expectsComposer,
+                           "The composer card is on 今天 and 成长 only (tab \(tab.rawValue)).\n" + app.debugDescription)
+            capture(app, "tabs-" + tab.rawValue)
+        }
+    }
+
+    /// The manual form stays reachable as the escape hatch: from the composer's + menu when it exists (feat/native-liquid-glass),
+    /// otherwise from the page button. Either way nothing is saved until the parent reviews and saves it.
+    func testComposerManualEntryOpensArrangementFormAndDiscardLeavesNoDraft() {
+        let app = launch("p0-ui-parenting-success")
+        addChild(app, name: "Synthetic Manual Child")
+        let route = openManualArrangement(app)
+        enter(app, id: "parenting.arrangement.source", text: "Synthetic manual entry that is discarded.")
+        assertSaveDisabled(app)
+        capture(app, "composer-manual-entry-via-" + route)
+        closeUnsavedArrangement(app)
+        assertNoArrangement(app)
+    }
+
+    /// Voice-first idle layout and + menu (identifiers parenting.composer.* and parenting.plus.*). Skipped until a build has them.
+    func testComposerVoiceFirstIdleLayoutAndPlusMenu() throws {
+        let app = launch("p0-ui-parenting-success")
+        addChild(app, name: "Synthetic Voice Child")
+        try XCTSkipUnless(app.buttons[ParentingUI.composerMicID].waitForExistence(timeout: 5),
+                          "This build has no voice-first composer (parenting.composer.mic, parenting.plus.*); it arrives with feat/native-liquid-glass (#131).")
+        // Idle: + menu, hold-to-talk capsule and keyboard toggle on one line; no text field yet.
+        XCTAssertTrue(app.buttons[ParentingUI.composerKeyboardToggleID].exists, app.debugDescription)
+        XCTAssertFalse(app.textFields[ParentingUI.composerFieldID].exists, app.debugDescription)
+        let plus = app.buttons[ParentingUI.plusMenuID]
+        XCTAssertTrue(plus.waitForExistence(timeout: 5), app.debugDescription)
+        plus.tap()
+        let manualArrangement = app.buttons[ParentingUI.plusManualArrangementID]
+        XCTAssertTrue(manualArrangement.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.buttons[ParentingUI.plusManualObservationID].exists, "The manual forms come last in the + menu.\n" + app.debugDescription)
+        capture(app, "composer-plus-menu")
+        app.buttons[ParentingUI.plusManualObservationID].tap()
+        XCTAssertTrue(inputExistsEventually(app, "parenting.record.text"), "The manual observation form must open.\n" + app.debugDescription)
+        app.navigationBars.buttons["Cancel"].tap()
+        wait { !self.inputExists(app, "parenting.record.text") }
+        // The keyboard toggle swaps hold-to-talk for the text field, and back.
+        let field = ParentingUI.showKeyboardComposer(app)
+        XCTAssertTrue(field.exists, app.debugDescription)
+        capture(app, "composer-keyboard-layout")
     }
 
     func testSyntheticDarkLargeTextEmptyAndEditorSmoke() {
@@ -393,7 +476,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         assertEmpty(app)
         capture(app, "dark-accessibility5-empty")
         addChild(app, name: "Synthetic Large Text Child")
-        tap(app, app.buttons["parenting.addArrangement"])
+        openArrangementForm(app)
         enter(app, id: "parenting.arrangement.source", text: String(repeating: "Synthetic long text remains editable and can be discarded. ", count: 8))
         XCTAssertTrue(app.keyboards.firstMatch.exists, app.debugDescription)
         assertSaveDisabled(app)
@@ -408,7 +491,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         let title = "Synthetic arrangement to cancel"
         assertEmpty(app)
         addChild(app, name: "Synthetic Cancellation Child")
-        tap(app, app.buttons["parenting.addArrangement"])
+        openArrangementForm(app)
         enter(app, id: "parenting.arrangement.source", text: "Synthetic parent intention that can be explicitly cancelled.")
         enter(app, id: "parenting.arrangement.title", text: title)
         chooseExplicitTime(app)
@@ -431,15 +514,16 @@ final class ParentingWorkspaceUITests: XCTestCase {
         wait { !complete.exists }
         let cancelledState = assertCancelledArrangement(app, arrangementID: arrangementID, title: title, time: plannedTime)
         capture(app, "cancellation-original-planned-arrangement-cancelled")
-        tab(app, "records")
+        showTab(app, .growth, mode: .timeline)
         XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "parenting.record.body.")).count, 0,
                        "Cancelling a saved arrangement must not generate a completion record.")
         app.terminate()
         app.launch()
         ready(app)
+        showAllArrangements(app)
         XCTAssertEqual(assertCancelledArrangement(app, arrangementID: arrangementID, title: title, time: plannedTime), cancelledState)
         capture(app, "cancellation-cold-relaunch-same-arrangement-time-and-state")
-        tab(app, "records")
+        showTab(app, .growth, mode: .timeline)
         XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "parenting.record.body.")).count, 0)
     }
 
@@ -450,7 +534,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         let original = "Synthetic parent noticed a question during a story."
         assertEmpty(app)
         addChild(app, name: child)
-        tab(app, "growth")
+        showTab(app, .growth, mode: .goals)
         openGoalEditor(app)
         enter(app, id: "parenting.goal.title", text: goal)
         tap(app, app.buttons["parenting.name.save"])
@@ -490,7 +574,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         app.terminate()
         app.launch()
         ready(app)
-        tab(app, "records")
+        showTab(app, .growth, mode: .timeline)
         let reopened = app.staticTexts["parenting.record.body." + recordID]
         reveal(app, reopened)
         XCTAssertEqual(reopened.label, corrected)
@@ -509,10 +593,10 @@ final class ParentingWorkspaceUITests: XCTestCase {
         app.terminate()
         app.launch()
         ready(app)
-        tab(app, "records")
+        showTab(app, .growth, mode: .timeline)
         XCTAssertFalse(app.staticTexts["parenting.record.body." + recordID].exists)
         XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "parenting.record.body.")).count, 0)
-        tab(app, "growth")
+        showTab(app, .growth, mode: .goals)
         XCTAssertTrue(app.staticTexts[child].exists, app.debugDescription)
         reveal(app, app.buttons[goalIdentifier])
         XCTAssertTrue(app.buttons[goalIdentifier].exists)
@@ -524,7 +608,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         let app = launch("p0-ui-parenting-save-rollback")
         let name = "Synthetic Rollback Child"
         assertEmpty(app)
-        tap(app, app.buttons["parenting.firstChild"])
+        tap(app, firstChildButton(app))
         enter(app, id: "parenting.child.name", text: name)
         tap(app, app.buttons["parenting.name.save"])
         let issue = element(app, "parenting.form.error")
@@ -539,7 +623,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         tap(app, retrySave)
         wait { !self.inputExists(app, "parenting.child.name") }
         XCTAssertFalse(element(app, "parenting.form.error").exists, app.debugDescription)
-        XCTAssertTrue(app.buttons["parenting.addArrangement"].exists, app.debugDescription)
+        XCTAssertTrue(app.buttons["parenting.today.allArrangements"].waitForExistence(timeout: 10), app.debugDescription)
         assertNoArrangement(app)
         capture(app, "save-rollback-original-form-retry-succeeded")
         let store = app.launchEnvironment["CF_UI_TEST_STORE"]
@@ -550,7 +634,8 @@ final class ParentingWorkspaceUITests: XCTestCase {
         XCTAssertEqual(app.launchEnvironment["CF_UI_TEST_STORE"], store)
         app.launch()
         ready(app)
-        XCTAssertFalse(app.buttons["parenting.firstChild"].exists)
+        XCTAssertFalse(firstChildButton(app).exists)
+        showAllArrangements(app)
         tap(app, element(app, "parenting.childFilter"))
         let choices = app.buttons.matching(NSPredicate(format: "label == %@", name))
         XCTAssertTrue(choices.firstMatch.waitForExistence(timeout: 5), app.debugDescription)
@@ -565,7 +650,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         let source = "Synthetic story request whose first response is lost after submission."
         assertEmpty(app)
         addChild(app, name: "Synthetic Unknown Child")
-        tap(app, app.buttons["parenting.addArrangement"])
+        openArrangementForm(app)
         enter(app, id: "parenting.arrangement.source", text: source)
         requestAndAllowConsent(app)
         let reconcile = app.buttons["parenting.inline.reconcile"]
@@ -610,21 +695,60 @@ final class ParentingWorkspaceUITests: XCTestCase {
     private func launch(_ scenario: String, display: [String: String] = [:]) -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "com.example.CatpawM.ConversationFirst.Auth")
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
-        app.launchEnvironment = ["CF_UI_TEST_STORE": UUID().uuidString, "CF_UI_TEST_SCENARIO": scenario]
+        // CF_UI_TEST_NO_AUTODISMISS keeps the saved-receipt sheet open for tests that tap it (read by feat/native-liquid-glass; ignored before).
+        app.launchEnvironment = ["CF_UI_TEST_STORE": UUID().uuidString, "CF_UI_TEST_SCENARIO": scenario,
+                                 "CF_UI_TEST_NO_AUTODISMISS": "1"]
         for (key, value) in display { app.launchEnvironment[key] = value }
         currentApp = app
-        app.launch()
+        // Large Dynamic Type / a loaded simulator occasionally times out on the first launch();
+        // one terminate+relaunch absorbs that flake (seen on testInteractionFloatingTabBarAtLargestAccessibilityText).
+        let previousContinue = continueAfterFailure
+        continueAfterFailure = true
+        var launched = false
+        for attempt in 1...2 {
+            app.launch()
+            if app.state == .runningForeground {
+                launched = true
+                break
+            }
+            app.terminate()
+            RunLoop.current.run(until: Date().addingTimeInterval(1.5))
+            _ = attempt
+        }
+        continueAfterFailure = previousContinue
+        XCTAssertTrue(launched, "Failed to launch the parenting UI-test host after one retry.\n" + app.debugDescription)
         ready(app)
         return app
     }
     private func ready(_ app: XCUIApplication) {
         XCTAssertTrue(app.staticTexts["parenting.fixture.identity"].waitForExistence(timeout: 15), app.debugDescription)
         XCTAssertFalse(element(app, "parenting.fixture.error").exists, app.debugDescription)
-        wait { app.buttons["parenting.tab.today"].exists && !self.element(app, "parenting.loadState").exists }
+        wait { ParentingUI.tabBarExists(app) && !self.element(app, "parenting.loadState").exists }
         XCTAssertFalse(app.textViews["chat.input"].exists, "A normal launch must lead to the actual parenting workspace.")
     }
+    /// 今天 is one hero card, a rail and a 「全部安排」 entry. The arrangement list, its forms, history and the storage note
+    /// live one level down, on the pushed page `parenting.today.allPage`. Idempotent.
+    private func showAllArrangements(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        if element(app, "parenting.today.allPage").exists { return }
+        ParentingUI.selectTab(app, .today, file: file, line: line)
+        if element(app, "parenting.today.allPage").exists { return }
+        let link = app.buttons["parenting.today.allArrangements"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10), app.debugDescription, file: file, line: line)
+        tap(app, link, file: file, line: line)
+        XCTAssertTrue(element(app, "parenting.today.allPage").waitForExistence(timeout: 10), app.debugDescription, file: file, line: line)
+    }
+    /// The small hand-filled-form entry inside 「全部安排」.
+    private func openArrangementForm(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        showAllArrangements(app, file: file, line: line)
+        tap(app, app.buttons[ParentingUI.addArrangementButtonID], file: file, line: line)
+    }
+    /// With no child, 今天 offers the nickname action in its hero; 成长 and 我们家 keep `parenting.firstChild`.
+    private func firstChildButton(_ app: XCUIApplication) -> XCUIElement {
+        let hero = app.buttons["parenting.today.hero.addChild"]
+        return hero.exists ? hero : app.buttons["parenting.firstChild"]
+    }
     private func assertEmpty(_ app: XCUIApplication) {
-        XCTAssertTrue(app.buttons["parenting.firstChild"].exists, app.debugDescription)
+        XCTAssertTrue(firstChildButton(app).exists, app.debugDescription)
         assertNoArrangement(app)
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "parenting.goal.")).count, 0)
     }
@@ -633,14 +757,14 @@ final class ParentingWorkspaceUITests: XCTestCase {
                        "Closing an unsaved form must not create a draft or a confirmed arrangement.")
     }
     private func addChild(_ app: XCUIApplication, name: String) {
-        tap(app, app.buttons["parenting.firstChild"])
+        tap(app, firstChildButton(app))
         enter(app, id: "parenting.child.name", text: name)
         tap(app, app.buttons["parenting.name.save"])
         wait { !self.inputExists(app, "parenting.child.name") || self.element(app, "parenting.form.error").exists }
         let issue = element(app, "parenting.form.error")
         XCTAssertFalse(issue.exists, "Saving the first child failed: \(issue.exists ? issue.label : "no form error")\n" + app.debugDescription)
         XCTAssertFalse(inputExists(app, "parenting.child.name"), app.debugDescription)
-        XCTAssertTrue(app.buttons["parenting.addArrangement"].exists, app.debugDescription)
+        XCTAssertTrue(app.buttons["parenting.today.allArrangements"].waitForExistence(timeout: 10), app.debugDescription)
     }
     private func openGoalEditor(_ app: XCUIApplication) {
         let add = app.buttons["parenting.addGoal"]
@@ -650,20 +774,73 @@ final class ParentingWorkspaceUITests: XCTestCase {
         // A missing sheet is a presentation failure, not a field to find by scrolling the Home screen.
         wait { app.textFields["parenting.goal.title"].exists }
     }
-    /// Navigation is 今天｜成长｜我们家. Older journeys say "records" for the observation/completion list; that list is now
-    /// the 成长 tab's timeline, and "growth" means its goals view.
-    private func tab(_ app: XCUIApplication, _ name: String) {
-        let target = (name == "records" || name == "growth") ? "growth" : name
-        // The tab bar floats as a glass capsule over the page; it must stay reachable above scrolled content.
-        let button = app.buttons["parenting.tab." + target]
-        XCTAssertTrue(button.waitForExistence(timeout: 5), app.debugDescription)
-        wait { button.isHittable }
-        button.tap()
-        wait { button.isSelected }
-        if name == "records" || name == "growth" {
-            let mode = app.buttons["parenting.growth.mode." + (name == "records" ? "timeline" : "goals")]
-            XCTAssertTrue(mode.waitForExistence(timeout: 5), app.debugDescription)
-            mode.tap()
+    func testComposerIsVoiceFirstWithPlusMenuAndAutoDismissingConfirmCard() {
+        let app = launch("p0-ui-parenting-success", display: ["CF_UI_TEST_NO_AUTODISMISS": "0"])
+        addChild(app, name: "团团")
+        // Idle: one line with +, the hold-to-talk capsule and the keyboard toggle; no text field yet.
+        XCTAssertTrue(app.buttons["parenting.composer.mic"].waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(app.buttons["parenting.composer.keyboardToggle"].exists)
+        XCTAssertFalse(app.textFields["parenting.natural.field"].exists)
+        capture(app, "Glass-composer-voice-first-idle")
+        let plus = app.buttons["parenting.plus.menu"]
+        XCTAssertTrue(plus.exists, app.debugDescription)
+        plus.tap()
+        XCTAssertTrue(app.buttons["parenting.plus.manualArrangement"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.buttons["parenting.plus.manualObservation"].exists)
+        capture(app, "Glass-plus-menu")
+        app.buttons["parenting.plus.manualObservation"].tap()
+        XCTAssertTrue(app.textFields["parenting.observation.title"].waitForExistence(timeout: 5) || app.textViews.firstMatch.waitForExistence(timeout: 5), app.debugDescription)
+        app.terminate()
+        let again = launch("p0-ui-parenting-success", display: ["CF_UI_TEST_NO_AUTODISMISS": "0"])
+        addChild(again, name: "团团")
+        _ = ParentingUI.showKeyboardComposer(again)
+        let field = again.textFields["parenting.natural.field"]
+        // Same preconditions as testInteractionScreenshots...: the composer submit is a no-op while the workspace is busy
+        // (ParentingHomeView: guard natural.canSubmit, !model.busy), and a tap on a not-yet-enabled send does nothing.
+        _ = ParentingUI.waitUntilNotBusy(again)
+        wait { field.isHittable }
+        field.tap(); field.typeText("团团今天下午5点游泳")
+        let send = again.buttons["parenting.natural.send"]
+        wait { send.isEnabled }
+        _ = ParentingUI.waitUntilNotBusy(again)
+        send.tap()
+        let confirm = again.buttons["parenting.natural.confirm"]
+        // If the first tap was swallowed (the card never opened and the text is still in the composer), tap once more.
+        if !confirm.waitForExistence(timeout: 5), send.exists, send.isEnabled { send.tap() }
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10), again.debugDescription)
+        capture(again, "Glass-confirm-card-medium")
+        confirm.tap()
+        let done = again.buttons["parenting.natural.done"]
+        // The receipt is short-lived: it may already be closing by the time it is queried.
+        wait { !confirm.exists }
+        RunLoop.current.run(until: Date().addingTimeInterval(3.5))
+        XCTAssertFalse(done.exists, "The saved receipt must close the sheet by itself.")
+        XCTAssertFalse(again.buttons["parenting.natural.close"].exists, again.debugDescription)
+    }
+
+    /// Growth tab segments. 成长 opens on the timeline (observations and completion records); goals and weekly review are the other segment.
+    private enum GrowthMode: String { case timeline, goals }
+    /// Navigation is 今天｜成长｜我们家. The former "records" list is the 成长 tab's timeline segment, and the former "growth"
+    /// list is its goals segment. The tab itself is selected through `ParentingUI` (system tab bar by position, else `parenting.tab.*`).
+    private func showTab(_ app: XCUIApplication, _ tab: ParentingUI.Tab, mode: GrowthMode? = nil,
+                         file: StaticString = #filePath, line: UInt = #line) {
+        // The tab bar floats as glass over the page; it must stay reachable above scrolled content.
+        ParentingUI.selectTab(app, tab, file: file, line: line)
+        if tab == .growth, let mode {
+            // The doors on the growth home carry `parenting.growth.mode.*`; their English labels are the fallback should an
+            // enclosing container ever swallow the identifier.
+            let byID = app.buttons["parenting.growth.mode." + mode.rawValue]
+            let label = mode == .goals ? "Growth goals" : "Growth timeline"
+            let byLabel = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", label)).firstMatch
+            func door() -> XCUIElement { byID.exists ? byID : byLabel }
+            if !ParentingUI.waitUntil(timeout: 5, { door().exists }) {
+                // A goals/timeline page from an earlier step is still pushed on this tab: go back to the 成长 home first.
+                let back = app.navigationBars.buttons.element(boundBy: 0)
+                if back.exists { back.tap() }
+            }
+            XCTAssertTrue(ParentingUI.waitUntil(timeout: 8, { door().exists }), app.debugDescription, file: file, line: line)
+            // The doors sit below the start card and the week; reveal() scrolls them clear of the composer and the tab bar.
+            tap(app, door(), file: file, line: line)
         }
         // reveal() locates the next target without pulling the refreshable Home past its top edge.
     }
@@ -778,6 +955,16 @@ final class ParentingWorkspaceUITests: XCTestCase {
         reveal(app, label)
         XCTAssertTrue(label.label.contains(goal), app.debugDescription)
     }
+    /// Opens the manual arrangement form: the composer's + menu when this build has it, otherwise the page button.
+    @discardableResult
+    private func openManualArrangement(_ app: XCUIApplication) -> String {
+        if app.buttons[ParentingUI.plusMenuID].exists { return ParentingUI.openManualArrangement(app) }
+        openArrangementForm(app)
+        return ParentingUI.addArrangementButtonID
+    }
+    private func inputExistsEventually(_ app: XCUIApplication, _ id: String, timeout: TimeInterval = 8) -> Bool {
+        ParentingUI.waitUntil(timeout: timeout) { self.inputExists(app, id) }
+    }
     private func inputExists(_ app: XCUIApplication, _ id: String) -> Bool {
         app.textViews[id].exists || app.textFields[id].exists
     }
@@ -787,16 +974,46 @@ final class ParentingWorkspaceUITests: XCTestCase {
         // TextEditor and TextField identifiers come from the actual host form; do not scan all AX types.
         let multiline = ["parenting.arrangement.source", "parenting.record.text"].contains(id)
         let field = multiline ? app.textViews.matching(identifier: id).firstMatch : app.textFields.matching(identifier: id).firstMatch
+        // The editor sheet was just presented: let it land before searching. PR #127's "Synthetic native UI target is unreachable"
+        // came from reveal() finding no field yet and dragging down (the direction for top-of-form fields): a drag over a sheet that
+        // is still presenting dismisses it, and over the Home page it pulls to refresh (`.refreshable { await model.load() }`,
+        // which flips `model.busy`). Waiting for the first field of a form to exist and be hittable avoids any blind drag.
+        _ = field.waitForExistence(timeout: 8)
+        if upperField || id == "parenting.record.text" { ParentingUI.waitUntil(timeout: 2.5) { field.isHittable } }
         reveal(app, field, searchTowardBottom: !upperField)
         wait { field.exists }
         return field
     }
-    private func enter(_ app: XCUIApplication, id: String, text: String) {
+    /// Types `text` into the input with this identifier and verifies it.
+    ///
+    /// PR #127 failed with `"Sy"` != `"Synthetic Child"`: typing started while the workspace was still busy or the keyboard was
+    /// still animating, so only the first keystrokes landed. While `parenting.saving` shows (ParentingWorkspaceModel.busy) the
+    /// editor forms are disabled (`.disabled(saving || model.busy)`, ParentingHomeView), which drops later keystrokes. So:
+    /// wait for the workspace to be idle, tap, wait for the keyboard, type, then *poll* until the whole text is there (the
+    /// accessibility value lags the text on a loaded simulator). On a mismatch clear the field and type again, at most twice.
+    private func enter(_ app: XCUIApplication, id: String, text: String,
+                       file: StaticString = #filePath, line: UInt = #line) {
         let field = input(app, id)
-        reveal(app, field)
-        field.tap()
-        field.typeText(text)
-        XCTAssertEqual(field.value as? String, text, app.debugDescription)
+        reveal(app, field, file: file, line: line)
+        var typed = false
+        for attempt in 0..<3 {
+            ParentingUI.waitUntilNotBusy(app)
+            wait({ field.exists }, file: file, line: line)
+            field.tap()
+            // Best effort: a hardware-keyboard simulator shows no software keyboard, so a miss is not a failure.
+            _ = app.keyboards.firstMatch.waitForExistence(timeout: 5)
+            if attempt > 0 {
+                let leftover = (field.value as? String) ?? ""
+                if !leftover.isEmpty { field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: leftover.count)) }
+            }
+            field.typeText(text)
+            if ParentingUI.waitUntil(timeout: 6, { (field.value as? String) == text }) { typed = true; break }
+        }
+        if !typed {
+            XCTAssertEqual(field.value as? String, text,
+                           "Typed text did not stick after 3 attempts (busy indicator present: \(app.descendants(matching: .any)[ParentingUI.busyIndicatorID].exists)).\n"
+                               + app.debugDescription, file: file, line: line)
+        }
     }
     private func element(_ app: XCUIApplication, _ id: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: id).firstMatch
@@ -828,6 +1045,12 @@ final class ParentingWorkspaceUITests: XCTestCase {
             let navigationFrames = app.navigationBars.allElementsBoundByIndex.filter { $0.isHittable }.map { $0.frame }
             var targetFrame: CGRect?
             if target.exists {
+                // Only the intake candidate container skips blind-drag: it is an accessibility
+                // `.contain` group whose AX frame is empty or taller than the viewport; dragging
+                // then dismisses the editor sheet. Do NOT early-return on isHittable alone —
+                // source/title can report hittable while still under the nav bar (y≈0), and
+                // tapping then fails with "no keyboard focus".
+                if target.identifier == "parenting.inline.candidate" { return }
                 let rect = target.frame
                 if !rect.isEmpty {
                     targetFrame = rect
@@ -840,14 +1063,19 @@ final class ParentingWorkspaceUITests: XCTestCase {
             // A sheet covers the bar without removing it; only a reachable bar clips the viewport.
             let composerTop: CGFloat? = (bar.exists && bar.isHittable) ? bar.frame.minY : nil
             // The floating bars overlay the scroller, so everything under their top edge is covered.
-            let tabTop = (app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "parenting.tab."))
-                .allElementsBoundByIndex.filter { $0.isHittable }.map { $0.frame.minY } + [composerTop].compactMap { $0 }).min()
+            // ParentingUI.tabBarTop covers both the iOS 26 system tab bar and the custom `parenting.tab.*` capsule.
+            let tabTop = ([ParentingUI.tabBarTop(app), composerTop].compactMap { $0 }).min()
             let bounds = ViewportBounds(appFrame: appFrame, navigationFrames: navigationFrames,
                                         tabTop: tabTop, inputPanelTop: inputPanelTop(app, appFrame: appFrame))
             let scroll = scrollingElement(app, bounds: bounds)
             let scrollFrame = scroll.frame
             let viewport = visibleScrollFrame(scrollFrame, bounds: bounds)
-            if let rect = targetFrame, viewport.contains(CGPoint(x: rect.midX, y: rect.midY)) { return }
+            if let rect = targetFrame {
+                // Mid-point alone fails for tall .contain containers whose mid sits off-screen while a
+                // child (e.g. parenting.inline.adopt) is already in the viewport.
+                let visible = rect.insetBy(dx: 4, dy: 4)
+                if viewport.intersects(visible) || viewport.contains(CGPoint(x: rect.midX, y: rect.midY)) { return }
+            }
             // With no usable geometry, use the field's known direction instead of reversing an unrelated search.
             let towardBottom = targetFrame.map { $0.midY >= viewport.minY } ?? searchTowardBottom
             drag(scroll, frame: scrollFrame, viewport: viewport, towardBottom: towardBottom)

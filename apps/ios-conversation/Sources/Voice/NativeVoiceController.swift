@@ -225,6 +225,10 @@ final class DictationAudioSink: @unchecked Sendable {
     /// v1.1 voice conversation: on-device recognition only (the server tier ends with `.unsupported`). Plain dictation
     /// leaves it false.
     var voiceChatMode = false
+    /// Per-session switch (set by `startDictation(onDeviceOnly:)`): the server tier ends with `.unsupported`, exactly like
+    /// voice chat, but without the voice-chat analyzer deadline. mimi's parenting composer turns it on; chat dictation leaves it off.
+    private var dictationOnDeviceOnly = false
+    private var networkTierForbidden: Bool { voiceChatMode || dictationOnDeviceOnly }
     /// device-0728 P0: recognition runs in `.default` mode for dictation AND voice chat. `.voiceChat` (VoIP tuning) was
     /// only there for barge-in AEC, but barge-in is off on the built-in speaker (R2) and headphones need no AEC; on
     /// device that mode let the recognizer go deaf after the opening silence (nothing transcribed, no error), while the
@@ -243,7 +247,13 @@ final class DictationAudioSink: @unchecked Sendable {
     /// Returns immediately; results arrive through the callbacks on the main actor. `onEnd` fires exactly once per accepted start.
     @discardableResult
     func startDictation(onText: @escaping @MainActor (String) -> Void, onEnd: @escaping @MainActor (DictationEnd) -> Void) -> Bool {
+        startDictation(onDeviceOnly: false, onText: onText, onEnd: onEnd)
+    }
+    /// `onDeviceOnly`: never fall back to Apple's server recognition; the session ends with `.unsupported` instead.
+    @discardableResult
+    func startDictation(onDeviceOnly: Bool, onText: @escaping @MainActor (String) -> Void, onEnd: @escaping @MainActor (DictationEnd) -> Void) -> Bool {
         guard dictationPhase == .idle else { return false }
+        dictationOnDeviceOnly = onDeviceOnly
         dictationEpoch += 1; let epoch = dictationEpoch
         dictationPhase = .starting; dictationText = ""; dictationTranscript = DictationTranscript(); dictationEmptyFailures = 0; dictationOnText = onText; dictationOnEnd = onEnd
         Task { @MainActor [weak self] in await self?.runDictationStart(epoch) }
@@ -288,7 +298,7 @@ final class DictationAudioSink: @unchecked Sendable {
             dictationTier = DictationEngineTier.choose(analyzerOS: false, speechTranscriberReady: false, dictationTranscriberReady: false,
                                                        recognizerAvailable: recognizer?.isAvailable == true, recognizerOnDevice: recognizer?.supportsOnDeviceRecognition == true)
             guard dictationTier != .unavailable, let recognizer else { return endDictation(epoch, .unsupported) }
-            if voiceChatMode && dictationTier.usesNetwork { return endDictation(epoch, .unsupported) }   // never the server tier in voice chat
+            if networkTierForbidden && dictationTier.usesNetwork { return endDictation(epoch, .unsupported) }   // never the server tier in voice chat / on-device-only sessions
             dictationRecognizer = recognizer
         }
         armWatchdog(epoch, after: Self.dictationStartTimeout, phase: .starting)
@@ -411,7 +421,7 @@ final class DictationAudioSink: @unchecked Sendable {
         analyzerEngine = nil
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: DictationPolicy.localeIdentifier(for: language)))
         guard let recognizer, recognizer.isAvailable else { return endDictation(epoch, dictationTranscript.text.isEmpty ? .failed("") : .finished) }
-        if voiceChatMode && !recognizer.supportsOnDeviceRecognition { return endDictation(epoch, dictationTranscript.text.isEmpty ? .unsupported : .finished) }
+        if networkTierForbidden && !recognizer.supportsOnDeviceRecognition { return endDictation(epoch, dictationTranscript.text.isEmpty ? .unsupported : .finished) }
         dictationTier = recognizer.supportsOnDeviceRecognition ? .onDeviceRecognizer : .serverRecognizer
         dictationRecognizer = recognizer; dictationTranscript.commit(); startSegment(epoch)
     }
@@ -492,7 +502,7 @@ final class DictationAudioSink: @unchecked Sendable {
         dictationEpoch += 1   // late callbacks from this session are ignored from here on
         teardownDictationAudio(deactivate: true)
         dictationPhase = .idle
-        let onEnd = dictationOnEnd; dictationOnText = nil; dictationOnEnd = nil
+        let onEnd = dictationOnEnd; dictationOnText = nil; dictationOnEnd = nil; dictationOnDeviceOnly = false
         onEnd?(reason)
     }
 
@@ -533,6 +543,7 @@ final class DictationAudioSink: @unchecked Sendable {
     @Published private(set) var audioLevel: Float = 0
     @Published private(set) var preparingSpeechModel = false
     @discardableResult func startDictation(onText: @escaping @MainActor (String) -> Void, onEnd: @escaping @MainActor (DictationEnd) -> Void) -> Bool { onEnd(.unsupported); return true }
+    @discardableResult func startDictation(onDeviceOnly: Bool, onText: @escaping @MainActor (String) -> Void, onEnd: @escaping @MainActor (DictationEnd) -> Void) -> Bool { onEnd(.unsupported); return true }
     func stopDictation() {}
     func cancelDictation(_ reason: DictationEnd = .cancelled) {}
 }
