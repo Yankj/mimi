@@ -1,0 +1,233 @@
+{
+  "_comment": "由 scripts/export-theme-tokens.py 从 CatTheme.swift 生成，请勿手改；Android TokenSnapshotTest 用它校验 ThemeTokens.kt。",
+  "source": "apps/ios-conversation/Sources/DesignSystem/CatTheme.swift",
+  "logoOrange": "#FF702A",
+  "combos": {
+    "C-day": {
+      "roles": {
+        "canvas": "#FAF9F7",
+        "card": "#FFFFFF",
+        "surface": "#F2F0EC",
+        "hairline": "#E6E3DE",
+        "track": "#E6E3DE",
+        "ink": "#111111",
+        "ink2": "#5A5853",
+        "ink3": "#6F6D69",
+        "accent": "#E85D1A",
+        "accentOn": "#D15C22",
+        "accentOnPressed": "#AE4F1F",
+        "orangeText": "#111111",
+        "success": "#1E7B46",
+        "successFill": "#E7F4EC",
+        "attention": "#8A5A00",
+        "attentionFill": "#FFF3D6",
+        "danger": "#C0352B",
+        "dangerFill": "#FDECEA"
+      },
+      "kids": [
+        "#3C3C43",
+        "#3E7CB1",
+        "#4A8A5F",
+        "#7566C2",
+        "#C2527A"
+      ],
+      "button": {
+        "fill": 0.2,
+        "fillPressed": 0.3,
+        "border": 0.38,
+        "borderPressed": 0.55,
+        "baseAlpha": 0.85
+      },
+      "tabSelectedFill": {
+        "hex": "#111111",
+        "alpha": 0.07
+      },
+      "wash": null
+    },
+    "C-night": {
+      "roles": {
+        "canvas": "#0B0B0C",
+        "card": "#1A1A1C",
+        "surface": "#262628",
+        "hairline": "#3A3A3D",
+        "track": "#3A3A3D",
+        "ink": "#F5F4F2",
+        "ink2": "#A9A7A2",
+        "ink3": "#8F8E89",
+        "accent": "#FF702A",
+        "accentOn": "#FF702A",
+        "accentOnPressed": "#FF945F",
+        "orangeText": "#F5F4F2",
+        "success": "#6FCF97",
+        "successFill": "#16281D",
+        "attention": "#F2C14E",
+        "attentionFill": "#2B2412",
+        "danger": "#FF8A80",
+        "dangerFill": "#331A18"
+      },
+      "kids": [
+        "#D1D1D6",
+        "#6FA8DC",
+        "#6BB586",
+        "#A395E8",
+        "#E887A9"
+      ],
+      "button": {
+        "fill": 0.2,
+        "fillPressed": 0.3,
+        "border": 0.4,
+        "borderPressed": 0.6,
+        "baseAlpha": 0.85
+      },
+      "tabSelectedFill": {
+        "hex": "#FFFFFF",
+        "alpha": 0.12
+      },
+      "wash": null
+    },
+    "B-day": {
+      "roles": {
+        "canvas": "#FCF3EF",
+        "card": "#FFFCFA",
+        "surface": "#F2E6DC",
+        "hairline": "#EADBD0",
+        "track": "#F1E3D3",
+        "ink": "#33261D",
+        "ink2": "#6E5C4F",
+        "ink3": "#73655A",
+        "accent": "#FF702A",
+        "accentOn": "#C95821",
+        "accentOnPressed": "#AE4F20",
+        "orangeText": "#B8410A",
+        "success": "#3F6B3A",
+        "successFill": "#E6EFDA",
+        "attention": "#8F5200",
+        "attentionFill": "#FFEFCB",
+        "danger": "#B23B34",
+        "dangerFill": "#FBE0DC"
+      },
+      "kids": [
+        "#E6AAA2",
+        "#A9C48E",
+        "#9CC4D8",
+        "#BDB1E6",
+        "#FFB48A"
+      ],
+      "button": {
+        "fill": 0.16,
+        "fillPressed": 0.3,
+        "border": 0.38,
+        "borderPressed": 0.55,
+        "baseAlpha": 0.85
+      },
+      "tabSelectedFill": {
+        "hex": "#FF702A",
+        "alpha": 0.12
+      },
+      "wash": {
+        "topHex": "#FAE6E1",
+        "fadeEnd": 0.4,
+        "spots": [
+          {
+            "hex": "#E6AAA2",
+            "alpha": 0.55,
+            "centerX": 0.9,
+            "centerY": 0.0,
+            "radiusX": 1.2,
+            "radiusY": 0.55
+          },
+          {
+            "hex": "#EFE2C8",
+            "alpha": 0.9,
+            "centerX": 0.0,
+            "centerY": 0.45,
+            "radiusX": 0.9,
+            "radiusY": 0.4
+          },
+          {
+            "hex": "#D5E4C6",
+            "alpha": 0.5,
+            "centerX": 1.0,
+            "centerY": 0.88,
+            "radiusX": 0.9,
+            "radiusY": 0.4
+          }
+        ]
+      }
+    },
+    "B-night": {
+      "roles": {
+        "canvas": "#1C1714",
+        "card": "#2F2721",
+        "surface": "#261F1A",
+        "hairline": "#3E342B",
+        "track": "#3E342B",
+        "ink": "#F7EEE5",
+        "ink2": "#CDBFB2",
+        "ink3": "#9C8E82",
+        "accent": "#FF8A52",
+        "accentOn": "#FF8A52",
+        "accentOnPressed": "#FFA77D",
+        "orangeText": "#FFB48A",
+        "success": "#A9D49A",
+        "successFill": "#2C3A2A",
+        "attention": "#F0C46A",
+        "attentionFill": "#3C3018",
+        "danger": "#FF9C93",
+        "dangerFill": "#432522"
+      },
+      "kids": [
+        "#E6AAA2",
+        "#A9C48E",
+        "#9CC4D8",
+        "#BDB1E6",
+        "#FFB48A"
+      ],
+      "button": {
+        "fill": 0.2,
+        "fillPressed": 0.3,
+        "border": 0.4,
+        "borderPressed": 0.6,
+        "baseAlpha": 0.85
+      },
+      "tabSelectedFill": {
+        "hex": "#FF702A",
+        "alpha": 0.16
+      },
+      "wash": {
+        "topHex": "#2A211C",
+        "fadeEnd": 0.45,
+        "spots": [
+          {
+            "hex": "#E6968C",
+            "alpha": 0.16,
+            "centerX": 0.9,
+            "centerY": 0.0,
+            "radiusX": 1.2,
+            "radiusY": 0.5
+          },
+          {
+            "hex": "#96785A",
+            "alpha": 0.14,
+            "centerX": 0.0,
+            "centerY": 0.45,
+            "radiusX": 0.9,
+            "radiusY": 0.4
+          },
+          {
+            "hex": "#648C5A",
+            "alpha": 0.12,
+            "centerX": 1.0,
+            "centerY": 0.9,
+            "radiusX": 0.9,
+            "radiusY": 0.4
+          }
+        ]
+      }
+    }
+  },
+  "tabSelectedStyle": {
+    "C": "neutral",
+    "B": "orangeTint"
+  }
+}
