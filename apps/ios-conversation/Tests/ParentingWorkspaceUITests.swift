@@ -49,13 +49,14 @@ final class ParentingWorkspaceUITests: XCTestCase {
         option.tap()
         enter(app, id: "parenting.arrangement.source", text: source)
         requestAndAllow(app)
+        // The candidate is an accessibility container (children: .contain). Its AX frame mid-point can sit
+        // outside the viewport while the adopt button (already revealed by requestAndAllow) is on screen;
+        // reveal() then blind-drags and dismisses the editor sheet. Assert existence only.
         let candidate = element(app, "parenting.inline.candidate")
-        reveal(app, candidate)
-        XCTAssertTrue(candidate.exists, app.debugDescription)
+        XCTAssertTrue(candidate.waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertFalse(input(app, "parenting.arrangement.title").value as? String == "Synthetic reading together",
                        "A candidate must not apply itself to the arrangement.")
         assertSaveDisabled(app)
-        reveal(app, candidate)
         capture(app, "success-candidate-not-saved")
         tap(app, app.buttons["parenting.inline.adopt"])
         let title = input(app, "parenting.arrangement.title")
@@ -1013,11 +1014,16 @@ final class ParentingWorkspaceUITests: XCTestCase {
             let navigationFrames = app.navigationBars.allElementsBoundByIndex.filter { $0.isHittable }.map { $0.frame }
             var targetFrame: CGRect?
             if target.exists {
+                // A hittable control is already on screen; do not drag (dragging a sheet dismisses it).
+                if target.isHittable { return }
                 let rect = target.frame
-                if !rect.isEmpty {
-                    targetFrame = rect
-                    if navigationFrames.contains(where: { $0.contains(CGPoint(x: rect.midX, y: rect.midY)) }) { return }
+                if rect.isEmpty {
+                    // .accessibilityElement(children: .contain) often reports an empty frame while children
+                    // are visible. Blind-dragging from an empty frame dismisses the editor sheet (PR #127).
+                    return
                 }
+                targetFrame = rect
+                if navigationFrames.contains(where: { $0.contains(CGPoint(x: rect.midX, y: rect.midY)) }) { return }
             }
             let appFrame = app.frame
             // The natural-input bar sits above the tab bar; content behind it is not reachable.
@@ -1032,7 +1038,12 @@ final class ParentingWorkspaceUITests: XCTestCase {
             let scroll = scrollingElement(app, bounds: bounds)
             let scrollFrame = scroll.frame
             let viewport = visibleScrollFrame(scrollFrame, bounds: bounds)
-            if let rect = targetFrame, viewport.contains(CGPoint(x: rect.midX, y: rect.midY)) { return }
+            if let rect = targetFrame {
+                // Mid-point alone fails for tall .contain containers whose mid sits off-screen while a
+                // child (e.g. parenting.inline.adopt) is already in the viewport.
+                let visible = rect.insetBy(dx: 4, dy: 4)
+                if viewport.intersects(visible) || viewport.contains(CGPoint(x: rect.midX, y: rect.midY)) { return }
+            }
             // With no usable geometry, use the field's known direction instead of reversing an unrelated search.
             let towardBottom = targetFrame.map { $0.midY >= viewport.minY } ?? searchTowardBottom
             drag(scroll, frame: scrollFrame, viewport: viewport, towardBottom: towardBottom)
