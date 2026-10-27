@@ -34,7 +34,7 @@ struct ParentingGrowthGoalsPage<Review: View>: View {
         let goals = ParentingGoalProgress.build(workspace: workspace, childID: child.id, now: now, calendar: calendar)
         ParentingGrowthPageScaffold {
             HStack(spacing: 12) {
-                ParentingChildAvatar(accent: accent, size: 40)
+                ParentingChildAvatar(accent: accent, size: 40, childID: child.id)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(verbatim: child.name).font(.title3.weight(.semibold))
                     Text(ui("目标由你定义。安排是打算做的事，观察和完成记录是已经记下的事。"))

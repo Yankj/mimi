@@ -24,6 +24,7 @@ import Combine
     @State private var expandedEntryIDs: Set<UUID> = []
     @State private var familyPath: [ParentingFamilyRoute] = []
     @State private var deletion: ParentingDeletion?
+    @State private var avatarChild: ParentingChild?
     @State private var undoReview: ParentingUndoReview?
     @State private var operations: [String: UUID] = [:]
     @State private var completedExpanded = false
@@ -70,7 +71,10 @@ import Combine
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { now = Date(); Task { await model.refreshReminders() } }
         }
-        .onChange(of: workspace.children.map(\.id)) { _, ids in
+        .onChange(of: workspace.children.map(\.id)) { old, ids in
+            // A removed child's photo goes with the child (the file is local and outside the ledger). Only a real removal
+            // (the new list is a smaller subset of the old one) prunes; a first load or an account change never does.
+            if model.loaded, Set(ids).isStrictSubset(of: Set(old)) { ParentingChildAvatarLibrary.shared.prune(keeping: Set(ids)) }
             if let selectedChildID, !ids.contains(selectedChildID) { self.selectedChildID = nil }
             // A child profile page never stays open after its child is deleted.
             familyPath.removeAll { route in
@@ -103,10 +107,14 @@ import Combine
                                   onSignOut: onSignOut, isAnonymousAccount: isAnonymousAccount)
                 .presentationDragIndicator(.visible)
         }
-        .alert(ui("确认删除？"), isPresented: deletionPresented, presenting: deletion) { target in
-            Button(ui("删除"), role: .destructive) { delete(target) }
-            Button(ui("取消"), role: .cancel) { deletion = nil }
-        } message: { target in Text(ui(target.explanation)) }
+        .sheet(item: $avatarChild) { child in
+            ParentingChildAvatarSheet(child: child, accent: ParentingChildAccent.color(
+                slot: ParentingGrowthInsights.accentSlot(for: child.id, in: workspace)))
+        }
+        .alert(deletionTitle(deletion), isPresented: deletionPresented, presenting: deletion) { target in
+            Button(ui(target.confirmTitle), role: .destructive) { delete(target) }
+            Button(ui(target.cancelTitle), role: .cancel) { deletion = nil }
+        } message: { target in Text(verbatim: deletionMessage(target)) }
         .confirmationDialog(ui("核对撤销后的同钟点安排"), isPresented: undoPresented,
                             titleVisibility: .visible, presenting: undoReview) { review in
             Button(ui("确认撤销")) {
@@ -204,7 +212,8 @@ import Combine
                 case .child(let childID):
                     ParentingFamilyChildDetailView(model: model, childID: childID,
                                                    onRename: { child in sheet = .editChild(child) },
-                                                   onDelete: { target in deletion = .child(target) })
+                                                   onDelete: { target in deletion = .child(target) },
+                                                   onChangeAvatar: { avatarChild = $0 })
                 case .reminders:
                     ParentingRemindersView(model: model)
                 case .settings:
@@ -429,27 +438,18 @@ import Combine
         }
     }
 
+    /// 全部安排 / 成长时间线: the shared child switcher (with 「全部」 when there is more than one child).
     private var childFilter: some View {
-        Picker(ui("查看哪个孩子"), selection: $selectedChildID) {
-            Text(ui("全部孩子")).tag(UUID?.none)
-            ForEach(workspace.children) { child in Text(verbatim: child.name).tag(Optional(child.id)) }
-        }
-        .pickerStyle(.menu)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityIdentifier("parenting.childFilter")
+        ParentingChildSwitcher(
+            children: workspace.children, selectedID: selectedChildID, allowsAll: true,
+            accent: { ParentingChildAccent.color(slot: ParentingGrowthInsights.accentSlot(for: $0, in: workspace)) },
+            onSelect: { selectedChildID = $0 },
+            identifier: "parenting.childFilter", chipIdentifierPrefix: "parenting.childFilter.chip.")
     }
 
+    /// The one 「添加孩子」 empty state, identical on 今天, 成长 and 我们家.
     private var firstChildEmpty: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            Image(systemName: "leaf").font(.title).foregroundStyle(catColors.actionText).accessibilityHidden(true)
-            Text(ui("从孩子的昵称开始")).font(.title3.weight(.semibold))
-            Text(ui("不用填写生日和健康信息。添加昵称后，就能记录安排、观察与成长目标。"))
-                .font(.subheadline).foregroundStyle(catColors.calmSecondary)
-            Button(ui("添加孩子")) { sheet = .newChild }
-                .parentingPrimaryButton().disabled(model.busy)
-                .accessibilityIdentifier("parenting.firstChild")
-        }
-        .parentingCard()
+        ParentingAddChildCard(busy: model.busy, onAdd: { sheet = .newChild })
     }
 
     @ViewBuilder private func arrangementSection(_ title: String, items: [ParentingArrangement],
@@ -676,7 +676,8 @@ import Combine
             openGoals: { selectedChildID = activeChild?.id; growthMode = .goals },
             openTimeline: { selectedChildID = activeChild?.id; recordFilter = .all; growthMode = .timeline },
             renameChild: { sheet = .editChild($0) },
-            deleteChild: { deletion = .child($0) })
+            deleteChild: { deletion = .child($0) },
+            changeAvatar: { avatarChild = $0 })
     }
 
     private var growthFilterBinding: Binding<ParentingGrowthTimeline.Filter> {
@@ -729,7 +730,10 @@ import Combine
                 }
             }
         }
-        ParentingFamilyLaunchCard(checklist: FamilyLaunchChecklist.current(workspace: workspace, remindersEnabled: model.remindersAvailable && model.reminderSettings.enabled))
+        // Without a child the empty card above already asks for the nickname; the 启航 steps would say the same thing twice.
+        if !workspace.children.isEmpty {
+            ParentingFamilyLaunchCard(checklist: FamilyLaunchChecklist.current(workspace: workspace, remindersEnabled: model.remindersAvailable && model.reminderSettings.enabled))
+        }
         NavigationLink(value: ParentingFamilyRoute.reminders) {
             ParentingFamilyEntryRow(icon: "bell.badge", title: ui("提醒"), subtitle: reminderRowSubtitle)
         }
@@ -1013,6 +1017,21 @@ import Combine
             if await model.apply(command, operationID: operationID, expectedRevision: expectedRevision) { operations.removeValue(forKey: key) }
         }
     }
+    private func deletionTitle(_ target: ParentingDeletion?) -> String {
+        guard case .child(let id)? = target else { return ui("确认删除？") }
+        let name = ParentingChildRemovalSummary.summary(of: id, in: workspace)?.name ?? ""
+        return AppLanguage(locale: locale).ui("移除「{0}」的资料？", arguments: [name])
+    }
+    /// Says what goes (counts from the ledger), that it cannot be undone, and that the data lives only on this device.
+    private func deletionMessage(_ target: ParentingDeletion) -> String {
+        guard case .child(let id) = target, let summary = ParentingChildRemovalSummary.summary(of: id, in: workspace) else { return ui(target.explanation) }
+        if summary.isEmpty {
+            return AppLanguage(locale: locale).ui("会删除{0}的资料和头像。移除后无法恢复，之后可以重新添加。", arguments: [summary.name])
+        }
+        return AppLanguage(locale: locale).ui(
+            "会一并删除{0}的 {1} 个目标、{2} 件安排和 {3} 条记录，以及头像。这些内容只保存在这台设备上，移除后无法恢复。",
+            arguments: [summary.name, String(summary.goalCount), String(summary.arrangementCount), String(summary.recordCount)])
+    }
     private var deletionPresented: Binding<Bool> {
         Binding(get: { deletion != nil }, set: { if !$0 { deletion = nil } })
     }
@@ -1053,6 +1072,13 @@ private enum ParentingRecordFilter: String, CaseIterable, Identifiable {
 }
 private enum ParentingDeletion {
     case child(UUID), goal(UUID), arrangement(UUID), record(UUID)
+    /// Resource key of the confirm button. Removing a child is a real delete (not an archive), so it says 移除, not 删除.
+    var confirmTitle: String {
+        switch self { case .child: "确认移除"; default: "删除" }
+    }
+    var cancelTitle: String {
+        switch self { case .child: "先不移除"; default: "取消" }
+    }
     var explanation: String {
         switch self {
         case .child: "将删除这个孩子的资料、目标、全部安排和记录。删除后无法恢复。"

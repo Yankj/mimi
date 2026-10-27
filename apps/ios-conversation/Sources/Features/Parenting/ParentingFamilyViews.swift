@@ -7,7 +7,7 @@ struct ParentingFamilyChildRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ParentingChildAvatar(accent: ParentingChildAccent.color(slot: summary.accentSlot), size: 48)
+            ParentingChildAvatar(accent: ParentingChildAccent.color(slot: summary.accentSlot), size: 48, childID: summary.id)
             VStack(alignment: .leading, spacing: 4) {
                 Text(verbatim: summary.name).font(.headline)
                 Text(verbatim: AppLanguage(locale: locale).ui(
@@ -82,6 +82,7 @@ struct ParentingFamilyLaunchCard: View {
     let childID: UUID
     let onRename: (ParentingChild) -> Void
     let onDelete: (UUID) -> Void
+    var onChangeAvatar: (ParentingChild) -> Void = { _ in }
     @Environment(\.locale) private var locale
     private func ui(_ key: String) -> String { AppLanguage(locale: locale).ui(key) }
     private var child: ParentingChild? { model.workspace.children.first { $0.id == childID } }
@@ -106,7 +107,7 @@ struct ParentingFamilyLaunchCard: View {
         return Form {
             Section {
                 HStack(spacing: 16) {
-                    ParentingChildAvatar(accent: ParentingChildAccent.color(slot: summary.accentSlot), size: 48)
+                    ParentingChildAvatar(accent: ParentingChildAccent.color(slot: summary.accentSlot), size: 48, childID: summary.id)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(verbatim: summary.name).font(.title3.weight(.semibold))
                         Text(verbatim: ui("开始记录于") + " " + summary.startedAt.formatted(date: .abbreviated, time: .omitted))
@@ -127,10 +128,15 @@ struct ParentingFamilyLaunchCard: View {
                 Button(ui("修改昵称")) { onRename(child) }
                     .disabled(model.busy)
                     .accessibilityIdentifier("parenting.family.childDetail.rename")
-                Button(ui("删除孩子"), role: .destructive) { onDelete(child.id) }
+                Button(ui("更换头像")) { onChangeAvatar(child) }
+                    .disabled(model.busy)
+                    .accessibilityIdentifier("parenting.family.childDetail.avatar")
+            }
+            Section {
+                Button(ui("移除孩子资料"), role: .destructive) { onDelete(child.id) }
                     .disabled(model.busy)
                     .accessibilityIdentifier("parenting.family.childDetail.delete")
-            }
+            } footer: { Text(ui("会一并删除这个孩子的目标、安排、记录和头像，且无法恢复。移除前会再确认一次。")) }
         }
         .scrollContentBackground(.hidden)
         .foregroundStyle(catColors.ink)
