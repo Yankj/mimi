@@ -372,9 +372,10 @@ extension View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("parenting.natural." + option.id)
         }
-        return ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) { buttons }
-            VStack(spacing: 10) { buttons }
+        // Side by side unless the text is at an accessibility size. ViewThatFits would stack them, because a subtitle's one-line ideal width never fits.
+        return Group {
+            if sheetTypeSize.isAccessibilitySize { VStack(spacing: 10) { buttons } }
+            else { HStack(spacing: 10) { buttons } }
         }
     }
 
