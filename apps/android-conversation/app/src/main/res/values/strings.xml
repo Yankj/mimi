@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 桌面名称是品牌名，不随语言变化；界面文案走 UIStrings.json。 -->
+    <string name="app_name" translatable="false">mimi</string>
+</resources>

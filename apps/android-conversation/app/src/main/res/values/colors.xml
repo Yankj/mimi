@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 启动页底色 = C 素白墨黑的 canvas（浅 #FAF9F7 / 深 #0B0B0C）；logo 橙 #FF702A。 -->
+    <color name="mimi_splash_background">#FAF9F7</color>
+    <color name="mimi_logo_orange">#FF702A</color>
+</resources>

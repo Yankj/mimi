@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 启动页图标：橙底圆 + 白色 logo（系统会把它放在启动页中央并裁成圆形）。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/mimi_logo_orange" />
+    <item android:drawable="@drawable/ic_launcher_foreground" />
+</layer-list>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 启动主题：只管系统启动页；Compose 内的主题由 MimiTheme 决定。 -->
+    <style name="Theme.Mimi.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/mimi_splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground_splash</item>
+        <item name="postSplashScreenTheme">@style/Theme.Mimi</item>
+    </style>
+
+    <style name="Theme.Mimi" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/mimi_splash_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
