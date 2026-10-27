@@ -422,7 +422,7 @@ import Combine
     private func manualSheet(for proposal: ParentingNaturalProposal) -> ParentingSheet? {
         switch proposal.kind {
         case .observation: return .newObservation(proposal.childID, nil)
-        case .reschedule:
+        case .reschedule, .cancel:
             if let id = proposal.targetID, let item = workspace.arrangements.first(where: { $0.id == id }) { return .editArrangement(item) }
             return .newArrangement(proposal.childID, nil)
         default: return .newArrangement(proposal.childID, nil)

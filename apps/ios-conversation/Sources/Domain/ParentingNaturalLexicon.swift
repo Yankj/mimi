@@ -29,6 +29,25 @@ enum ParentingNaturalLexicon {
     static let lateClockPattern = "[点时]半?才|[点时]半?就(?!要)"
     static let negationPattern = "没(?!有?问题|关系|事)"
     static let assistantNames = ["小咪"]
+    /// 取消…, 不去了, 不上了, 不上钢琴课了: only the cancel of a saved arrangement; a bare "不想去" is a record.
+    static let cancelPattern = "取消|不去了|不上了|不(?:去|上)[^，。,. ]{1,6}课了"
+    static func removingCancelWords(_ text: String) -> String {
+        text.replacingOccurrences(of: "取消|不去了|不上了|(?<=不上|不去)(?=[^，。,. ]{1,6}课了)", with: " ", options: .regularExpression)
+    }
+
+    // MARK: Day-part defaults ("今晚", "下午"…): the usual hour when only the part of the day was said.
+    struct DayPart: Equatable {
+        let hour: Int
+        /// Latest hour (exclusive) at which a later start is still "this part of the day".
+        let windowEnd: Int
+    }
+    private static let dayParts: [(pattern: String, part: DayPart)] = [
+        ("明早|今早|早上|早晨", .init(hour: 8, windowEnd: 10)), ("上午", .init(hour: 9, windowEnd: 12)), ("中午", .init(hour: 12, windowEnd: 14)),
+        ("下午", .init(hour: 15, windowEnd: 18)), ("傍晚", .init(hour: 18, windowEnd: 19)), ("晚上|今晚|明晚|夜里", .init(hour: 19, windowEnd: 23)),
+    ]
+    static func dayPart(in text: String) -> DayPart? {
+        dayParts.first { matches($0.pattern, in: text) }?.part
+    }
 
     // MARK: Sibling references ("老大", "二宝", "哥哥"…): resolved by creation order, only when the family has enough children.
     /// Where a reference points: a fixed position in creation order, or the youngest child.

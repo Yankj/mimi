@@ -100,6 +100,7 @@ final class ParentingNaturalInputTests: XCTestCase {
         case .observation: return "R"
         case .newArrangement: return "A"
         case .reschedule: return "M"
+        case .cancel: return "C"
         case .viewToday, .viewPlan, .reviewGrowth: return "Q"
         case .unknown: return p.ambiguousIntent ? "ASK" : "U"
         }
@@ -142,7 +143,8 @@ final class ParentingNaturalInputTests: XCTestCase {
         XCTAssertEqual(record.observationText, "今晚读绘本")
         let plan = ParentingNaturalInput.applying(.intent(.newArrangement), to: p, context: ctx, now: now, calendar: calendar)
         XCTAssertEqual(plan.kind, .newArrangement)
-        XCTAssertEqual(plan.dueAt, at(2026, 10, 25, 9, 0), "a day without a clock gets 9:00")
+        XCTAssertEqual(plan.dueAt, at(2026, 10, 25, 19, 0), "今晚 without a clock gets the usual evening hour, 19:00")
+        XCTAssertEqual(plan.assumedTime, .dayPart)
     }
 
     func testChitChatAndNonParentingQuestionsAreNotRecordedOrScheduled() {
@@ -176,10 +178,10 @@ final class ParentingNaturalInputTests: XCTestCase {
         let asPlan = ParentingNaturalInput.applying(.intent(.newArrangement), to: record, context: ctx, now: now, calendar: calendar)
         XCTAssertEqual(asPlan.kind, .newArrangement)
         XCTAssertEqual(asPlan.sourceText, record.sourceText)
-        XCTAssertEqual(asPlan.dueAt, at(2026, 10, 25, 9, 0))
+        XCTAssertEqual(asPlan.dueAt, at(2026, 10, 25, 19, 0))
         let planCard = try XCTUnwrap(ParentingConfirmCard.make(asPlan, workspace: ws, remindersEnabled: nil, now: now))
         XCTAssertEqual(planCard.confirmTitle, "确认安排")
-        XCTAssertTrue(planCard.blocks.contains(.note("没说几点，先定在 9:00；不对可以点“手动调整”。", .unknown)))
+        XCTAssertTrue(planCard.blocks.contains(.note("没说几点，先按你说的时段定了常用时间；不对可以点“手动调整”。", .unknown)))
         let back = ParentingNaturalInput.applying(.intent(.observation), to: asPlan, context: ctx, now: now, calendar: calendar)
         XCTAssertEqual(back.kind, .observation)
         XCTAssertEqual(back.observationText, "今天晚上睡得很早，看了一会儿电视")
@@ -222,6 +224,7 @@ final class ParentingNaturalInputTests: XCTestCase {
     /// (完成, 取消, 目标, 一句两件事) are deliberately not asserted: they are not in the first version.
     func testTheProposalCorpusIsClassifiedAsDecided() {
         let rows: [(String, String)] = [
+        ("取消周五的游泳", "C"), ("今晚8点吃了药", "R"), ("明晚给团团洗澡", "A"), ("老大2点上课", "A"),
         ("今天晚上睡得很早，看了一会儿电视", "R"),
         ("今天下午宝宝第一次自己拿勺子吃饭", "R"),
         ("宝宝今天自己扶着沙发走了几步", "R"),
@@ -328,6 +331,153 @@ final class ParentingNaturalInputTests: XCTestCase {
         XCTAssertEqual(wrong, [])
     }
 
+
+
+    // MARK: Time defaults: part of the day, today already past, a clock without a date
+
+    private func classifyAt(_ text: String, _ ctx: ParentingNaturalContext, _ clock: Date) -> ParentingNaturalProposal {
+        ParentingNaturalInput.classify(text, context: ctx, now: clock, calendar: calendar)
+    }
+
+    func testAPartOfTheDayGetsItsUsualHour() {
+        let ctx = context(children: [tuan])
+        let cases: [(String, Date)] = [
+            ("明天早上要带水杯", at(2026, 10, 26, 8, 0)), ("明天上午要带水杯", at(2026, 10, 26, 9, 0)),
+            ("明天中午要带水杯", at(2026, 10, 26, 12, 0)), ("明天下午要带水杯", at(2026, 10, 26, 15, 0)),
+            ("明天晚上要带水杯", at(2026, 10, 26, 19, 0)), ("明晚给团团洗澡", at(2026, 10, 26, 19, 0)),
+            ("明早要带水杯", at(2026, 10, 26, 8, 0)), ("明天要带水杯", at(2026, 10, 26, 9, 0)),
+        ]
+        for (text, due) in cases {
+            let p = classify(text, ctx)
+            XCTAssertEqual(p.kind, .newArrangement, text)
+            XCTAssertEqual(p.dueAt, due, text)
+            XCTAssertTrue(p.isReadyToConfirm, text)
+        }
+        XCTAssertEqual(classify("明天要带水杯", ctx).assumedTime, .nineOClock)
+        XCTAssertEqual(classify("明天下午要带水杯", ctx).assumedTime, .dayPart)
+    }
+
+    func testTodaysUsualHourThatHasPassedMovesToTheNextHalfHourOrTomorrow() {
+        let ctx = context(children: [tuan])
+        // 22:10, "今天晚上" (usual 19:00 has passed, the evening lasts until 23:00): the next half hour.
+        var p = classifyAt("今天晚上要给宝宝洗澡", ctx, at(2026, 10, 25, 22, 10))
+        XCTAssertEqual(p.dueAt, at(2026, 10, 25, 22, 30)); XCTAssertEqual(p.assumedTime, .laterThisPart)
+        // 22:40: the next half hour (23:00) is outside the evening, so tomorrow's usual hour.
+        p = classifyAt("今天晚上要给宝宝洗澡", ctx, at(2026, 10, 25, 22, 40))
+        XCTAssertEqual(p.dueAt, at(2026, 10, 26, 19, 0)); XCTAssertEqual(p.assumedTime, .nextDay)
+        // 13:00, "今天上午": over, so tomorrow 9:00.
+        p = classifyAt("今天上午要带水杯", ctx, at(2026, 10, 25, 13, 0))
+        XCTAssertEqual(p.dueAt, at(2026, 10, 26, 9, 0)); XCTAssertEqual(p.assumedTime, .nextDay)
+        // 10:00, "今天要带水杯" (no part, 9:00 passed): tomorrow 9:00.
+        p = classifyAt("今天要带水杯", ctx, at(2026, 10, 25, 10, 0))
+        XCTAssertEqual(p.dueAt, at(2026, 10, 26, 9, 0)); XCTAssertEqual(p.assumedTime, .nextDay)
+        // Still ahead today: kept.
+        p = classifyAt("今天下午要带水杯", ctx, at(2026, 10, 25, 10, 0))
+        XCTAssertEqual(p.dueAt, at(2026, 10, 25, 15, 0)); XCTAssertEqual(p.assumedTime, .dayPart)
+        // An explicit clock is never moved (the card warns that it is in the past).
+        p = classifyAt("团团今天下午1点游泳", ctx, at(2026, 10, 25, 20, 0))
+        XCTAssertEqual(p.dueAt, at(2026, 10, 25, 13, 0)); XCTAssertFalse(p.defaultedTime)
+    }
+
+    func testTheCardSaysWhatWasAssumed() throws {
+        let ctx = context(children: [tuan]); let ws = workspace(children: [tuan])
+        let late = classifyAt("今天晚上要给宝宝洗澡", ctx, at(2026, 10, 25, 22, 10))
+        let card = try XCTUnwrap(ParentingConfirmCard.make(late, workspace: ws, remindersEnabled: nil, now: at(2026, 10, 25, 22, 10)))
+        XCTAssertTrue(card.blocks.contains(.note("今天这个时段的常用时间已过，先排在最近的半点；不对可以点“手动调整”。", .unknown)))
+        XCTAssertFalse(card.blocks.contains(.note("这个时间已经过去，请确认。", .warning)))
+        let next = classifyAt("今天要带水杯", ctx, at(2026, 10, 25, 10, 0))
+        let card2 = try XCTUnwrap(ParentingConfirmCard.make(next, workspace: ws, remindersEnabled: nil, now: now))
+        XCTAssertTrue(card2.blocks.contains(.note("今天这个时间已过，先排在明天；要改回今天，点“手动调整”。", .unknown)))
+    }
+
+    func testAClockWithoutADateMeansTodayOrTomorrowAndIsNotAskedWhichDay() {
+        let two = context(children: [tuan, duo])
+        // "2点" has no half of the day: ask 上午 / 下午 only, never the date.
+        let p = classifyAt("老大2点上课", two, at(2026, 10, 25, 10, 0))
+        XCTAssertEqual(p.kind, .newArrangement); XCTAssertEqual(p.childID, tuan.id); XCTAssertEqual(p.title, "上课")
+        XCTAssertEqual(p.missing, [.time])
+        let ask = ParentingNaturalInput.followUp(for: p, context: two, calendar: calendar)
+        XCTAssertEqual(ask?.field, .time)
+        XCTAssertEqual(ask?.options.map(\.label), [.dateTime(at(2026, 10, 25, 2, 0)), .dateTime(at(2026, 10, 25, 14, 0))])
+        let pm = ParentingNaturalInput.applying(ask!.options[1].answer, to: p, context: two, now: at(2026, 10, 25, 10, 0), calendar: calendar)
+        XCTAssertEqual(pm.dueAt, at(2026, 10, 25, 14, 0)); XCTAssertEqual(pm.assumedDay, .today); XCTAssertTrue(pm.isReadyToConfirm)
+        // At 15:00 the 14:00 of today has passed: tomorrow.
+        let late = classifyAt("老大2点上课", two, at(2026, 10, 25, 15, 0))
+        let lateDone = ParentingNaturalInput.applying(.dueAt(at(2026, 10, 25, 14, 0)), to: late, context: two, now: at(2026, 10, 25, 15, 0), calendar: calendar)
+        XCTAssertEqual(lateDone.dueAt, at(2026, 10, 26, 14, 0)); XCTAssertEqual(lateDone.assumedDay, .tomorrow)
+        // A clear clock: straight to the card, today if still ahead, otherwise tomorrow.
+        let clear = classifyAt("老大下午2点上课", two, at(2026, 10, 25, 10, 0))
+        XCTAssertEqual(clear.dueAt, at(2026, 10, 25, 14, 0)); XCTAssertEqual(clear.assumedDay, .today); XCTAssertTrue(clear.isReadyToConfirm)
+        let passed = classifyAt("老大下午2点上课", two, at(2026, 10, 25, 16, 0))
+        XCTAssertEqual(passed.dueAt, at(2026, 10, 26, 14, 0)); XCTAssertEqual(passed.assumedDay, .tomorrow)
+        let stated = classifyAt("老大周五下午2点上课", two, at(2026, 10, 25, 16, 0))
+        XCTAssertEqual(stated.assumedDay, .none)
+        XCTAssertEqual(stated.dueAt, at(2026, 10, 30, 14, 0))
+        // Nothing to anchor the day on: the day is still asked.
+        XCTAssertEqual(classify("游泳课", context(children: [tuan])).missing, [.intent])
+        let plan = ParentingNaturalInput.applying(.intent(.newArrangement), to: classify("游泳课", context(children: [tuan])), context: context(children: [tuan]), now: now, calendar: calendar)
+        XCTAssertEqual(plan.missing, [.date])
+        // The card says the day was assumed.
+        let ws = workspace(children: [tuan, duo])
+        let card = ParentingConfirmCard.make(clear, workspace: ws, remindersEnabled: nil, now: at(2026, 10, 25, 10, 0))
+        XCTAssertTrue(card?.blocks.contains(.note("没说日期，先定在今天；不对可以点“手动调整”。", .unknown)) ?? false)
+        let cardTomorrow = ParentingConfirmCard.make(passed, workspace: ws, remindersEnabled: nil, now: at(2026, 10, 25, 16, 0))
+        XCTAssertTrue(cardTomorrow?.blocks.contains(.note("没说日期，今天这个时间已过，先定在明天；不对可以点“手动调整”。", .unknown)) ?? false)
+    }
+
+    // MARK: Cancel (minimal): only cancels a saved arrangement, after a confirm card
+    func testCancelFindsTheMatchingArrangementAndAsksForConfirmation() throws {
+        let fri = swim(due: at(2026, 10, 30, 17, 0))
+        var piano = swim(due: at(2026, 10, 31, 10, 0)); piano.title = "钢琴课"
+        let ws = workspace(children: [tuan], arrangements: [fri, piano])
+        let ctx = ParentingNaturalContext(workspace: ws)
+        let p = classify("取消周五的游泳", ctx)
+        XCTAssertEqual(p.kind, .cancel)
+        XCTAssertFalse(p.kind == .newArrangement)
+        XCTAssertEqual(p.targetID, fri.id)
+        XCTAssertTrue(p.isReadyToConfirm)
+        XCTAssertNil(ParentingNaturalInput.followUp(for: p, context: ctx, calendar: calendar))
+        let card = try XCTUnwrap(ParentingConfirmCard.make(p, workspace: ws, remindersEnabled: nil, now: now))
+        XCTAssertEqual(card.kind, .cancel); XCTAssertEqual(card.confirmTitle, "确认取消"); XCTAssertTrue(card.writes)
+        XCTAssertEqual(ws.arrangements.first { $0.id == fri.id }?.state, .planned, "a card changes nothing")
+        let commands = ParentingNaturalInput.commands(for: p, workspace: ws, ids: .init())
+        XCTAssertEqual(commands, [.cancelArrangement(id: fri.id)])
+        var next = ws
+        for command in commands { next = try next.applying(command, now: now) }
+        XCTAssertEqual(next.arrangements.first { $0.id == fri.id }?.state, .cancelled)
+        XCTAssertEqual(next.arrangements.first { $0.id == piano.id }?.state, .planned, "only the matching one")
+        for text in ["不上钢琴课了", "钢琴课取消"] { XCTAssertEqual(classify(text, ctx).targetID, piano.id, text) }
+    }
+
+    func testCancelWithoutAMatchOrWithSeveralMatchesAsksAndNeverBecomesANewArrangement() {
+        let empty = context(children: [tuan])
+        let none = classify("取消周五的游泳", empty)
+        XCTAssertEqual(none.kind, .cancel)
+        XCTAssertEqual(none.missing, [.target])
+        let ask = ParentingNaturalInput.followUp(for: none, context: empty, calendar: calendar)
+        XCTAssertEqual(ask?.question, "没有找到要取消的安排。说具体一点试试，例如：取消周五的游泳。")
+        XCTAssertEqual(ask?.options.count, 0, "no way to turn it into a new arrangement")
+        XCTAssertTrue(ParentingNaturalInput.commands(for: none, workspace: workspace(children: [tuan]), ids: .init()).isEmpty)
+        let a = swim(due: at(2026, 10, 30, 17, 0)), b = swim(due: at(2026, 10, 31, 9, 0))
+        let ctx = context(children: [tuan], arrangements: [a, b])
+        let two = classify("取消游泳", ctx)
+        XCTAssertEqual(two.missing, [.target])
+        let choices = ParentingNaturalInput.followUp(for: two, context: ctx, calendar: calendar)
+        XCTAssertEqual(choices?.question, "要取消哪一项安排？")
+        XCTAssertEqual(choices?.options.count, 2)
+        let done = ParentingNaturalInput.applying(choices!.options[0].answer, to: two, context: ctx, now: now, calendar: calendar)
+        XCTAssertTrue(done.isReadyToConfirm)
+        XCTAssertEqual(done.kind, .cancel)
+        // Other kinds are not hijacked by the cancel words.
+        XCTAssertEqual(classify("团团周五游泳改到下午6点", ctx).kind, .reschedule)
+    }
+
+    func testCancelUsesTheChildTheSiblingWordPointsAt() {
+        let mine = swim(due: at(2026, 10, 30, 17, 0), child: tuan), hers = swim(due: at(2026, 10, 30, 17, 0), child: duo)
+        let ctx = context(children: [tuan, duo], arrangements: [mine, hers])
+        let p = classify("老二取消周五的游泳", ctx)
+        XCTAssertEqual(p.targetID, hers.id); XCTAssertEqual(p.childID, duo.id)
+    }
 
     // MARK: Which child: nickname, sibling words (老大/二宝/哥哥…), selected child, only child — never a silent guess
     private let dou = ParentingChild(id: UUID(uuidString: "00000000-0000-0000-0000-0000000000A3")!, name: "豆豆", createdAt: Date(timeIntervalSince1970: 1_700_000_002))

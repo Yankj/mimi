@@ -325,7 +325,7 @@ extension View {
                         .parentingPrimaryButton()
                         .accessibilityIdentifier("parenting.natural.addChild")
                 }
-                if ask.field == .target && ask.options.isEmpty {
+                if ask.field == .target && ask.options.isEmpty && p.kind == .reschedule {
                     Button(ui("改为加安排")) { input.answer(.intent(.newArrangement), context: context, now: now) }
                         .parentingSecondaryButton()
                 }

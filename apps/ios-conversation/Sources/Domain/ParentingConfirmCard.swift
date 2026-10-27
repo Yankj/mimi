@@ -53,7 +53,18 @@ public struct ParentingConfirmCard: Equatable, Sendable {
             let conflicts = conflictItems(workspace, excluding: nil, at: due)
             if !conflicts.isEmpty { blocks.append(.conflicts(title: "同一时间已有安排，请核对", items: conflicts)) }
             if due < now { blocks.append(.note("这个时间已经过去，请确认。", .warning)) }
-            if p.defaultedTime { blocks.append(.note("没说几点，先定在 9:00；不对可以点“手动调整”。", .unknown)) }
+            switch p.assumedDay {
+            case .today: blocks.append(.note("没说日期，先定在今天；不对可以点“手动调整”。", .unknown))
+            case .tomorrow: blocks.append(.note("没说日期，今天这个时间已过，先定在明天；不对可以点“手动调整”。", .unknown))
+            case .none: break
+            }
+            switch p.assumedTime {
+            case .none: break
+            case .nineOClock: blocks.append(.note("没说几点，先定在 9:00；不对可以点“手动调整”。", .unknown))
+            case .dayPart: blocks.append(.note("没说几点，先按你说的时段定了常用时间；不对可以点“手动调整”。", .unknown))
+            case .laterThisPart: blocks.append(.note("今天这个时段的常用时间已过，先排在最近的半点；不对可以点“手动调整”。", .unknown))
+            case .nextDay: blocks.append(.note("今天这个时间已过，先排在明天；要改回今天，点“手动调整”。", .unknown))
+            }
             blocks.append(.quote(label: "你说的原话", text: p.sourceText))
             blocks.append(.note("确认后才进入今天的安排。", .normal))
             if let line = reminderNote(remindersEnabled) { blocks.append(line) }
@@ -75,6 +86,17 @@ public struct ParentingConfirmCard: Equatable, Sendable {
             blocks.append(.note("只改这一项安排，不影响其他安排。可以在安排里撤销这次调整。", .normal))
             if let line = reminderNote(remindersEnabled) { blocks.append(line) }
             return .init(kind: p.kind, blocks: blocks, confirmTitle: "确认改期", writes: true)
+        case .cancel:
+            guard let childName, let title = p.title, let due = p.dueAt, let id = p.targetID,
+                  workspace.arrangements.contains(where: { $0.id == id }) else { return nil }
+            return .init(kind: p.kind, blocks: [
+                .headline(title: "取消安排", symbol: "xmark.circle"),
+                .fields([.init(label: "孩子", value: .text(childName), tone: .normal),
+                         .init(label: "事项", value: .text(title), tone: .normal),
+                         .init(label: "时间", value: .date(due), tone: .changed)]),
+                .quote(label: "你说的原话", text: p.sourceText),
+                .note("确认后这项安排会取消，不再提醒；取消后还能在“已取消的安排”里看到它。", .normal),
+            ], confirmTitle: "确认取消", writes: true)
         case .observation:
             guard let childName, let text = p.observationText else { return nil }
             return .init(kind: p.kind, blocks: [

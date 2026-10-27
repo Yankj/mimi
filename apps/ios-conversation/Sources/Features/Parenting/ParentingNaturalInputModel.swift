@@ -93,6 +93,7 @@ final class ParentingNaturalInputModel: ObservableObject {
         switch proposal.kind {
         case .newArrangement: phase = .saved("已安排好了")
         case .reschedule: phase = .saved("已改期")
+        case .cancel: phase = .saved("已取消这项安排")
         case .observation: phase = .saved("已保存这条观察")
         default: break
         }

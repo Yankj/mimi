@@ -9,21 +9,22 @@ public enum ParentingIntentMode: String, Sendable, CaseIterable {
 }
 
 public enum ParentingIntentKind: String, Sendable, CaseIterable {
-    case newArrangement, reschedule, observation, viewToday, viewPlan, reviewGrowth, unknown
+    case newArrangement, reschedule, cancel, observation, viewToday, viewPlan, reviewGrowth, unknown
     public var mode: ParentingIntentMode? {
         switch self {
-        case .newArrangement, .reschedule, .observation: .capture
+        case .newArrangement, .reschedule, .cancel, .observation: .capture
         case .viewToday, .viewPlan: .plan
         case .reviewGrowth: .review
         case .unknown: nil
         }
     }
     /// Only these kinds can ever produce a ledger command, and only after the parent confirms a card.
-    public var writes: Bool { self == .newArrangement || self == .reschedule || self == .observation }
+    public var writes: Bool { self == .newArrangement || self == .reschedule || self == .cancel || self == .observation }
     public var title: String {
         switch self {
         case .newArrangement: "加安排"
         case .reschedule: "改期"
+        case .cancel: "取消安排"
         case .observation: "记一笔"
         case .viewToday: "看今天"
         case .viewPlan: "看计划"
@@ -102,8 +103,19 @@ public struct ParentingNaturalProposal: Equatable, Sendable {
     /// True when a reschedule kept the original day because the parent only named a new hour.
     public var inheritedDate = false
     public var observationText: String?
-    /// True when an arrangement had a date but no clock, so 9:00 was filled in. The card says so.
-    public var defaultedTime = false
+    /// What was assumed about the time when the parent did not say it. The card says so.
+    public enum AssumedTime: Equatable, Sendable {
+        case none
+        case nineOClock        // a day, no clock, no part of the day: 9:00
+        case dayPart           // 早上8 上午9 中午12 下午15 晚上19
+        case laterThisPart     // today's usual hour has passed: the next half hour of the same part of the day
+        case nextDay           // today's time has passed: tomorrow
+    }
+    /// What was assumed about the day when only a clock or a part of the day was said: today, or tomorrow when today's time has passed.
+    public enum AssumedDay: Equatable, Sendable { case none, today, tomorrow }
+    public var assumedTime: AssumedTime = .none
+    public var assumedDay: AssumedDay = .none
+    public var defaultedTime: Bool { assumedTime != .none }
     /// True when the words carry both record and arrangement evidence (or only a weak arrangement hint): ask once, two big buttons.
     public var ambiguousIntent = false
     public var missing: [ParentingMissingField]
@@ -141,6 +153,7 @@ public enum ParentingNaturalInput {
         case .newArrangement: fillArrangement(&proposal, text: text, reading: reading, context: context, now: now, calendar: calendar)
         case .observation: fillObservation(&proposal, text: text, context: context)
         case .reschedule: fillReschedule(&proposal, text: text, context: context, now: now, calendar: calendar)
+        case .cancel: fillCancel(&proposal, text: text, context: context, now: now, calendar: calendar)
         }
         proposal.missing = Array(Set(proposal.missing)).sorted()
         return proposal
@@ -162,6 +175,7 @@ public enum ParentingNaturalInput {
         }
         if has(lexicon.planQueryMarkers) { return (.viewPlan, false) }
         if has(lexicon.rescheduleTriggers) { return (.reschedule, false) }
+        if text.range(of: lexicon.cancelPattern, options: .regularExpression) != nil { return (.cancel, false) }
 
         let hasLetters = text.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) || ("0"..."9").contains(Character($0)) }
         guard hasLetters else { return (.unknown, false) }
@@ -212,24 +226,94 @@ public enum ParentingNaturalInput {
         residual = ParentingNaturalLexicon.removingSiblingReferences(residual)
         let title = ParentingNaturalLexicon.cleanTitle(residual)
         if title.isEmpty { p.missing.append(.title) } else { p.title = String(title.prefix(160)) }
-        if let forced = p.overrides.dueAt { p.dueAt = forced; return }
-        guard let day = reading.day else {
-            p.missing.append(.date)
-            p.ambiguousHour = reading.ambiguousHour
+
+        let part = ParentingNaturalLexicon.dayPart(in: text)
+        let hasAnchor = reading.day != nil || reading.hasClock || part != nil
+        let today = calendar.startOfDay(for: now)
+        func tomorrow(_ date: Date) -> Date? { calendar.date(byAdding: .day, value: 1, to: date) }
+
+        if let forced = p.overrides.dueAt {
+            // The parent picked the half of the day for a clock that came without a date: today, or tomorrow if that moment has passed.
+            if reading.day == nil, forced <= now, let next = tomorrow(forced) { p.dueAt = next; p.assumedDay = .tomorrow }
+            else { p.dueAt = forced; if reading.day == nil && hasAnchor { p.assumedDay = .today } }
             return
         }
-        if let hour = reading.hour, let date = ParentingNaturalLexicon.date(on: day, hour: hour, minute: reading.minute, calendar: calendar) {
-            p.dueAt = date
-        } else if reading.ambiguousHour == nil, let date = ParentingNaturalLexicon.date(on: day, hour: defaultHour, minute: 0, calendar: calendar) {
-            // A day without any clock: 9:00, said on the card. "5点" without a half of the day is still asked (上午 or 下午).
-            p.dueAt = date; p.defaultedTime = true
-        } else {
+        // Neither a date, a clock nor a part of the day: the day has to be asked.
+        guard hasAnchor else { p.missing.append(.date); return }
+        let statedDay = reading.day != nil
+        let day = reading.day ?? today
+        if !statedDay { p.assumedDay = .today }
+
+        // A clock without a half of the day ("2点") is asked as 上午 / 下午, on the day assumed so far.
+        if reading.hour == nil, reading.ambiguousHour != nil {
             p.missing.append(.time); p.ambiguousHour = reading.ambiguousHour; p.ambiguousDay = day
+            if !statedDay { p.assumedDay = .none }
+            return
         }
+        if let hour = reading.hour, var date = ParentingNaturalLexicon.date(on: day, hour: hour, minute: reading.minute, calendar: calendar) {
+            // A stated clock stays as said (the card warns if it is in the past); only an assumed day moves to tomorrow.
+            if !statedDay, date <= now, let next = tomorrow(date) { date = next; p.assumedDay = .tomorrow }
+            p.dueAt = date
+            return
+        }
+        // No clock: the usual hour of the part of the day, 9:00 when no part was said.
+        let usualHour = part?.hour ?? ParentingNaturalInput.defaultHour
+        guard var date = ParentingNaturalLexicon.date(on: day, hour: usualHour, minute: 0, calendar: calendar) else {
+            p.missing.append(.time); p.ambiguousDay = day; return
+        }
+        p.assumedTime = part == nil ? .nineOClock : .dayPart
+        if calendar.isDate(day, inSameDayAs: now), date <= now {
+            // Today's usual moment has passed: the next half hour while the same part of the day lasts, else tomorrow.
+            let minutes = (calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)) / 30 * 30 + 30
+            if let part, minutes < part.windowEnd * 60,
+               let later = calendar.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: day) {
+                date = later; p.assumedTime = .laterThisPart
+            } else if let next = tomorrow(date) {
+                date = next
+                if statedDay { p.assumedTime = .nextDay } else { p.assumedDay = .tomorrow }
+            }
+        }
+        p.dueAt = date
     }
 
-    /// The hour filled in for an arrangement that has a day but no clock.
+    /// The hour filled in for an arrangement that has a day but no clock and no part of the day.
     public static let defaultHour = 9
+
+    private static func fillCancel(_ p: inout ParentingNaturalProposal, text: String, context: ParentingNaturalContext, now: Date, calendar: Calendar) {
+        let lexicon = ParentingNaturalLexicon.self
+        let rest = lexicon.removingCancelWords(text)
+        let reading = lexicon.read(rest, now: now, calendar: calendar)
+        var pool = context.arrangements.filter { [.draft, .planned].contains($0.state) }
+        let named = mentionedChildren(text, context: context)
+        if let forced = p.overrides.childID { pool = pool.filter { $0.childID == forced } }
+        else if named.count == 1 { pool = pool.filter { $0.childID == named[0].id } }
+        var target: ParentingArrangement?
+        if let forced = p.overrides.targetID { target = context.arrangements.first { $0.id == forced && [.draft, .planned].contains($0.state) } }
+        if target == nil { target = matchTarget(&p, pre: rest, preReading: reading, pool: pool, context: context, calendar: calendar) }
+        guard let target else { return }
+        p.targetID = target.id; p.childID = target.childID; p.title = target.title; p.dueAt = target.dueAt
+    }
+
+    /// The saved arrangement the words point at: the best title overlap (plus the same day); several equally good ones are asked.
+    private static func matchTarget(_ p: inout ParentingNaturalProposal, pre: String, preReading: ParentingNaturalLexicon.TimeReading,
+                                    pool: [ParentingArrangement], context: ParentingNaturalContext, calendar: Calendar) -> ParentingArrangement? {
+        let lexicon = ParentingNaturalLexicon.self
+        var residual = lexicon.removing(preReading.consumed, from: pre)
+        for child in context.children { residual = residual.replacingOccurrences(of: child.name, with: " ") }
+        residual = lexicon.removingSiblingReferences(residual)
+        let wanted = lexicon.bigrams(lexicon.cleanTitle(residual))
+        let scored: [(ParentingArrangement, Int)] = pool.map { item in
+            var name = item.title
+            for child in context.children { name = name.replacingOccurrences(of: child.name, with: " ") }
+            let overlap = lexicon.bigrams(name).intersection(wanted).count
+            let sameDay = preReading.day.map { calendar.isDate($0, inSameDayAs: item.dueAt) } ?? false
+            return (item, overlap * 10 + (sameDay ? 5 : 0))
+        }.sorted { ($0.1, $1.0.dueAt) > ($1.1, $0.0.dueAt) }
+        if let best = scored.first, best.1 >= 10, scored.dropFirst().first.map({ $0.1 < best.1 }) ?? true { return best.0 }
+        p.missing.append(.target)
+        p.targetChoices = scored.isEmpty ? [] : scored.prefix(4).map { $0.0.id }
+        return nil
+    }
 
     private static func fillObservation(_ p: inout ParentingNaturalProposal, text: String, context: ParentingNaturalContext) {
         resolveChild(&p, text: text, context: context)
@@ -252,26 +336,7 @@ public enum ParentingNaturalInput {
 
         var target: ParentingArrangement?
         if let forced = p.overrides.targetID { target = context.arrangements.first { $0.id == forced && [.draft, .planned].contains($0.state) } }
-        if target == nil {
-            var residual = lexicon.removing(preReading.consumed, from: pre)
-            for child in context.children { residual = residual.replacingOccurrences(of: child.name, with: " ") }
-            residual = lexicon.removingSiblingReferences(residual)
-            let wanted = lexicon.bigrams(lexicon.cleanTitle(residual))
-            let scored: [(ParentingArrangement, Int)] = pool.map { item in
-                var name = item.title
-                for child in context.children { name = name.replacingOccurrences(of: child.name, with: " ") }
-                let overlap = lexicon.bigrams(name).intersection(wanted).count
-                let sameDay = preReading.day.map { calendar.isDate($0, inSameDayAs: item.dueAt) } ?? false
-                return (item, overlap * 10 + (sameDay ? 5 : 0))
-            }.sorted { ($0.1, $1.0.dueAt) > ($1.1, $0.0.dueAt) }
-            if let best = scored.first, best.1 >= 10, scored.dropFirst().first.map({ $0.1 < best.1 }) ?? true {
-                target = best.0
-            } else {
-                p.missing.append(.target)
-                let ordered = scored.isEmpty ? [] : scored.prefix(4).map { $0.0.id }
-                p.targetChoices = Array(ordered)
-            }
-        }
+        if target == nil { target = matchTarget(&p, pre: pre, preReading: preReading, pool: pool, context: context, calendar: calendar) }
         guard let target else { return }
         p.targetID = target.id; p.childID = target.childID; p.title = target.title
 
@@ -311,7 +376,8 @@ public enum ParentingNaturalInput {
                          allowsText: false, textHint: nil)
         case .target:
             let choices = p.targetChoices.compactMap { id in context.arrangements.first { $0.id == id } }
-            return .init(field: field, question: choices.isEmpty ? "还没有可以改期的安排。先记一件安排吧。" : "要改哪一项安排？",
+            let none = p.kind == .cancel ? "没有找到要取消的安排。说具体一点试试，例如：取消周五的游泳。" : "还没有可以改期的安排。先记一件安排吧。"
+            return .init(field: field, question: choices.isEmpty ? none : (p.kind == .cancel ? "要取消哪一项安排？" : "要改哪一项安排？"),
                          options: choices.map { .init(id: "target." + $0.id.uuidString, label: .verbatim($0.title), detail: $0.dueAt, answer: .target($0.id)) },
                          allowsText: false, textHint: nil)
         case .date:
@@ -379,6 +445,9 @@ public enum ParentingNaturalInput {
             return [.reviseArrangement(id: ids.record, target: .init(arrangement: item, workspaceRevision: workspace.revision),
                                        title: item.title, dueAt: due, goalID: item.goalID, sourceText: p.sourceText,
                                        acknowledgedConflictIDs: conflicts)]
+        case .cancel:
+            guard let id = p.targetID, workspace.arrangements.contains(where: { $0.id == id && [.draft, .planned].contains($0.state) }) else { return [] }
+            return [.cancelArrangement(id: id)]
         default: return []
         }
     }
