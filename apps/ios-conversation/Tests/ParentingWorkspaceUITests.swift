@@ -1016,14 +1016,16 @@ final class ParentingWorkspaceUITests: XCTestCase {
             if target.exists {
                 // A hittable control is already on screen; do not drag (dragging a sheet dismisses it).
                 if target.isHittable { return }
+                // Only the intake candidate container skips blind-drag: it is an accessibility
+                // `.contain` group whose AX frame is empty or taller than the viewport; dragging
+                // then dismisses the editor sheet. Other empty frames (fields still laying out)
+                // must keep searching — returning early left title/source without keyboard focus.
+                if target.identifier == "parenting.inline.candidate" { return }
                 let rect = target.frame
-                if rect.isEmpty {
-                    // .accessibilityElement(children: .contain) often reports an empty frame while children
-                    // are visible. Blind-dragging from an empty frame dismisses the editor sheet (PR #127).
-                    return
+                if !rect.isEmpty {
+                    targetFrame = rect
+                    if navigationFrames.contains(where: { $0.contains(CGPoint(x: rect.midX, y: rect.midY)) }) { return }
                 }
-                targetFrame = rect
-                if navigationFrames.contains(where: { $0.contains(CGPoint(x: rect.midX, y: rect.midY)) }) { return }
             }
             let appFrame = app.frame
             // The natural-input bar sits above the tab bar; content behind it is not reachable.
