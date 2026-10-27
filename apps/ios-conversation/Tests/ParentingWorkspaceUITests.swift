@@ -816,6 +816,36 @@ final class ParentingWorkspaceUITests: XCTestCase {
         RunLoop.current.run(until: Date().addingTimeInterval(3.5))
         XCTAssertFalse(done.exists, "The saved receipt must close the sheet by itself.")
         XCTAssertFalse(again.buttons["parenting.natural.close"].exists, again.debugDescription)
+
+        // An unclear sentence asks once with two big side-by-side buttons (记下来 / 安排提醒); the card then has a 记一笔 | 加安排 switch.
+        _ = ParentingUI.showKeyboardComposer(again)
+        _ = ParentingUI.waitUntilNotBusy(again)
+        wait { field.isHittable }
+        field.tap(); field.typeText("今晚读绘本")
+        wait { send.isEnabled }
+        _ = ParentingUI.waitUntilNotBusy(again)
+        send.tap()
+        let record = again.buttons["parenting.natural.intent.observation"]
+        let plan = again.buttons["parenting.natural.intent.newArrangement"]
+        if !record.waitForExistence(timeout: 5), send.exists, send.isEnabled { send.tap() }
+        XCTAssertTrue(record.waitForExistence(timeout: 10), again.debugDescription)
+        XCTAssertTrue(plan.exists, again.debugDescription)
+        XCTAssertEqual(record.frame.midY, plan.frame.midY, accuracy: 6, "the two answers sit side by side")
+        XCTAssertLessThan(record.frame.minX, plan.frame.minX, "记下来 on the left, 安排提醒 on the right")
+        capture(again, "Intent-choice-two-buttons")
+        record.tap()
+        let toPlan = again.buttons["parenting.natural.switch.newArrangement"]
+        let toRecord = again.buttons["parenting.natural.switch.observation"]
+        XCTAssertTrue(toPlan.waitForExistence(timeout: 10), again.debugDescription)
+        XCTAssertTrue(again.descendants(matching: .any)["parenting.confirmCard.observation"].waitForExistence(timeout: 10), again.debugDescription)
+        capture(again, "Intent-switch-record")
+        toPlan.tap()
+        XCTAssertTrue(again.descendants(matching: .any)["parenting.confirmCard.newArrangement"].waitForExistence(timeout: 10), again.debugDescription)
+        capture(again, "Intent-switch-plan")
+        XCTAssertTrue(toRecord.exists)
+        toRecord.tap()
+        XCTAssertTrue(again.descendants(matching: .any)["parenting.confirmCard.observation"].waitForExistence(timeout: 10), again.debugDescription)
+        again.buttons["parenting.natural.close"].tap()
     }
 
     /// Growth tab segments. 成长 opens on the timeline (observations and completion records); goals and weekly review are the other segment.
