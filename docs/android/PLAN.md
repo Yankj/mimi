@@ -466,6 +466,29 @@ apps/android-conversation/
 
 ---
 
+### 8.1 M0 实施记录与偏差（2026-10-28，分支 `feat/android-m0`）
+
+已按计划落地：`apps/android-conversation` Gradle 工程（AGP 9.4.0 / Gradle 9.7.0 / Kotlin 2.4.21 / Compose BOM 2026.09.00，compileSdk 37.1、targetSdk 36、minSdk 29，applicationId `com.heydusk.mimi`）；版本目录与 Wrapper；B/C × 明/暗 tokens、独立 WCAG 对比度单测、`docs/design/mimi-theme-tokens.json` 跨端快照（由 `scripts/export-theme-tokens.py` 从 `CatTheme.swift` 导出，Android 单测逐值核对）；着色玻璃按钮与 Haze 悬浮底栏；毛绒猫资源；`core:i18n` 加载 `UIStrings.json`（构建时 Sync，不复制）；启动页；`scripts/verify.sh`；仓库布局规则；README / AGENTS。
+
+与第 8 节原描述的偏差（均已在 README 或本节说明）：
+
+| 项 | 计划 | 实际 | 原因 / 后续 |
+|---|---|---|---|
+| 模块数 | 10 个模块起步 | 5 个：`app`、`core:domain`、`core:designsystem`、`core:i18n`、`feature:parenting` | M0 只需要这些；其余模块在用到时再建，避免空壳。`core:data/network/security/...` 随 M1 起加 |
+| Hilt | M1 | 未引入 | 与计划一致，M0 无依赖注入需求 |
+| 组件画廊 + 4 主题截图基线 | M0 | 没有独立画廊；“我们家”页临时放配色/外观切换与着色按钮预览。四主题截图由 `ShellScreenshotTest` 生成到 `build/screenshots/`，**未入库、未作为回归基线** | 当前没有真机，Robolectric 里 Haze 只有降级色罩，基线意义有限；真机接入后再决定用 Roborazzi 还是人工验收 |
+| 毛绒猫资源 | 毛绒猫资源 | 只带 `MascotFront/Idle/Note` 三张（@2x→xhdpi、@3x→xxhdpi） | 其余姿态随功能引入 |
+| 跨端快照“两端都断言” | iOS 与 Android 都对快照断言 | 只做了 Android 侧（并有导出脚本保证快照与 Swift 源同步） | 本次不改 iOS 目录；iOS 侧测试留给 iOS 的下一次改动 |
+| 仓库规则 | 改 `repository-layout.json`、检查脚本、`AGENTS.md` | 新增 `android_host` / `android_host_role` / `website_stub` 三个键；`second_active_app_allowed` 仍为 `false`，含义改为“每个平台只有一个活跃 App”；检查脚本新增对 Android 工程的存在性与“无 iOS 宿主/Swift 文件”断言 | **顺带修了一个在 main 上就已失败的检查**：`website` 字段在 `8fdae78`（网站迁出）后变成了说明文字，`check-repository-layout.py` 因此在 main 上就会断言失败；改为检查 `apps/website/README.md` 桩 |
+| 扫描策略 | 未提及 | `scripts/reviewed-findings.json` 增加一条：`gradle-wrapper.jar`（`unexpected_binary`，SHA-256 与 Gradle 官方发布值一致） | 否则 `scan-repository.py` 会把 Wrapper JAR 当成未审核二进制 |
+| debug 包名 | 未规定 | debug 与 release 同为 `com.heydusk.mimi`（不加 `.debug` 后缀） | 与“applicationId 固定”一致；旁路安装需求出现再加 |
+| 文案补充目录 | 仅共享 `UIStrings.json` | 另有 `core/i18n/src/main/assets/UIStringsAndroid.json`（7 条，主题演示用，共享目录优先） | 共享目录里没有“素白墨黑/雾粉燕麦/配色/浅色”等词，而本次不改 iOS 的 Resources；设置页上线时并回共享目录并删除补充项 |
+| 版本微调 | activity-compose 1.11.0 | 1.13.0（stable）；Haze 2.0.1；Robolectric 4.17 | 复核时的最新稳定版 |
+
+复核结论（2026-10-28）：AGP 已有 9.4.1、Gradle 已有 9.8.2，仍按指定的 9.4.0 / 9.7.0 实现（lint 会提示新版可用，非错误）；`targetSdk 36` 低于 SDK 最新的 37，lint 的 `OldTargetApi` 为提示级，M6 发布前再升。
+
+M0 验收（本机，无设备）：见 README 的“构建与测试”；全部 36 个 JVM 测试通过、debug APK 约 30 MB 可产出。**未验证（需要真机）**：Haze 真实模糊（Android 12+）与 10/11 的降级色罩、着色按钮按下态手感、启动页与主题图标、不同厂商 ROM 的小差异。
+
 ## 9. 风险与对策
 
 | # | 风险 | 影响 | 对策 |
