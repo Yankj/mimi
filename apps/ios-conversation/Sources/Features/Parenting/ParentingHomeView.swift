@@ -275,7 +275,12 @@ import Combine
 
     private var loadState: some View {
         VStack(spacing: 18) {
-            BrandMark(size: 54, style: .fill)
+            if model.error != nil {
+                // 抱歉: the load failed, so the plush cat apologises (the brand mark stays on the loading state).
+                PlushMascot(pose: .sorry, size: 54).accessibilityHidden(true)
+            } else {
+                BrandMark(size: 54, style: .fill)
+            }
             if let error = model.error {
                 Text(ui("育儿工作区暂时无法打开")).font(.title3.weight(.semibold))
                 Text(ui(error)).font(.subheadline).foregroundStyle(catColors.calmSecondary)

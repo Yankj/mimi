@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import XCTest
 @testable import cat
 
@@ -1548,5 +1549,126 @@ private actor ParentingIntakeDeleteWireCredentials: NativeChatSessionCredentials
         let calls = await harness.backend.captured()
         XCTAssertEqual(calls.submitted.count, 2)
         XCTAssertEqual(Set(calls.submitted.map(\.operationID)).count, 2)
+    }
+}
+
+// MARK: - Plush scene poses, one-tap re-entry, sign-out key, shared growth rules
+
+/// Pure checks for the plush-mascot integration and its follow-up fixes. No UI, storage or network.
+final class ParentingPlushAndFixesTests: XCTestCase {
+    private let calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        return c
+    }()
+    private let childA = UUID(uuidString: "D2000000-0000-4000-8000-0000000000A1")!
+    private let goalA = UUID(uuidString: "D4000000-0000-4000-8000-0000000000A1")!
+    private func at(_ day: Int, _ hour: Int = 10) -> Date { calendar.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour))! }
+    private var now: Date { at(26) }
+
+    // MARK: Mascot
+
+    func testEveryPlushPoseHasABundledImageAndSceneArtIsScaled() {
+        for pose in PlushMascotPose.allCases {
+            XCTAssertNotNil(UIImage(named: pose.assetName, in: Bundle.main, compatibleWith: nil), "\(pose.assetName) is missing from the asset catalog")
+        }
+        XCTAssertEqual(PlushMascotPose.note.assetName, "MascotNote")
+        XCTAssertEqual(PlushMascotPose.night.assetName, "MascotNight")
+        XCTAssertEqual(PlushMascotPose.sorry.assetName, "MascotSorry")
+        for pose in [PlushMascotPose.note, .night, .sorry] { XCTAssertEqual(pose.artScale, 1.22, accuracy: 0.0001) }
+        for pose in [PlushMascotPose.idle, .thinking, .writing, .executing, .done, .error] { XCTAssertEqual(pose.artScale, 1) }
+    }
+
+    func testScenePosesAreNeverAPresenceState() {
+        let fromPresence = Set([catPresenceState.waiting, .thinking, .streaming, .working, .done, .error, .offline].map { PlushMascotPose($0) })
+        XCTAssertTrue(fromPresence.isDisjoint(with: [.note, .night, .sorry]))
+    }
+
+    // MARK: One-tap complete re-entry
+
+    func testOneTapGateAllowsOneCompletionInFlight() {
+        var gate = ParentingOneTapGate()
+        XCTAssertTrue(gate.begin(now: now))
+        XCTAssertFalse(gate.begin(now: now), "a second tap while the first save is running is ignored")
+        gate.finish(completedAt: nil)
+        XCTAssertTrue(gate.begin(now: now), "a failed save does not start a cooldown, so the parent can retry at once")
+    }
+
+    func testOneTapGateIgnoresTheNextArrangementRightAfterACompletion() {
+        var gate = ParentingOneTapGate()
+        XCTAssertTrue(gate.begin(now: now))
+        gate.finish(completedAt: now)
+        XCTAssertFalse(gate.begin(now: now.addingTimeInterval(0.1)), "the hero already shows the next item; a double tap must not complete it")
+        XCTAssertFalse(gate.begin(now: now.addingTimeInterval(ParentingOneTapGate.cooldown - 0.01)))
+        XCTAssertTrue(gate.begin(now: now.addingTimeInterval(ParentingOneTapGate.cooldown + 0.05)), "a deliberate later tap works")
+    }
+
+    // MARK: Weekly review key on sign-out
+
+    func testSignOutPurgeClearsEveryWeeklyReviewKeyAndNothingElse() throws {
+        let name = "mimi.plush.tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let first = ParentingWeeklyReviewStore(defaults: defaults, subjectID: UUID())
+        let second = ParentingWeeklyReviewStore(defaults: defaults, subjectID: UUID())
+        first.save(now); second.save(now)
+        defaults.set("keep", forKey: "mimi.plush.tests.unrelated")
+        XCTAssertNotNil(first.load()); XCTAssertNotNil(second.load())
+
+        AccountLocalData.purge(defaults: defaults)
+
+        XCTAssertNil(first.load(), "the previous account's weekly review date must not survive sign-out")
+        XCTAssertNil(second.load())
+        XCTAssertEqual(defaults.string(forKey: "mimi.plush.tests.unrelated"), "keep")
+    }
+
+    // MARK: Growth rules live in one place
+
+    private func record(_ n: Int, _ kind: ParentingRecordKind = .observation, day: Int) -> ParentingRecord {
+        let id = UUID(uuidString: String(format: "D3000000-0000-4000-8000-%012d", 100 + n))!
+        return ParentingRecord(id: id, childID: childA, goalID: nil, arrangementID: nil, kind: kind, text: "r\(n)", sourceText: "r\(n)", createdAt: at(day), updatedAt: at(day))
+    }
+    private func workspace(goal: Bool, records: [ParentingRecord]) -> ParentingWorkspace {
+        ParentingWorkspace(children: [ParentingChild(id: childA, name: "小星", createdAt: at(1))],
+                           goals: goal ? [ParentingGoal(id: goalA, childID: childA, title: "阅读", createdAt: at(1))] : [],
+                           arrangements: [], records: records)
+    }
+
+    func testGrowthBaseHasOneThresholdForBothResolvers() {
+        XCTAssertEqual(ParentingGrowthInsights.goalSuggestionThreshold, ParentingStartAction.growthGoalObservationThreshold)
+        XCTAssertEqual(ParentingGrowthInsights.observationGapDays, ParentingStartAction.observationGapDays)
+        XCTAssertEqual(ParentingStartAction.growthBase(records: [], hasGoal: false), .noRecords)
+        let n = ParentingStartAction.growthGoalObservationThreshold
+        let few = (0..<(n - 1)).map { record($0, day: 20) }, enough = (0..<n).map { record($0, day: 20) }
+        XCTAssertEqual(ParentingStartAction.growthBase(records: few, hasGoal: false), .continueRecording)
+        XCTAssertEqual(ParentingStartAction.growthBase(records: enough, hasGoal: false), .giveGoal(observationCount: n))
+        XCTAssertEqual(ParentingStartAction.growthBase(records: enough, hasGoal: true), .continueRecording)
+        let completions = (0..<n).map { record($0, .completion, day: 20) }
+        XCTAssertEqual(ParentingStartAction.growthBase(records: completions, hasGoal: false), .continueRecording, "completions are not observations")
+    }
+
+    func testGrowthStartCardAndTodayResolverAgreeOnOfferingAGoal() {
+        let n = ParentingStartAction.growthGoalObservationThreshold
+        // Records are older than a week, so no weekly-review prompt is due and the shared rule decides.
+        for (count, hasGoal) in [(0, false), (n - 1, false), (n, false), (n + 3, false), (n, true)] {
+            let ws = workspace(goal: hasGoal, records: (0..<count).map { record($0, day: 5) })
+            let card = ParentingGrowthStart.choose(workspace: ws, childID: nil, now: now, calendar: calendar)
+            let today = ParentingStartAction.resolve(.growth, workspace: ws, now: now, calendar: calendar)
+            var cardOffersGoal = false, todayOffersGoal = false
+            if case .makeGoal(let c) = card.kind { cardOffersGoal = true; XCTAssertEqual(c, count) }
+            if case .giveObservationsAGoal(_, let c) = today { todayOffersGoal = true; XCTAssertEqual(c, count) }
+            XCTAssertEqual(cardOffersGoal, todayOffersGoal, "count \(count), goal \(hasGoal)")
+            XCTAssertEqual(cardOffersGoal, count >= n && !hasGoal)
+        }
+    }
+
+    func testScopedChildIsTheStartActionActiveChild() {
+        let older = UUID(), newer = UUID()
+        let ws = ParentingWorkspace(children: [ParentingChild(id: newer, name: "B", createdAt: at(10)), ParentingChild(id: older, name: "A", createdAt: at(2))],
+                                    goals: [], arrangements: [], records: [])
+        for preferred: UUID? in [nil, older, newer, UUID()] {
+            XCTAssertEqual(ParentingGrowthInsights.scopedChild(in: ws, preferred: preferred)?.id,
+                           ParentingStartAction.activeChild(in: ws, preferred: preferred)?.id)
+        }
     }
 }

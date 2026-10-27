@@ -9,10 +9,10 @@ public enum ParentingGrowthInsights {
     public static let goalMarks = [1, 5, 10, 20]
     /// A goal with no linked record for more than this many days reads as "quiet".
     public static let quietAfterDays = 7
-    /// Same threshold as the Today/Growth start-action resolver (#132): enough observations to offer naming a goal.
-    public static let goalSuggestionThreshold = 5
-    /// Without a record for this many calendar days the start card asks for a new observation.
-    public static let observationGapDays = 2
+    /// Enough observations to offer naming a goal. Defined once, in `ParentingStartAction`.
+    public static let goalSuggestionThreshold = ParentingStartAction.growthGoalObservationThreshold
+    /// Without a record for this many calendar days the start card asks for a new observation. Defined once, in `ParentingStartAction`.
+    public static let observationGapDays = ParentingStartAction.observationGapDays
     /// Record-count milestones on the timeline, besides the very first record.
     public static let recordMilestones = [10, 25, 50, 100]
     /// Children cycle through this many accent slots (avatar ring, dots, progress ring).
@@ -20,8 +20,7 @@ public enum ParentingGrowthInsights {
 
     /// The requested child if it exists, else the earliest-created one.
     public static func scopedChild(in workspace: ParentingWorkspace, preferred: UUID?) -> ParentingChild? {
-        if let preferred, let match = workspace.children.first(where: { $0.id == preferred }) { return match }
-        return workspace.children.min { ($0.createdAt, $0.id.uuidString) < ($1.createdAt, $1.id.uuidString) }
+        ParentingStartAction.activeChild(in: workspace, preferred: preferred)
     }
 
     /// Stable accent slot for a child: its position in creation order, wrapped. Nil child (deleted) falls back to slot 0.
@@ -208,8 +207,8 @@ public struct ParentingGoalProgress: Equatable, Sendable, Identifiable {
 // MARK: - The one start action
 
 /// Exactly one recommended thing for the top of the 成长 tab. It only recommends; the parent decides and confirms in the usual sheets.
-/// The thresholds match `ParentingStartAction.resolve(.growth, …)` (#132); once that lands this resolver can delegate to it and keep
-/// only the per-goal refinement (`recordForGoal`).
+/// The shared growth rules (no records / enough observations for a goal) come from `ParentingStartAction.growthBase`, the same
+/// function `resolve(.growth, …)` uses; this resolver only adds the per-goal refinement (`recordForGoal`) and the quiet-days rules.
 public struct ParentingGrowthStart: Equatable, Sendable {
     public enum Kind: Equatable, Sendable {
         /// No child yet.
@@ -245,14 +244,12 @@ public struct ParentingGrowthStart: Equatable, Sendable {
         let goals = ParentingGoalProgress.build(workspace: workspace, childID: child.id, now: now, calendar: calendar)
         func start(_ kind: Kind) -> ParentingGrowthStart { ParentingGrowthStart(kind: kind, childID: child.id) }
 
+        let base = ParentingStartAction.growthBase(records: records, hasGoal: !goals.isEmpty)
         guard let lastRecord = records.map(\.createdAt).max() else {
             if let first = goals.first { return start(.recordForGoal(goalID: first.goal.id)) }
             return start(.firstObservation)
         }
-        let observations = records.filter { $0.kind == .observation }.count
-        if goals.isEmpty, observations >= ParentingGrowthInsights.goalSuggestionThreshold {
-            return start(.makeGoal(observationCount: observations))
-        }
+        if case .giveGoal(let count) = base { return start(.makeGoal(observationCount: count)) }
         let sinceLast = ParentingGrowthInsights.dayDistance(from: lastRecord, to: now, calendar: calendar)
         if sinceLast == 0 { return start(.reviewWeek) }
         if let needy = goals.filter({ $0.activity != .recent }).min(by: { a, b in

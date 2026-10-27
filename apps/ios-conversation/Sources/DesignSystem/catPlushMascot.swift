@@ -6,9 +6,12 @@ import os
 private let mascotLog = Logger(subsystem: "catpaw", category: "mascot")
 
 /// 毛绒小伙伴 plush mascot (`Assets.xcassets/catBrand/Mascot/`).
-/// Six poses: 等待 · 思考 · 写回复 · 执行 · 完成 · 出错. Reduce Motion → still pose.
+/// Six presence poses: 等待 · 思考 · 写回复 · 执行 · 完成 · 出错, plus three scene poses that are never a presence state:
+/// 记一笔 (`note`, a saved record), 晚安 (`night`, the evening prompt) and 抱歉 (`sorry`, an apology empty state).
+/// Reduce Motion → still pose.
 enum PlushMascotPose: String, CaseIterable, Equatable {
     case idle, thinking, writing, executing, done, error
+    case note, night, sorry
 
     /// Connection + turn presence → plush pose.
     init(_ state: catPresenceState) {
@@ -30,6 +33,19 @@ enum PlushMascotPose: String, CaseIterable, Equatable {
         case .executing: "MascotExecuting"
         case .done: "MascotDone"
         case .error: "MascotError"
+        case .note: "MascotNote"
+        case .night: "MascotNight"
+        case .sorry: "MascotSorry"
+        }
+    }
+
+    /// The scene poses were cut onto a square canvas where the cat fills ~78% of the width (the six presence poses fill ~95%).
+    /// Drawing them at `size × 1.22` makes the cat the same size as the presence poses at the same `size`.
+    static let sceneArtScale: CGFloat = 1.22
+    var artScale: CGFloat {
+        switch self {
+        case .note, .night, .sorry: Self.sceneArtScale
+        default: 1
         }
     }
 
@@ -44,7 +60,8 @@ enum PlushMascotPose: String, CaseIterable, Equatable {
         case .writing: "正在写回复"
         case .executing: "正在执行"
         case .done: "已完成"
-        case .error: "暂时出错了"
+        case .error, .sorry: "暂时出错了"
+        case .note, .night: "在这里等你"   // scene poses are never a header state; the key only keeps this switch total
         }
     }
 }
@@ -83,7 +100,7 @@ struct PlushMascot: View {
         return ZStack {
             Image(pose.assetName)
                 .resizable().interpolation(.high).scaledToFit()
-                .frame(width: size, height: size)
+                .frame(width: size * pose.artScale, height: size * pose.artScale)
                 // 等待: slow blink = brief vertical squash
                 .scaleEffect(x: 1, y: blink ? 0.94 : 1, anchor: .bottom)
                 .scaleEffect(scale(animate), anchor: .bottom)
@@ -104,7 +121,7 @@ struct PlushMascot: View {
                     .offset(y: -size * 0.36)
             }
         }
-        .frame(width: size * 1.15, height: size * 1.15)
+        .frame(width: size * 1.15 * pose.artScale, height: size * 1.15 * pose.artScale)
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: pose)
         .onAppear { start() }
         .onChange(of: pose) { _, _ in start() }
@@ -147,6 +164,7 @@ struct PlushMascot: View {
         case .executing: loop = .easeInOut(duration: 0.6).repeatForever(autoreverses: true)
         case .done: loop = .spring(response: 0.3, dampingFraction: 0.45).repeatCount(2, autoreverses: true)
         case .error: return   // 暂停等待: still
+        case .note, .night, .sorry: return   // scene poses: still
         }
         withAnimation(loop) { phase = true }
         if pose == .executing {

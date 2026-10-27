@@ -91,3 +91,28 @@ public struct ParentingWeeklyReviewStore: @unchecked Sendable {
     public func save(_ date: Date) { defaults.set(date.timeIntervalSince1970, forKey: key) }
     public func erase() { defaults.removeObject(forKey: key) }
 }
+
+/// Re-entry guard for the Today hero's one-tap 「完成」. It is a plain value so the rule can be tested without a view:
+/// - only one completion is in flight at a time, and
+/// - right after a completion the hero already shows the next arrangement, so taps in the next `cooldown` seconds are ignored
+///   (a double tap must complete one item, never two). A failed save does not start the cooldown, so the parent can retry at once.
+public struct ParentingOneTapGate: Equatable, Sendable {
+    public static let cooldown: TimeInterval = 0.8
+    public private(set) var inFlight = false
+    public private(set) var lastCompletedAt: Date?
+    public init() {}
+
+    /// True when this tap may start a completion. Closes the gate until `finish`.
+    public mutating func begin(now: Date) -> Bool {
+        guard !inFlight else { return false }
+        if let last = lastCompletedAt, now.timeIntervalSince(last) < Self.cooldown, now >= last { return false }
+        inFlight = true
+        return true
+    }
+
+    /// `completedAt` is nil when the save failed or was refused.
+    public mutating func finish(completedAt: Date?) {
+        inFlight = false
+        if let completedAt { lastCompletedAt = completedAt }
+    }
+}

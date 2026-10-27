@@ -194,6 +194,7 @@ extension View {
     let onAddChild: () -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
+    @Environment(\.dynamicTypeSize) private var sheetTypeSize
 
     private func ui(_ key: String) -> String { AppLanguage(locale: locale).ui(key) }
     private var savedReceipt: String? { if case .saved(let receipt) = input.phase { return receipt } else { return nil } }
@@ -374,9 +375,13 @@ extension View {
 
     private func saved(_ receipt: String) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label(ui(receipt), systemImage: "checkmark.circle.fill").font(.title3.weight(.semibold))
-                .foregroundStyle(catColors.success)
-                .accessibilityIdentifier("parenting.natural.receipt")
+            HStack(alignment: .center, spacing: 12) {
+                // 记一笔: the plush cat with its notebook confirms a saved record. Decorative; hidden at accessibility sizes.
+                if !sheetTypeSize.isAccessibilitySize { PlushMascot(pose: .note, size: 38) }
+                Label(ui(receipt), systemImage: "checkmark.circle.fill").font(.title3.weight(.semibold))
+                    .foregroundStyle(catColors.success)
+                    .accessibilityIdentifier("parenting.natural.receipt")
+            }
             Text(ui("已保存在这台设备上；今天页和成长页会同步显示。")).font(.subheadline).foregroundStyle(catColors.calmSecondary)
             Button(ui("好的")) { input.reset(); dismiss() }
                 .parentingPrimaryButton()
