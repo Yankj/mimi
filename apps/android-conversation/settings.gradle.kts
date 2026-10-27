@@ -24,6 +24,7 @@ rootProject.name = "mimi-android"
 
 include(":app")
 include(":core:domain")
+include(":core:data")
 include(":core:designsystem")
 include(":core:i18n")
 include(":feature:parenting")

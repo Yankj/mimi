@@ -22,6 +22,21 @@ object CanonicalJson {
     @Throws(StrictJsonException::class)
     fun hash(input: ByteArray, maxBytes: Int = DEFAULT_MAX_BYTES): String = sha256Hex(data(input, maxBytes))
 
+    /** 把 kotlinx 编码出的 JSON 树编码成规范文本（命令指纹用）。 */
+    fun stringify(element: kotlinx.serialization.json.JsonElement): String = stringify(fromElement(element))
+
+    private fun fromElement(e: kotlinx.serialization.json.JsonElement): JsonValue = when (e) {
+        is kotlinx.serialization.json.JsonNull -> JsonValue.Null
+        is kotlinx.serialization.json.JsonPrimitive -> when {
+            e.isString -> JsonValue.Str(e.content)
+            e.content == "true" -> JsonValue.Bool(true)
+            e.content == "false" -> JsonValue.Bool(false)
+            else -> JsonValue.Num(e.content, e.content.toDouble())
+        }
+        is kotlinx.serialization.json.JsonArray -> JsonValue.Arr(e.map(::fromElement))
+        is kotlinx.serialization.json.JsonObject -> JsonValue.Obj(LinkedHashMap<String, JsonValue>().also { m -> e.forEach { (k, v) -> m[k] = fromElement(v) } })
+    }
+
     /** 把已经解析好的值树编码成规范文本。 */
     fun stringify(value: JsonValue): String = StringBuilder().also { write(value, it) }.toString()
 
