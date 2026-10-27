@@ -489,6 +489,51 @@ apps/android-conversation/
 
 M0 验收（本机，无设备）：见 README 的“构建与测试”；全部 36 个 JVM 测试通过、debug APK 约 30 MB 可产出。**未验证（需要真机）**：Haze 真实模糊（Android 12+）与 10/11 的降级色罩、着色按钮按下态手感、启动页与主题图标、不同厂商 ROM 的小差异。
 
+### 8.2 M1 实施记录与偏差（2026-10-28，分支 `feat/android-m1`，叠在 `feat/android-m0` 上）
+
+已落地：
+
+- **`core:domain`（纯 Kotlin/JVM）**：把 iOS `Domain` 里的育儿规则逐条移植——工作区归约器（`Workspace`：待确认卡 / 一键撤销窗口 / 成长记录 / 待处理上限 48）、自然语言输入（`NaturalLexicon` / `NaturalInput`，Swift `Character` → 字素簇，`NSRegularExpression` → `java.util.regex` + `UNICODE_CHARACTER_CLASS`）、确认卡、改期时间校验（严格的夏令时空档/重复判定）、提醒计划、时间线、开始动作、今日牌组与首页、成长洞察、家庭摘要与启动清单、听写策略、`AccountEpoch`（账号切换令牌）、严格 JSON 扫描器与 canonical JSON（语义 = JS `JSON.stringify(JSON.parse(x))`：UTF-16 键序、ES `Number::toString` 最短数字、拒绝重复键/未配对代理/深度 > 64）。`AppLanguage` 从 `:app` 挪到这里。
+- **`core:data`（Android 库，无 Hilt）**：`ParentingWorkspaceStore` 账本，语义与 iOS 相同——确认前零写入；按 `revision` 的 CAS（冲突 → `Conflict`）；同一 `opID` + 同一指纹返回当前工作区、不同指纹 → `Invalid("重复操作的内容不一致。")`；并发同一操作在 blob CAS 冲突后按回执对账；记录缺失 = 合法的空；损坏/解不开/schema 不符/引用非法 → `Corrupt`，原字节保留且禁止写入；`AccountEpoch` 在每次读写与“封装 + 落盘”两处校验（过期 → `Unavailable`）；读取不会创建密钥或文件。存储 = AES-256-GCM（随机 IV、AAD 绑定 `mimi.parenting.ledger.v1:<subject>`、版本字节 1），密钥在 AndroidKeyStore（别名前缀 `mimi.parenting.ledger.v1.`，优先 StrongBox，不要求用户认证，**只在首次写入时创建**），落盘在 `noBackupFilesDir/parenting-ledger`（临时文件 + fsync + 原子替换 + 目录 fsync，内容哈希做版本 CAS）。偏好键 `parenting_workspace:v1:` + sha256(profile:workspace:subject)。
+- **DataStore**：`ThemePreferencesRepository`（键 `palette`、`theme`，与 iOS 同名，两键原子更新）、`DataStoreWeeklyReviewStore`（含 `purgeAll`）。
+- **Hilt 只在 `:app`**：`MimiApplication`、`MainActivity`（`@AndroidEntryPoint`）、`ThemeViewModel`（`Loading/Ready` 单向状态，读到已保存主题前一直保持启动页，避免默认主题闪一下）；`PersistenceModule`、`LedgerModule`（密钥提供者延迟创建）与 `ParentingLedgerFactory.open(scope, subject)` 留给 M2 使用。备份：`allowBackup=false` 且 `data_extraction_rules` / `backup_rules` 全部排除（Keystore 密钥不会迁移，迁走的密文无法解开）。
+- 构建：Hilt 2.60.1 通过 **KSP**（不是 kapt，AGP 9 内置 Kotlin 不支持 kapt）；协程 1.11.0、DataStore 1.3.0。
+
+与计划/iOS 的偏差：
+
+| 项 | 计划 / iOS | 实际 | 原因 / 后续 |
+|---|---|---|---|
+| 序列化 | iOS 的 Codable 形态 | 时间用 ISO-8601 Instant，UUID 用大写字符串；账本**不与 iOS 互通**，命令指纹与 iOS 冻结的字节**不相同** | 两端账本都只在本机，不需要互通；规则与语义一致即可。跨端对齐靠 canonical JSON 黄金向量（见下） |
+| 夹具 | 共享 | `memory-canonical-v1.json` 从 iOS 测试资源**复制**到 `core/domain/src/test/resources` | 不改 iOS 目录；两端各自断言同一份向量 |
+| 过期账号解密 | iOS 宽泛 catch → `Corrupt` | 解密时账号已过期 → `Unavailable` | 账号切换不应被当成数据损坏、触发“禁止写入” |
+| 家庭摘要 / 启动清单 | iOS 在 Features 层 | 放进 `core:domain`（`FamilySummary.kt`） | 纯逻辑、无 UI 依赖，便于 JVM 测试 |
+| Keystore 测试 | — | JVM 里用 JCA `PKCS12` 做同接口的密钥提供者（Robolectric 没有 AndroidKeyStore provider）；真 Keystore 的用例在 `core/data/src/androidTest/.../AndroidKeystoreInstrumentedTest.kt`，**只编译、未运行** | 本机没有设备/模拟器（第 7.4 节） |
+| 本地化检查 | 全部 Kotlin 不得含中文字面量 | `check-localization.py` 对 `core:domain`、`core:data` 豁免（语法词表与 iOS 同文的错误文案，当前 292 处，脚本会打印数量） | 词表不是 UI 文案；UI 模块仍严格检查 |
+| 补充文案 | M1 不动 | 7 条 `UIStringsAndroid.json` 仍在 | 按计划设置页上线时并回共享目录 |
+
+iOS 测试 → Android 测试对照（用例逐条移植，断言值不改）：
+
+| iOS | Android | 数量 |
+|---|---|---|
+| `ParentingWorkspaceTests`（纯领域部分） | `WorkspaceReducerTest`、`ArrangementEditTest`、`StartActionTest`、`GrowthInsightsTest`、`TodayDeckTest`、`FamilySummaryTest` | 110 |
+| `ParentingWorkspaceTests`（加密仓库边界：账本、回执、屏障、损坏） | `core:data` `ParentingWorkspaceStoreTest`（+ `KeystoreProviderAndBlobStoreTest` 10、`PreferencesTest` 5） | 28 + 15 |
+| 自然语言输入 | `NaturalInputTest` | 20 |
+| `ParentingReminderPlannerTests` | `ReminderPlannerTest` | 9 |
+| `ParentingRescheduleIntakeTests`（时间校验器部分） | `RescheduleTimeTest` | 5 |
+| canonical JSON 黄金向量 + 严格 JSON | `CanonicalJsonTest`、`StrictJsonTest`（黄金向量另有 Node 编码器交叉核对，抓到过 `5e-324` 与孤立代理两个真 bug） | 7 |
+| 听写策略 / `AccountEpoch` | `DictationPolicyTest`、`AccountEpochTest` | 9 |
+| —（新增） | `app`：Hilt 图、主题持久化、`ThemeViewModel` 冷启动 | 5 |
+
+**未移植（有意推迟）**：Intake/InlineIntake、`AccountParkedItems`、`ParentingIntakeDraft.parse`、改期 intake 控制器/恢复用例（M5，依赖聊天/云整理）；听写控制器（M3）；提醒调度器与通知中心/权限/设置持久化用例（M4）；除主题外的 ViewModel / UI 用例（M2 起）。
+
+M1 验收（本机，无设备）：`scripts/verify.sh` 全绿，**242 个 JVM 测试，0 失败**（`app` 5、`core:data` 43、`core:designsystem` 17、`core:domain` 164、`core:i18n` 5、`feature:parenting` 8；`scripts/test-counts.py` 汇总），debug APK 约 35 MB，设备侧 Keystore 测试 APK 可组装。
+
+**未验证（需要真机）**：真实 AndroidKeyStore（AES-GCM 生成/解密、StrongBox 不可用时的回退、厂商 ROM 差异）；DataStore + Hilt 在真机冷启动；启动页保持到主题读出的观感；备份排除规则在真实 `adb backup`/换机上的表现。
+
+**M2 需要**：① 账号/会话到 `AccountEpoch` 的接线（登录、登出、切换账号时 `AccountEpoch` 推进，并调用 `ParentingLedgerFactory.open`）；② 三 Tab 的 ViewModel 读 `ParentingWorkspaceStore`（今日牌组、成长、我们家）；③ 设置页并回 7 条补充文案；④ **真机最迟 M2 末接入**：先跑 `AndroidKeystoreInstrumentedTest`（`./gradlew :core:data:connectedDebugAndroidTest`）与 M0/M1 的真机清单；M3 起语音必须真机。M2 不需要后端改动。
+
+---
+
 ## 9. 风险与对策
 
 | # | 风险 | 影响 | 对策 |

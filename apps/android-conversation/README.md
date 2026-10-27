@@ -4,7 +4,7 @@ mimi 的 Android 版：Kotlin + Jetpack Compose + Material 3 原生实现，产�
 后端沿用同一套 Supabase Edge Functions（本目录不改后端、不放任何密钥）。
 选型理由、模块规划与里程碑见 [docs/android/PLAN.md](../../docs/android/PLAN.md)。
 
-**当前状态：M0（工程脚手架 + 主题）。** 能构建并通过全部 JVM 测试；界面只有“今天｜成长｜我们家”三 Tab 空壳，
+**当前状态：M1（领域层 + 加密账本 + Hilt/DataStore）。** 能构建并通过全部 JVM 测试（242 个）；界面仍只有“今天｜成长｜我们家”三 Tab 空壳，
 “我们家”页临时放了配色/外观切换和着色按钮预览，用来目测 B/C × 浅/深四种主题。真机验收等手机接入后再做。
 
 ## 版本（2026-10-28 复核）
@@ -26,13 +26,14 @@ mimi 的 Android 版：Kotlin + Jetpack Compose + Material 3 原生实现，产�
 
 ```
 apps/android-conversation
-├── app/                    # 应用壳：MainActivity、启动页、桌面图标、manifest（Hilt 等从 M1 起加）
+├── app/                    # 应用壳：MainActivity、启动页、桌面图标、manifest；Hilt 只在这里（di/ 里的两个模块）
 ├── core/
-│   ├── domain/             # 纯 JVM：Palette / Appearance / ThemePreferences（键 "palette"、"theme"，与 iOS 同名）
+│   ├── domain/             # 纯 JVM：主题偏好 + 育儿领域（工作区归约器、自然语言输入、改期/提醒规则、今日/成长、canonical JSON、AccountEpoch…）
+│   ├── data/               # Android 库：Keystore AES-GCM 加密账本（ParentingWorkspaceStore）、DataStore 偏好；无 Hilt
 │   ├── designsystem/       # 令牌（tokens/）、MimiTheme、着色玻璃按钮、页面色晕、吉祥物、Tab 图标
 │   └── i18n/               # UIStrings.json 加载（构建时从 iOS Resources 同步）+ ui(key, args)
 ├── feature/parenting/      # 三 Tab 空壳（后续里程碑填内容）
-├── scripts/                # android-env.sh、verify.sh、check-localization.py、export-theme-tokens.py
+├── scripts/                # android-env.sh、verify.sh、check-localization.py、export-theme-tokens.py、test-counts.py
 ├── gradle/libs.versions.toml
 └── version.properties      # versionName / versionCode 的唯一来源
 ```
@@ -56,7 +57,7 @@ source scripts/android-env.sh
 
 ./gradlew assembleDebug        # → app/build/outputs/apk/debug/app-debug.apk（约 30 MB）
 ./gradlew test                 # 全部 JVM 单测（含 Robolectric 的 Compose UI 测试），不需要设备
-scripts/verify.sh              # 一键：令牌快照校验 + 文案检查 + 全部单测 + 构建 APK
+scripts/verify.sh              # 一键：令牌快照校验 + 文案检查 + 全部单测（按模块汇总计数）+ 构建 APK + 组装设备侧测试 APK
 scripts/verify.sh --no-build   # 同上但不出 APK
 ```
 
@@ -71,7 +72,11 @@ scripts/verify.sh --no-build   # 同上但不出 APK
 | `core:i18n` | `UiCatalogTest` | 占位符、回落规则、语言选择、共享目录 2348 键一致性、补充目录不遮蔽共享目录 |
 | `feature:parenting` | `ParentingHomeScreenTest` | 三 Tab 空壳；测试标签 `parenting.tabBar`、`parenting.tab.today/growth/family` 与 iOS 的 accessibilityIdentifier 相同；中英文标题；配色与外观切换互相独立 |
 | `feature:parenting` | `ShellScreenshotTest` | 用 Robolectric 原生图形渲染 B/C × 浅/深 四张“我们家”页 PNG 到 `feature/parenting/build/screenshots/`（不入库） |
-| `app` | `MainActivityTest` | 真实 `MainActivity`（含启动页主题）起得来；applicationId 固定 |
+| `app` | `MainActivityTest` | Hilt + Robolectric：真实 `MainActivity` 起得来；applicationId 固定；点配色/外观后写入 DataStore（键 `palette`/`theme`）；Hilt 图能给出可用的加密账本 |
+| `app` | `ThemeViewModelTest` | 主题偏好冷启动后仍在 |
+| `core:domain` | 育儿领域（164 个，含主题 4） | 移植自 iOS 领域测试，断言值不改；对照表见 PLAN 8.2 |
+| `core:data` | `ParentingWorkspaceStoreTest` 等（43 个） | 账本语义（确认前零写入、CAS、重复操作、并发对账、损坏保留、账号过期）、密钥提供者与文件存储（JCA PKCS12 代替 AndroidKeyStore）、DataStore |
+| `core:data` androidTest | `AndroidKeystoreInstrumentedTest` | 真 AndroidKeyStore 往返；**只编译、未运行**（需要设备） |
 
 ### 主题令牌与 iOS 保持一致
 
@@ -105,11 +110,13 @@ adb shell am start -n com.heydusk.mimi/.MainActivity
 首次真机验收清单（M0）：四种主题切换（我们家 → 配色/外观）；底栏 Haze 模糊在 Android 12+ 上是否真的模糊、
 在 Android 10/11 上是否退回纯色罩而不是空白；着色按钮按下态；启动页与桌面图标（含 Android 13 主题图标）。
 
-## 已知限制（M0）
+## 已知限制（M1）
 
 - **没有模拟器验证**：开发机的 `/dev/kvm` 不可用，模拟器起不来；M0 的视觉验证靠 Robolectric 原生渲染截图 + 真机。
   Robolectric 里 Haze 走降级色罩，真实模糊只能在真机上看。
-- 主题偏好只在内存里（旋转保留）；DataStore 持久化、Hilt、导航、网络与账号从 M1 起。
+- 真 AndroidKeyStore 没在任何设备上跑过（JVM 里用 JCA PKCS12 代替）；`AndroidKeystoreInstrumentedTest` 只编译。
+- 账本已就绪但没有 UI 使用它，`AccountEpoch` 也没人驱动（M2 接登录/三 Tab）；导航、网络与账号从 M2 起。
+- 备份：`allowBackup=false` 并排除全部数据（Keystore 密钥不迁移）。
 - “降低透明度”目前只有 `LocalReduceTransparency` 应用内开关；系统信号在 M2 的设置页接入。
 - 暂无 CI（GitHub Actions 额度已用完），本地 `scripts/verify.sh` 就是门禁。
 - Release 构建未配置签名与混淆验证（M6）。
