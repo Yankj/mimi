@@ -64,6 +64,8 @@ public enum ParentingStartAction: Equatable, Sendable {
     public static let eveningStartHour = 18
     public static let eveningEndHour = 21 // exclusive
     public static let growthGoalObservationThreshold = 5
+    /// Without a record for this many calendar days the 成长 start card asks for a new observation.
+    public static let observationGapDays = 2
     public static let weeklyReviewIntervalDays = 7
 
     public static let examplePrompts: [String] = [
@@ -122,17 +124,33 @@ public enum ParentingStartAction: Equatable, Sendable {
             return .examplePrompt(text: examplePrompt(now: now, calendar: calendar))
         }
         let records = workspace.records.filter { $0.childID == child.id }
-        guard !records.isEmpty else { return .examplePrompt(text: examplePrompt(now: now, calendar: calendar)) }
+        let base = growthBase(records: records, hasGoal: workspace.goals.contains { $0.childID == child.id })
+        if base == .noRecords { return .examplePrompt(text: examplePrompt(now: now, calendar: calendar)) }
 
         if let reason = weeklyReviewReason(records: records, now: now, calendar: calendar, lastReviewAt: context.lastWeeklyReviewAt) {
             return .weeklyReview(reason: reason)
         }
-        let observations = records.filter { $0.kind == .observation }.count
-        let hasGoal = workspace.goals.contains { $0.childID == child.id }
-        if observations >= growthGoalObservationThreshold, !hasGoal {
-            return .giveObservationsAGoal(childID: child.id, observationCount: observations)
-        }
+        if case .giveGoal(let count) = base { return .giveObservationsAGoal(childID: child.id, observationCount: count) }
         return .recordObservation(childID: child.id)
+    }
+
+    /// The growth rules every growth recommendation starts from. `resolve(.growth, …)` (the weekly-review prompt on 今天) and
+    /// `ParentingGrowthStart.choose` (the 成长 start card) both call this, so the thresholds live in exactly one place.
+    public enum GrowthBase: Equatable, Sendable {
+        /// The child has no record yet.
+        case noRecords
+        /// At least `growthGoalObservationThreshold` observations and no goal: offer to name one.
+        case giveGoal(observationCount: Int)
+        /// Anything else: keep recording.
+        case continueRecording
+    }
+
+    /// `records` are the one child's records; `hasGoal` is whether that child has any goal.
+    public static func growthBase(records: [ParentingRecord], hasGoal: Bool) -> GrowthBase {
+        guard !records.isEmpty else { return .noRecords }
+        let observations = records.filter { $0.kind == .observation }.count
+        if observations >= growthGoalObservationThreshold, !hasGoal { return .giveGoal(observationCount: observations) }
+        return .continueRecording
     }
 
     /// Sunday from 18:00 (if not reviewed yet today), or at least seven days since the last review.

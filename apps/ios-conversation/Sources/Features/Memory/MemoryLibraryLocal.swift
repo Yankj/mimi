@@ -51,6 +51,8 @@ enum AccountLocalData {
     static func purge(defaults: UserDefaults) {
         for k in userDefaultsKeys { defaults.removeObject(forKey: k) }
         for k in defaults.dictionaryRepresentation().keys where k.hasPrefix(MemoryRecallLoader.offKeyPrefix) { defaults.removeObject(forKey: k) }
+        // 周复盘: the "last reviewed" date is kept per subject in UserDefaults, outside the encrypted ledger, so sign-out clears it here.
+        for k in defaults.dictionaryRepresentation().keys where k.hasPrefix(ParentingWeeklyReviewStore.keyPrefix) { defaults.removeObject(forKey: k) }
     }
     /// Portable core of sign-out (the app adds notifications, widget, Live Activity, L2 wipe): first close the session
     /// generation so in-flight work cannot write back, then drop the memory cache, the local library and the keys.

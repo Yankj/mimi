@@ -67,6 +67,7 @@ extension View {
     @State private var pendingTap: PendingTap?
     @State private var confirmOperations: [UUID: UUID] = [:]
     @State private var working = false
+    @State private var tapGate = ParentingOneTapGate()
     @State private var showAll = false
 
     /// Reused when the same tap is retried after a failed save, so a retry can never save twice.
@@ -172,7 +173,8 @@ extension View {
                     }
                 }
             case .recordTodaySmallThing:
-                heroText(symbol: "moon.stars", eyebrow: ui("今晚"), title: ui("今天有什么小事想记下？"),
+                // 晚安: the evening prompt shows the sleepy plush cat in place of the moon symbol (still one hero, one action).
+                heroText(symbol: "moon.stars", mascot: .night, eyebrow: ui("今晚"), title: ui("今天有什么小事想记下？"),
                          detail: ui("一句话就好，小咪会先给你一张确认卡。"))
                 Button { onFillDraft(ui("记一下，")) } label: { heroButtonLabel(ui("说一句")) }
                     .parentingTodayPrimaryGlassButton().disabled(disabled)
@@ -193,9 +195,13 @@ extension View {
         .accessibilityIdentifier("parenting.today.hero")
     }
 
-    private func heroText(symbol: String, eyebrow: String?, title: String, detail: String) -> some View {
+    private func heroText(symbol: String, mascot: PlushMascotPose? = nil, eyebrow: String?, title: String, detail: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: symbol).font(.title2).foregroundStyle(catColors.actionText).accessibilityHidden(true)
+            if let mascot {
+                PlushMascot(pose: mascot, size: 52).accessibilityHidden(true)
+            } else {
+                Image(systemName: symbol).font(.title2).foregroundStyle(catColors.actionText).accessibilityHidden(true)
+            }
             if let eyebrow {
                 Text(verbatim: eyebrow).font(catTypography.Role.caption.font.weight(.medium)).foregroundStyle(catColors.calmSecondary)
             }
@@ -310,7 +316,9 @@ extension View {
 
     // MARK: Actions (each is the parent's own tap; failures surface through `model.error`)
     private func completeOneTap(_ item: ParentingArrangement) {
-        guard !disabled else { return }
+        // The gate closes synchronously, before the next render: a second tap in the same moment, or on the next
+        // arrangement that appears the instant this one is saved, must not complete anything else.
+        guard !disabled, tapGate.begin(now: Date()) else { return }
         working = true
         let tap: PendingTap
         if let existing = pendingTap, existing.arrangementID == item.id { tap = existing }
@@ -318,6 +326,7 @@ extension View {
         pendingTap = tap
         Task {
             let handle = await model.completeOneTap(item.id, operationID: tap.operationID, recordID: tap.recordID)
+            tapGate.finish(completedAt: handle == nil ? nil : Date())
             working = false
             guard let handle else { return }
             pendingTap = nil
