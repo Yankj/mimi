@@ -456,7 +456,7 @@ apps/android-conversation/
 | **M1 领域层与加密账本** | 逻辑 1:1 | 移植 `Domain/Parenting*`（≈2350 行）：`ParentingWorkspace`/`ParentingCommand` reducer、自然语言词法与时间读取、改期、提醒规划、今天/成长投影、启航清单；`DictationPolicy`；`AccountEpoch`；严格/规范化 JSON；Keystore AES-GCM 账本 + CAS + 损坏阻写；金标准夹具（iOS 与 Android 共用）；iOS→Android 测试对照表 | 6–8 天 | L1/L2 全绿；金标准表双端一致；覆盖率 ≥90%（domain） |
 | **M2 三 Tab 壳 + 手动录入** | 可手动使用 | 今天/成长/我们家三屏、悬浮底栏、大标题折叠、孩子/目标/安排/观察/完成/改期/调整历史/删除的表单与菜单、一键完成 + 3 秒撤销、启航清单、设置页（外观/主题、数据清除、关于/版本）、隐私遮罩、首次引导；全部 `parenting.*` testTag；字体 200% 与深色冒烟 | 9–12 天 | L3 旅程测试（对标 `ParentingWorkspaceUITests` 全部 14 条）；截图基线；Mac 模拟器冒烟；**首个内部 APK** ——M2 主路径见 §8.3，剩余项 M2b 已完成（§8.4） |
 | **M3 输入卡 · 语音 · 确认卡**（**已完成 JVM 部分，真机语音待验，见 §8.5**） | 对标默认交互 | 语音优先输入卡、「+」菜单、`SpeechRecognizer` 封装与分段/重试状态机、按住手势（上滑发送/左滑取消）、电平与计时、权限说明、本机自然语言整理、缺字段追问、半屏确认卡与回执自动收起、手动调整回流；`device-acceptance-android-v1.md` A/D 组 | 7–9 天 | L3 + 假识别器旅程；**真机语音验收（A 组）**；确认前账本零写入有断言 |
-| **M4 本机提醒** | 到点提醒 | 通知渠道与权限、`AlarmManager` 调度、勿扰/每日上限/提前量、引导页、重启/时区/更新重排、状态行（已排/已到/已过/超限）；G 组验收 | 4–5 天 | L1/L3 + 真机 G 组（含 Doze 与电池优化说明） |
+| **M4 本机提醒**（**已完成 JVM 部分，真机 G 组待验，见 §8.6**） | 到点提醒 | 通知渠道与权限、`AlarmManager` 调度、勿扰/每日上限/提前量、引导页、重启/时区/更新重排、状态行（已排/已到/已过/超限）；G 组验收 | 4–5 天 | L1/L3 + 真机 G 组（含 Doze 与电池优化说明） |
 | **M5 账号与「让小咪整理」** | 云联通 | Supabase Auth（匿名/邮箱/Google/GitHub PKCE）、令牌与刷新围栏、账号切换清除、`catpaw/account/v1/session`、原位整理（许可、等待、失败重试、取消、只读恢复、清理队列）、功能准入；需要 Supabase 允许 Android 回调（问题 5） | 8–10 天 | MockWebServer + iOS 夹具；真机连测试后端的一次受控检查（**需用户另行同意真实模型调用**） |
 | ━━ 育儿壳对标完成（M0–M5） | | | **约 38–49 天 ≈ 8–10 周** | 三方评分 ≥20/25，信任与安全 ≥4/5；真机 A–H 组验收 |
 | ~~**M6 高级聊天（P1）**~~ **不做** | 「高级与历史」 | `feature:chat`：SSE 聊天与断线恢复、live text、Markdown、回答阶段、相机/相册附件（Photo Picker/CameraX）、模型许可、语音对话 + TTS、会话历史、Room 缓存与 outbox | ~~12–15 天~~ 0 | 范围外（原对话不做） |
@@ -526,7 +526,7 @@ iOS 测试 → Android 测试对照（用例逐条移植，断言值不改）：
 | 听写策略 / `AccountEpoch` | `DictationPolicyTest`、`AccountEpochTest` | 9 |
 | —（新增） | `app`：Hilt 图、主题持久化、`ThemeViewModel` 冷启动 | 5 |
 
-**未移植（有意推迟）**：Intake/InlineIntake、`AccountParkedItems`、`ParentingIntakeDraft.parse`、改期 intake 控制器/恢复用例（M5，依赖聊天/云整理）；听写控制器（M3）；提醒调度器与通知中心/权限/设置持久化用例（M4）；除主题外的 ViewModel / UI 用例（M2 起）。
+**未移植（有意推迟）**：Intake/InlineIntake、`AccountParkedItems`、`ParentingIntakeDraft.parse`、改期 intake 控制器/恢复用例（M5，依赖聊天/云整理）；听写控制器（M3）；提醒调度器与通知中心/权限/设置持久化用例（M4，**已在 §8.6 移植**）；除主题外的 ViewModel / UI 用例（M2 起）。
 
 M1 验收（本机，无设备）：`scripts/verify.sh` 全绿，**242 个 JVM 测试，0 失败**（`app` 5、`core:data` 43、`core:designsystem` 17、`core:domain` 164、`core:i18n` 5、`feature:parenting` 8；`scripts/test-counts.py` 汇总），debug APK 约 35 MB，设备侧 Keystore 测试 APK 可组装。
 
@@ -649,6 +649,35 @@ M1 验收（本机，无设备）：`scripts/verify.sh` 全绿，**242 个 JVM �
 **M4 需要**：通知权限与精确闹钟权限的真机验证（Android 13+/12+），提醒设置页；M3 的确认卡/回执已经预留 `remindersEnabled` 入口。不需要后端改动。**M5 需要**：Supabase 回调（问题 5）、`parenting-intake` 接线（13 的云半段与旅程 3）。**M7** 保持「待用户确认」；**M6** 保持「不做」。
 
 ---
+
+### 8.6 M4 实施记录与偏差（2026-10-29，分支 `feat/android-m4`，叠在 `feat/android-m3` 上）
+
+**做了什么**（全部 JVM 内验证；无后端改动；真机未验）：
+
+- **新模块 `:core:device`**（Android 库，只依赖 `:core:domain`/`:core:i18n`/协程）：`ParentingReminderScheduler` 是 iOS `ParentingReminderScheduler` 的移植（Mutex 串行；规划用 M1 的 `ReminderPlanner`：21:00–08:00 勿扰→前一晚 20:30、每天 ≤2 条、`MAX_PENDING` 48、提前量 15m/30m/1h/前一晚 20:00；指纹签名只重排有变化的；账号屏障 `isCurrentAccount`；系统拒绝如实上报、不把已保存的账本改动变成失败）。系统面只有一个接口 `ReminderNotificationCenter`：生产 `AlarmNotificationCenter`（`AlarmManager` + `NotificationManager`），测试 `FakeReminderCenter`。读回 = 登记表有 **且** `PendingIntent(FLAG_NO_CREATE)` 还在 **且** 触发时间在未来。登记表只存 id/时间/签名，不存孩子名或事项（不留明文）。
+- **精确闹钟策略**（PLAN §4.8）：`canScheduleExactAlarms()`（Android 12+）为真用 `setExactAndAllowWhileIdle`，否则降级 `setAndAllowWhileIdle`，界面如实写「提醒可能晚几分钟」并给「闹钟和提醒」设置入口；**不申请 `USE_EXACT_ALARM`**（Play 只允许闹钟/日历类应用）。Doze 下仍可能延迟，页面给电池优化入口，不申请直接豁免。
+- **通知权限**（Android 13+）：`NotificationPermissionBridge` 把 Activity 的权限启动器变成挂起调用；先有站内说明卡，点「开启提醒」才弹系统框；`permissionAsked` 标记区分「未问过」与「被拒绝」；被拒后不再弹框，给「打开系统设置」，回到前台（`ON_RESUME`）自动重读并补排。13 以下按 `areNotificationsEnabled()`。渠道 `mimi_parenting_reminders`（高重要性，渠道名/说明走文案目录）。
+- **接收器**：`ReminderReceiver`（到点；只对**当前账号**发通知，退出登录后迟到的闹钟丢弃；锁屏可见性 PRIVATE；点按 → `mimi://parenting/arrangement/<id>` + 与 iOS 同名的 extras → 回到「今天」）；`ReminderSystemReceiver`（`BOOT_COMPLETED`、`MY_PACKAGE_REPLACED`、`TIMEZONE_CHANGED`、`TIME_SET`、`SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED`）→ `Application.onCreate` 里注册的 `ReminderHooks.resync` → 无界面地等账本就绪后重新对账（按加密账本重排，不依赖落盘的通知内容）。
+- **界面**：「今天」顶部提示卡（未开/未问过 → 开启；已被拒 → 打开系统设置）、安排行/卡上的提醒状态行（将在 … 提醒 / 未提醒：当天已有 2 条 / 未提醒：提醒时间已过 / 状态未确认）、「我们家 → 提醒」页（开关、提前量、锁屏隐藏内容、已排数量、精确闹钟与电池优化说明）、确认卡与「上线清单」里的提醒说明改读真实状态；`ParentingWorkspaceModel` 在账本写成功后对账（加载、每次 apply、设置变更、回前台）。取消/完成/删除/改期都经同一次对账撤掉旧提醒；退出登录清队列/已送达通知/设置/「已响过」记录；清除数据取消提醒但保留开关。
+- 文案：`UIStringsAndroid.json` 58 → 66 条（`check-localization` 通过；`:core:device` 属界面层，文案走目录）。`scripts/verify.sh` 追加 `:core:device:assembleDebugAndroidTest`；`device-acceptance-android-v1.md` 新增 **G 组**（16 项，全部待真机）。
+
+**测试**（`./scripts/verify.sh` 全绿）：**441 个 JVM 测试，0 失败**（M3 为 374，+67）——`app` 23（+8：`ShellRemindersTest` 5 = 壳状态/点通知账号核对与一次性消费/系统设置入口/退出登录清空；`MainActivityTest` +3 = **真实 Hilt 图**里打开提醒后 Robolectric `AlarmManager` 里确有 1 个闹钟、退出登录后清空；「我们家」有提醒页；点通知回「今天」且别的账号被忽略）、`core:data` 45、`core:designsystem` 17、`core:device` 43（`ParentingReminderSchedulerTest` 12 = 移植的调度器用例；`AlarmNotificationCenterTest` 13 = 精确/降级、读回、取消、权限三态、`removeAll`；`ReceiverTest` 11 = 到点/他人账号丢弃/重启·时区·校时·权限变化触发重排/深链解析；`StorageTest` 5；`ReminderCopyTest` 2）、`core:domain` 164、`core:i18n` 5、`core:voice` 36、`feature:parenting` 108（+16：`ReminderModelTest` 6 = iOS `ParentingReminderModelTests` 移植；`ReminderJourneyTest` 9；既有用例 +1 适配）。`:core:device:assembleDebugAndroidTest` 通过（`ReminderDeviceInstrumentedTest` 只编译未运行）。`scan-repository` blocking 19 / manual 8 未增加。
+
+**偏差与取舍**（诚实记录）：
+
+| 项 | 计划 | 实际 | 原因 / 后续 |
+|---|---|---|---|
+| 精确闹钟 | 视权限策略 | 有权限用精确，没有降级为非精确并在页面写明；不申请 `USE_EXACT_ALARM` | Android 14+ 默认不授予 `SCHEDULE_EXACT_ALARM`；真机 G4/G5/G14 验证实际延迟 |
+| 点通知的落点 | 深链到安排 | 回到「今天」页；深链 URI 与 extras 已带安排 id | Android 没有安排详情路由，iOS 对提醒点击也不做导航；M8 若加详情页再接 |
+| 引导页 | 独立引导页 | 「今天」提示卡 + 「我们家 → 提醒」页 | 与 iOS 实际入口一致，不另造页面 |
+| 登记表 | — | `SharedPreferences` 明文登记 id/时间/签名（不含内容）；设置按账号键 `mimi.parenting.reminders.v1.<subject>`（与 iOS 同名） | 通知本身要明文交给系统，登记表不放内容；退出登录一并抹掉 |
+| `FakeReminderCenter` | 测试源集 | 放在 `:core:device` **主源集** | 让 `:feature:parenting`/`:app` 的测试也能用，不引入 testFixtures；它不碰 Android API，不会被生产代码引用 |
+| 通知点击测试 | — | `MainActivityTest` 里直接取前台 Activity 调 `onNewIntent`，且 `onNewIntent` **不调用 `setIntent`** | 在 Robolectric 下 `scenario.onActivity`/`setIntent` 会让 `scenario.close()` 卡死；直接解析新 Intent 不需要它，也避免旋转重建重复处理 |
+| 重启重排 | `BOOT_COMPLETED` | 另加更新/时区/校时/精确闹钟权限变化四个触发 | 这些都会让闹钟或「当地一天/勿扰」的含义变化 |
+
+**未验证（只能在真机上）**：真实 Doze/省电白名单与国产 ROM 的后台限制（含「划掉后是否还响」）、`POST_NOTIFICATIONS` 系统框与「不再询问」、「闹钟和提醒」设置页的实际跳转与授权后的广播、开机/时区/校时/更新后的真实广播与进程唤醒时序、锁屏上的通知外观与隐藏内容、通知渠道设置页的用户改动（如静音）、点通知冷启动/热启动落在「今天」、真 AndroidKeyStore（仍从 M1 起未验）。清单见 `device-acceptance-android-v1.md` G 组。
+
+**M5 需要**：同 §8.5「M5 需要」；M4 不需要后端改动。**M7** 保持「待用户确认」；**M6** 保持「不做」。
 
 ---
 

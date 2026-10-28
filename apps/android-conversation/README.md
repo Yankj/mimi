@@ -4,12 +4,13 @@ mimi 的 Android 版：Kotlin + Jetpack Compose + Material 3 原生实现，产�
 后端沿用同一套 Supabase Edge Functions（本目录不改后端、不放任何密钥）。
 选型理由、模块规划与里程碑见 [docs/android/PLAN.md](../../docs/android/PLAN.md)。
 
-**当前状态：M3（M2b 之上加语音优先输入卡、「+」菜单、听写（`SpeechRecognizer` 封装）、端上自然语言整理与确认卡）。** 能构建并通过全部 JVM 测试（374 个）；语音与按住手势只能真机验收。
+**当前状态：M4（M3 之上加本机提醒：通知渠道与权限、AlarmManager 调度、勿扰/每天 2 条、重启/时区/校时重排、点通知回到「今天」）。** 能构建并通过全部 JVM 测试（441 个）；语音、按住手势与提醒（Doze、省电白名单、权限框、开机重排）只能真机验收。
 App 启动后在本机生成匿名“体验账号”（`AccountEpoch` 驱动，每个账号一个隔离的 Keystore 加密账本）；可手动添加孩子、目标、安排与观察
 （只有点“保存”才写账本，放弃零写入），确认草稿、一键完成并 3 秒内撤销；设置页有外观/配色、退出、清除全部数据、关于。
 M2b 另有：改期（同一安排改时间/标题/目标，同一分钟冲突需勾选确认）+ 调整历史与撤销、孩子/目标/安排/记录的删除与重命名（先确认）、带备注的完成表单、孩子详情与目标回顾页、大标题折叠、孩子筛选。
 M3：「今天/成长」底部有输入卡——点话筒听写、按住说话（上滑发送、左滑取消）、键盘输入、「+」手动记安排/观察；说的话先变成可编辑文字，再整理成确认卡，**点确认才写账本**（之前零写入）；缺信息只追问一个问题。首次点话筒先有站内说明；设置页「语音识别」行如实显示本机/系统语音服务（可能在线）/不可用。
-还没有：提醒（M4）、账号与云整理（M5）、M7、M8。真机验收等手机接入后再做。
+M4：开启「到点提醒」（「今天」顶部提示卡，或「我们家 → 提醒」）后，只提醒**已确认**的安排：每天最多 2 条、21:00–08:00 勿扰（改到前一晚 20:30）、提前量 15 分钟/30 分钟/1 小时/前一晚 20:00，可在锁屏隐藏孩子与事项；提醒只在本机（AlarmManager + 通知），不经服务器、不写系统日历。先有站内说明，点「开启提醒」才弹系统权限框；没有「闹钟和提醒」权限时降级为非精确闹钟并如实说明可能晚几分钟；被拒后给「打开系统设置」，回来自动补排。改期/完成/删除/取消/退出登录都会撤掉旧提醒；重启、更新、时区/校时变化后按账本重排。
+还没有：账号与云整理（M5）、M7、M8。真机验收等手机接入后再做。
 
 ## 版本（2026-10-28 复核）
 
@@ -87,6 +88,9 @@ scripts/verify.sh --no-build   # 同上但不出 APK
 | `app` | `ThemeViewModelTest` | 主题偏好冷启动后仍在 |
 | `core:domain` | 育儿领域（164 个，含主题 4） | 移植自 iOS 领域测试，断言值不改；对照表见 PLAN 8.2 |
 | `core:data` | `ParentingWorkspaceStoreTest` 等（45 个） | 账本语义（确认前零写入、CAS、重复操作、并发对账、损坏保留、账号过期）、密钥提供者与文件存储（JCA PKCS12 代替 AndroidKeyStore）、DataStore |
+| `core:device` | 调度器 12 / 通知中心 13 / 接收器 11 / 存储 5 / 文案 2 | 移植 iOS 提醒调度器用例（勿扰、每天上限、提前量、签名重排、账号屏障、系统拒绝）；`AlarmManager` Robolectric 影子下的精确/降级、读回、取消、权限三态；到点只对当前账号发通知，开机/更新/时区/校时/精确闹钟权限变化触发重排；`androidTest` 的 `ReminderDeviceInstrumentedTest` 只编译 |
+| `feature:parenting` | `reminders/ReminderJourneyTest`（9）、`model/ReminderModelTest`（6） | 提示卡→权限→安排上出现提醒时间、被拒与回来补排、提醒页（提前量/隐藏内容/精确闹钟说明/电池入口）、每天上限、点通知回「今天」、退出登录清空、冷启动重排；iOS `ParentingReminderModelTests` 移植 |
+| `app` | `ShellRemindersTest`（5）、`MainActivityTest` +3 | 壳的提醒状态、点通知账号核对、系统设置入口、退出清空；真实 Hilt 图里打开提醒后 `AlarmManager` 里确有闹钟、通知深链回「今天」 |
 | `core:data` androidTest | `AndroidKeystoreInstrumentedTest` | 真 AndroidKeyStore 往返；**只编译、未运行**（需要设备） |
 
 ### 主题令牌与 iOS 保持一致
@@ -121,16 +125,17 @@ adb shell am start -n com.heydusk.mimi/.MainActivity
 首次真机验收清单（M0）：四种主题切换（我们家 → 配色/外观）；底栏 Haze 模糊在 Android 12+ 上是否真的模糊、
 在 Android 10/11 上是否退回纯色罩而不是空白；着色按钮按下态；启动页与桌面图标（含 Android 13 主题图标）。
 
-## 在手机上验 M3
+## 在手机上验 M3 / M4
 
-见 `docs/android/device-acceptance-android-v1.md`（A 语音 / D 确认卡 / Keystore）。设备侧仪器测试：
-`./gradlew :core:data:connectedDebugAndroidTest :core:voice:connectedDebugAndroidTest`（日志 tag `MimiVoice` 会打印本机上可用的识别方式）。
+见 `docs/android/device-acceptance-android-v1.md`（A 语音 / D 确认卡 / G 本机提醒 / Keystore）。设备侧仪器测试：
+`./gradlew :core:data:connectedDebugAndroidTest :core:voice:connectedDebugAndroidTest :core:device:connectedDebugAndroidTest`（日志 tag `MimiVoice` 打印识别方式、`MimiReminders` 打印通知授权与精确闹钟状态）。
 
-## 已知限制（M3）
+## 已知限制（M4）
 
 - **没有模拟器验证**：开发机的 `/dev/kvm` 不可用，模拟器起不来；M0 的视觉验证靠 Robolectric 原生渲染截图 + 真机。
   Robolectric 里 Haze 走降级色罩，真实模糊只能在真机上看。
 - 真 AndroidKeyStore 没在任何设备上跑过（JVM 里用 JCA PKCS12 代替）；`AndroidKeystoreInstrumentedTest` 只编译。
+- 提醒的 Doze/省电白名单/国产 ROM 后台限制、权限框与开机重排都没在真机上验过（G 组）；点通知只回到「今天」，没有安排详情页。
 - 身份是本机匿名的，没有 Supabase 登录（M5）；退出会销毁本机账本与密钥，数据不会上云。
 - 表单是同窗口浮层而非 `Dialog` 窗口（Robolectric 里窗口内输入框不收敛）；真机软键盘表现未验证。
 - 时间选择是步进器（日期/小时/分钟 ±），不是系统日期/时间选择器（Material 的选择器走 `Dialog` 窗口，Robolectric 不收敛）；溢出菜单用 `DropdownMenu`，真机弹出位置与 TalkBack 读序未验证。
@@ -138,7 +143,7 @@ adb shell am start -n com.heydusk.mimi/.MainActivity
 - **语音全部没在真机上跑过**：`SpeechRecognizer`、权限框、按住手势手感、IME 交互、TalkBack；在线识别回落已如实披露，但是否允许需产品确认；无 GMS 的设备只有键盘。
 - 确认卡是同窗口浮层，不是 `ModalBottomSheet`；输入卡的版式用断言而非指纹基线。
 - 截图基线是 Robolectric 原生图形（Linux）下的亮度指纹，容差为平均差 ≤0.6/15、最大差 ≤6；换 OS/字体/Compose 大版本后可能需重录。Haze 真实模糊不在其中。
-- 补充文案 `UIStringsAndroid.json`（58 条）仍未并回共享目录。
+- 补充文案 `UIStringsAndroid.json`（66 条）仍未并回共享目录。
 - 备份：`allowBackup=false` 并排除全部数据（Keystore 密钥不迁移）。
 - “降低透明度”目前只有 `LocalReduceTransparency` 应用内开关；系统信号尚未接入（设置页只有应用内开关）。
 - 暂无 CI（GitHub Actions 额度已用完），本地 `scripts/verify.sh` 就是门禁。
