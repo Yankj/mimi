@@ -72,7 +72,18 @@ class FlakyBlobStore(private val delegate: LedgerBlobStore) : LedgerBlobStore {
  * 真实栈：DataStore 身份 + AccountEpoch + AES-GCM 加密账本（文件）+ 会话 + 真实 [ParentingHomeScreen]。
  * 「冷启动」= 取消旧作用域、在同一目录与同一密钥库上新建会话并重建整棵 Compose 树；账本只能从磁盘上的密文读回。
  */
-class JourneyHarness {
+class JourneyHarness(
+    /** 非 null = 装配本机提醒（假通知中心 + 内存设置）；null = 这个壳不发提醒（M2/M3 旧旅程）。 */
+    val reminderCenter: com.heydusk.mimi.device.reminders.FakeReminderCenter? = null,
+    private val reminderZone: java.time.ZoneId = ZoneOffset.UTC,
+) {
+    val reminderSettings = com.heydusk.mimi.device.reminders.InMemoryReminderSettingsStore()
+    val reminderMemory = com.heydusk.mimi.device.reminders.InMemoryReminderMemory()
+    var reminderOpen by mutableStateOf<com.heydusk.mimi.feature.parenting.reminders.ReminderOpenRequest?>(null)
+    var signedOutReminders = 0; private set
+    /** 界面请求打开的系统设置页（"notifications" / "exactAlarms" / "battery"）。 */
+    val openedSettings = java.util.concurrent.CopyOnWriteArrayList<String>()
+
     private val dir = Files.createTempDirectory("mimi-journey").toFile()
     private val keyStore = KeyStore.getInstance("PKCS12").apply { load(null, null) }
     private val password = "t".toCharArray()
@@ -92,11 +103,28 @@ class JourneyHarness {
         val sc = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         scope = sc
         val identity = LocalIdentityStore(MimiDataStore.create(dir.resolve(MimiDataStore.FILE_NAME), sc))
-        val next = ParentingSession(identity, AccountEpoch(), blobs, AesGcmLedgerCipher(keys), keys, sc)
+        val factory = reminderCenter?.let { center ->
+            ParentingSession.ReminderFactory { subject, isCurrent ->
+                com.heydusk.mimi.feature.parenting.model.ReminderWiring(
+                    scheduler = com.heydusk.mimi.device.reminders.ParentingReminderScheduler(
+                        center, subject, { com.heydusk.mimi.domain.common.MimiCalendar(reminderZone) },
+                        com.heydusk.mimi.device.reminders.ReminderCopy.PLAIN, reminderMemory, isCurrent,
+                    ),
+                    settings = reminderSettings,
+                    onSignOut = { signedOutReminders += 1; center.remove(center.requests.map { it.id }); reminderSettings.erase() },
+                )
+            }
+        }
+        val next = ParentingSession(identity, AccountEpoch(), blobs, AesGcmLedgerCipher(keys), keys, sc, reminders = factory)
         next.start()
         session = next
         generation += 1
     }
+
+    /** 回到前台 / 从系统设置回来。 */
+    fun refreshReminders() { runBlocking { model()?.refreshReminders() } }
+
+    fun signOut() { runBlocking { checkNotNull(session).signOutAndStartFresh() } }
 
     fun close() {
         scope?.let { runBlocking { it.coroutineContext[Job]!!.cancelAndJoin() } }
@@ -117,7 +145,7 @@ class JourneyHarness {
         if (current != null) {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
-                key(generation) { JourneyContent(current, zone, dark, voice, now) }
+                key(generation) { JourneyContent(current, zone, dark, voice, now, reminderOpen, openedSettings) { reminderOpen = null } }
             }
         }
     }
@@ -130,7 +158,11 @@ class JourneyHarness {
 }
 
 @Composable
-private fun JourneyContent(current: ParentingSession, zone: java.time.ZoneId, dark: Boolean, voice: VoiceDeps?, now: Instant?) {
+private fun JourneyContent(
+    current: ParentingSession, zone: java.time.ZoneId, dark: Boolean, voice: VoiceDeps?, now: Instant?,
+    reminderOpen: com.heydusk.mimi.feature.parenting.reminders.ReminderOpenRequest?, openedSettings: MutableList<String>,
+    onReminderOpenHandled: () -> Unit,
+) {
     val phase by current.phase.collectAsState()
     val ready = phase as? ParentingSession.Phase.Ready
     val modelState = ready?.model?.state?.collectAsState()
@@ -158,6 +190,18 @@ private fun JourneyContent(current: ParentingSession, zone: java.time.ZoneId, da
             voice = voice,
             busy = st?.busy == true,
             now = now ?: Instant.now(),
+            reminders = if (ready?.model?.remindersAvailable == true && st != null) {
+                com.heydusk.mimi.feature.parenting.reminders.RemindersUi(st.reminderSettings, st.reminderStatus, st.busy, st.loaded)
+            } else null,
+            reminderActions = remember(current) {
+                object : com.heydusk.mimi.feature.parenting.reminders.ModelRemindersActions({ (current.phase.value as? ParentingSession.Phase.Ready)?.model }) {
+                    override fun openNotificationSettings() { openedSettings += "notifications" }
+                    override fun openExactAlarmSettings() { openedSettings += "exactAlarms" }
+                    override fun openBatterySettings() { openedSettings += "battery" }
+                }
+            },
+            reminderOpen = reminderOpen,
+            onReminderOpenHandled = onReminderOpenHandled,
         )
     }
 }

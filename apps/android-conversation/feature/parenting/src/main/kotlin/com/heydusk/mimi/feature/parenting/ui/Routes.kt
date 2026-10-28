@@ -14,4 +14,6 @@ sealed interface ParentingRoute {
     data class GoalReview(val goalID: UUID) : ParentingRoute
     /** 我们家 › 孩子 */
     data class ChildDetail(val childID: UUID) : ParentingRoute
+    /** 我们家 › 提醒 */
+    data object Reminders : ParentingRoute
 }

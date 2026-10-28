@@ -48,7 +48,7 @@ class ParentingWorkspaceModelTest {
             FileLedgerBlobStore(Files.createTempDirectory("mimi-model").toFile()),
             scope, subject, epoch, AesGcmLedgerCipher(keys), clock = { now },
         )
-        return ParentingWorkspaceModel(store) { now }
+        return ParentingWorkspaceModel(store, clock = { now })
     }
 
     @Test fun loadEmptyThenAddChildPersists() = runBlocking {

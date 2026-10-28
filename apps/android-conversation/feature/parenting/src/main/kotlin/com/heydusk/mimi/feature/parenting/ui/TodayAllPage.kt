@@ -9,6 +9,7 @@ import com.heydusk.mimi.designsystem.LocalMimiColors
 import com.heydusk.mimi.designsystem.MimiTintedButton
 import com.heydusk.mimi.domain.parenting.ParentingArrangementState
 import com.heydusk.mimi.domain.parenting.ParentingWorkspace
+import com.heydusk.mimi.feature.parenting.reminders.LocalReminders
 import com.heydusk.mimi.i18n.ui
 import java.time.ZoneId
 import java.util.UUID
@@ -49,7 +50,8 @@ fun TodayAllPage(
             }
         }
         Text(
-            ui("本机安排不会发送提醒；它们只保存在这台手机上。"),
+            if (LocalReminders.current != null) ui("仅在此设备加密保存 · 尚未云同步 · 提醒只在本机发送 · 保留直到你删除")
+            else ui("仅在此设备加密保存 · 尚未云同步 · 本机安排不会发送提醒 · 保留直到你删除"),
             color = colors.ink2,
             modifier = Modifier.semantics { testTag = "parenting.storageBoundary" },
         )

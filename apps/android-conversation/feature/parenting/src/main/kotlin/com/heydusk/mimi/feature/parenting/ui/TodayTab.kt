@@ -50,6 +50,8 @@ fun TodayTabContent(
 
         HeroCard(uiState.deck, handlers)
 
+        com.heydusk.mimi.feature.parenting.reminders.ReminderPromptCard()
+
         if (undoSeconds != null && undoSeconds > 0) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = colors.card),
@@ -99,6 +101,7 @@ fun TodayTabContent(
                     actionTag = "parenting.row.complete.${a.id}",
                     actionLabel = if (canComplete) ui("完成") else null,
                     onAction = if (canComplete) ({ handlers.onCompleteOneTap(a.id) }) else null,
+                    footnote = { com.heydusk.mimi.feature.parenting.reminders.ReminderLine(a, zone) },
                 )
             }
         }
@@ -177,6 +180,7 @@ private fun ArrangementRow(
     actionTag: String,
     actionLabel: String?,
     onAction: (() -> Unit)?,
+    footnote: (@Composable () -> Unit)? = null,
 ) {
     val colors = LocalMimiColors.current
     Card(
@@ -191,6 +195,7 @@ private fun ArrangementRow(
             Column(Modifier.weight(1f)) {
                 Text(title, color = colors.ink)
                 Text(whenLabel, color = colors.ink2, style = MaterialTheme.typography.labelMedium)
+                footnote?.invoke()
             }
             if (actionLabel != null && onAction != null) {
                 TextButton(onClick = onAction, modifier = Modifier.semantics { testTag = actionTag }) { Text(actionLabel) }

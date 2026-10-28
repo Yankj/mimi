@@ -13,6 +13,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import com.heydusk.mimi.device.reminders.NotificationAuthorization
+import com.heydusk.mimi.feature.parenting.reminders.LocalReminders
+import com.heydusk.mimi.feature.parenting.reminders.ReminderOpenRequest
+import com.heydusk.mimi.feature.parenting.reminders.RemindersActions
+import com.heydusk.mimi.feature.parenting.reminders.RemindersContext
+import com.heydusk.mimi.feature.parenting.reminders.RemindersPage
+import com.heydusk.mimi.feature.parenting.reminders.RemindersUi
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -119,6 +127,12 @@ fun ParentingHomeScreen(
     busy: Boolean = false,
     /** 提醒是否开启：确认卡里据此显示提醒说明；null = 不显示（提醒在 M4）。 */
     remindersEnabled: Boolean? = null,
+    /** 本机提醒的状态与操作；null = 这个壳不发提醒（预览与 M2/M3 旧测试）。 */
+    reminders: RemindersUi? = null,
+    reminderActions: RemindersActions = RemindersActions.None,
+    /** 点通知打开：回到「今天」。处理完调用 [onReminderOpenHandled]。 */
+    reminderOpen: ReminderOpenRequest? = null,
+    onReminderOpenHandled: () -> Unit = {},
 ) {
     var tab by rememberSaveable { mutableStateOf(initialTab) }
     val stack = remember { mutableStateListOf<ParentingRoute>().apply { addAll(initialRoutes) } }
@@ -169,6 +183,17 @@ fun ParentingHomeScreen(
         }
     }
 
+    LaunchedEffect(reminderOpen?.nonce) {
+        if (reminderOpen != null) {
+            tab = ParentingTab.Today
+            stack.clear()
+            showSettings = false
+            sheet = null
+            pending = null
+            onReminderOpenHandled()
+        }
+    }
+
     val handlers = PageHandlers(
         onConfirmArrangement = { id -> act { actions.confirmArrangement(id) } },
         onCompleteOneTap = { id -> act { actions.completeOneTap(id) } },
@@ -203,6 +228,8 @@ fun ParentingHomeScreen(
 
     BackHandler(enabled = stack.isNotEmpty() && sheet == null && pending == null && !showSettings) { handlers.onBack() }
 
+    val reminderContext = remember(reminders, reminderActions, now) { reminders?.let { RemindersContext(it, reminderActions, now) } }
+    CompositionLocalProvider(LocalReminders provides reminderContext) {
     Box(modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
         MimiCanvasBackground()
         when {
@@ -235,6 +262,7 @@ fun ParentingHomeScreen(
                     when (val route = stack.lastOrNull()) {
                         ParentingRoute.TodayAll -> TodayAllPage(workspace, childID, zone, handlers, page)
                         is ParentingRoute.GrowthTimeline -> GrowthTimelinePage(workspace, childID, route.highlight, zone, handlers, page)
+                        ParentingRoute.Reminders -> RemindersPage(handlers, page)
                         ParentingRoute.GrowthGoals -> GrowthGoalsPage(workspace, childID, handlers, page)
                         is ParentingRoute.GoalReview -> GoalReviewPage(workspace, route.goalID, zone, handlers, page)
                         is ParentingRoute.ChildDetail -> ChildDetailPage(workspace, route.childID, handlers, page)
@@ -259,7 +287,7 @@ fun ParentingHomeScreen(
                             ParentingTab.Family -> FamilyTabContent(
                                 FamilyUi(
                                     ParentingFamilySummary.children(workspace),
-                                    FamilyLaunchChecklist.current(workspace, remindersEnabled = false),
+                                    FamilyLaunchChecklist.current(workspace, remindersEnabled = reminders?.settings?.enabled == true && reminders.authorization == NotificationAuthorization.Authorized),
                                 ),
                                 handlers,
                                 page,
@@ -390,7 +418,7 @@ fun ParentingHomeScreen(
                 calendar = calendar,
                 zone = zone,
                 busy = busy || saving,
-                remindersEnabled = remindersEnabled,
+                remindersEnabled = remindersEnabled ?: reminders?.settings?.enabled,
                 receiptMillis = voiceState.receiptMillis,
                 onClose = { natural.reset(); naturalOpen = false },
                 onNavigate = { kind ->
@@ -439,6 +467,7 @@ fun ParentingHomeScreen(
             OnboardingOverlay(preferences, onPreferencesChange, onCompleteOnboarding)
         }
         PrivacyShield(privacyShield)
+    }
     }
 }
 

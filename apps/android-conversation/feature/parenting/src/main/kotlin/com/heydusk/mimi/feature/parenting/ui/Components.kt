@@ -253,6 +253,7 @@ fun ArrangementCard(
                     modifier = Modifier.semantics { testTag = "parenting.arrangement.goal.${a.id}" },
                 )
             }
+            com.heydusk.mimi.feature.parenting.reminders.ReminderLine(a, zone)
             when (a.state) {
                 ParentingArrangementState.Draft -> StateLabel(ui("待确认"))
                 ParentingArrangementState.Planned -> StateLabel(ui("已安排"))

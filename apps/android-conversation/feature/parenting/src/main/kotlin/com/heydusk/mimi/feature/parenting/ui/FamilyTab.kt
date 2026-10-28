@@ -20,6 +20,7 @@ import com.heydusk.mimi.designsystem.MimiTintedButton
 import com.heydusk.mimi.domain.parenting.FamilyLaunchChecklist
 import com.heydusk.mimi.domain.parenting.ParentingFamilyChildSummary
 import com.heydusk.mimi.domain.parenting.ParentingWorkspace
+import com.heydusk.mimi.feature.parenting.reminders.LocalReminders
 import com.heydusk.mimi.i18n.ui
 import java.util.UUID
 
@@ -63,6 +64,28 @@ fun FamilyTabContent(
                         )
                     }
                 }
+            }
+        }
+
+        val reminders = LocalReminders.current
+        Card(
+            colors = CardDefaults.cardColors(containerColor = colors.card),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { handlers.onOpen(ParentingRoute.Reminders) }
+                .semantics { testTag = "parenting.family.reminders" },
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Text(ui("提醒"), style = MaterialTheme.typography.titleMedium, color = colors.ink)
+                Text(
+                    when {
+                        reminders == null -> ui("这台设备暂不发送提醒")
+                        reminders.ui.settings.enabled -> ui("已开启 · 每天最多 2 条，晚 9 点到早 8 点不打扰")
+                        else -> ui("未开启 · 每天最多 2 条，晚 9 点到早 8 点不打扰")
+                    },
+                    color = colors.ink2,
+                    modifier = Modifier.semantics { testTag = "parenting.family.reminders.subtitle" },
+                )
             }
         }
 
