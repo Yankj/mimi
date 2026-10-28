@@ -989,32 +989,50 @@ final class ParentingWorkspaceUITests: XCTestCase {
     private func inputExists(_ app: XCUIApplication, _ id: String) -> Bool {
         app.textViews[id].exists || app.textFields[id].exists
     }
+    /// After AI intake the candidate block sits above the title/time section; Form virtualizes the title away until the
+    /// sheet's own list is swiped. Blind reveal() drags can hit the page under the sheet — swipe the Form list instead.
+    private func materializeArrangementFormField(_ app: XCUIApplication, _ id: String, towardBottom: Bool) {
+        if inputExists(app, id) { return }
+        // Prefer the Form list under the "Add an arrangement" sheet nav — not the Home page behind the sheet
+        // (a swipe there pulls to refresh / flips model.busy).
+        let nav = app.navigationBars.matching(NSPredicate(format: "label CONTAINS[c] %@", "arrangement")).firstMatch
+        let sheetTop = nav.exists ? nav.frame.maxY : CGFloat(0)
+        let lists = app.collectionViews.allElementsBoundByIndex + app.tables.allElementsBoundByIndex
+        let scroll = lists.first(where: {
+            $0.exists && $0.frame.height > 180 && ($0.frame.minY + 8) >= sheetTop
+        }) ?? lists.first(where: { $0.exists && $0.frame.height > 180 }) ?? app.scrollViews.firstMatch
+        guard scroll.exists else { return }
+        for _ in 0..<24 {
+            if inputExists(app, id) { return }
+            if towardBottom { scroll.swipeUp(velocity: .slow) } else { scroll.swipeDown(velocity: .slow) }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.12))
+        }
+    }
     private func input(_ app: XCUIApplication, _ id: String) -> XCUIElement {
         // A virtualized upper field can still exist with a zero frame. Search upward in that case as well.
-        // arrangement.title sits BELOW the inline-intake section — never treat it as upper or reveal scrolls the wrong way
-        // and the Form never materializes the cell (4 failures on CI after acbe252).
+        // arrangement.title sits BELOW the inline-intake section — never treat it as upper.
         let upperField = ["parenting.arrangement.source", "parenting.child.name", "parenting.goal.title"].contains(id)
-        // TextEditor and TextField identifiers come from the actual host form; do not scan all AX types.
-        // Title uses TextField(axis: .vertical); some runtimes expose it as a TextView — accept either.
         let multiline = ["parenting.arrangement.source", "parenting.record.text"].contains(id)
+        let towardBottom = !upperField
+        if id == "parenting.arrangement.title" || id == "parenting.arrangement.source" {
+            materializeArrangementFormField(app, id, towardBottom: towardBottom)
+        }
         let asView = app.textViews.matching(identifier: id).firstMatch
         let asField = app.textFields.matching(identifier: id).firstMatch
         let field: XCUIElement
         if multiline {
             field = asView
         } else if id == "parenting.arrangement.title" {
-            _ = asField.waitForExistence(timeout: 2)
-            field = asField.exists ? asField : asView
+            field = asField.exists ? asField : (asView.exists ? asView : asField)
         } else {
             field = asField
         }
         // The editor sheet was just presented: let it land before searching. PR #127's "Synthetic native UI target is unreachable"
-        // came from reveal() finding no field yet and dragging down (the direction for top-of-form fields): a drag over a sheet that
-        // is still presenting dismisses it, and over the Home page it pulls to refresh (`.refreshable { await model.load() }`,
-        // which flips `model.busy`). Waiting for the first field of a form to exist and be hittable avoids any blind drag.
+        // came from reveal() finding no field yet and dragging down: a drag over a sheet that is still presenting dismisses it.
         _ = field.waitForExistence(timeout: 8)
+        if !field.exists { materializeArrangementFormField(app, id, towardBottom: towardBottom) }
         if upperField || id == "parenting.record.text" { ParentingUI.waitUntil(timeout: 2.5) { field.isHittable } }
-        reveal(app, field, searchTowardBottom: !upperField)
+        if field.exists { reveal(app, field, searchTowardBottom: towardBottom) }
         wait { field.exists }
         return field
     }
@@ -1033,9 +1051,16 @@ final class ParentingWorkspaceUITests: XCTestCase {
         for attempt in 0..<3 {
             ParentingUI.waitUntilNotBusy(app)
             wait({ field.exists }, file: file, line: line)
-            field.tap()
+            if field.isHittable {
+                field.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            } else {
+                field.tap()
+            }
             // Best effort: a hardware-keyboard simulator shows no software keyboard, so a miss is not a failure.
             _ = app.keyboards.firstMatch.waitForExistence(timeout: 5)
+            if !app.keyboards.firstMatch.exists {
+                field.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            }
             if attempt > 0 {
                 let leftover = (field.value as? String) ?? ""
                 if !leftover.isEmpty { field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: leftover.count)) }
