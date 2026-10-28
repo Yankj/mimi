@@ -10,15 +10,18 @@ public struct ParentingWorkspace: Codable, Sendable, Equatable {
     public var records: [ParentingRecord]
     public var editHistory: [ParentingArrangementEdit]
     public var suggestionsEnabled: Bool
+    /// Optional local family archive. Missing key decodes as empty so old ledgers need no migration.
+    public var profile: ParentingProfile
 
     public static let empty = ParentingWorkspace()
-    public init(schemaVersion: Int = 1, revision: Int = 0, children: [ParentingChild] = [], goals: [ParentingGoal] = [], arrangements: [ParentingArrangement] = [], records: [ParentingRecord] = [], editHistory: [ParentingArrangementEdit] = [], suggestionsEnabled: Bool = false) {
+    public init(schemaVersion: Int = 1, revision: Int = 0, children: [ParentingChild] = [], goals: [ParentingGoal] = [], arrangements: [ParentingArrangement] = [], records: [ParentingRecord] = [], editHistory: [ParentingArrangementEdit] = [], suggestionsEnabled: Bool = false, profile: ParentingProfile = .empty) {
         self.schemaVersion = schemaVersion; self.revision = revision; self.children = children; self.goals = goals
         self.arrangements = arrangements; self.records = records; self.editHistory = editHistory; self.suggestionsEnabled = suggestionsEnabled
+        self.profile = profile
     }
 
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, revision, children, goals, arrangements, records, editHistory, suggestionsEnabled
+        case schemaVersion, revision, children, goals, arrangements, records, editHistory, suggestionsEnabled, profile
     }
 
     public init(from decoder: Decoder) throws {
@@ -35,11 +38,16 @@ public struct ParentingWorkspace: Codable, Sendable, Equatable {
             editHistory = []
         }
         suggestionsEnabled = try container.decode(Bool.self, forKey: .suggestionsEnabled)
+        if container.contains(.profile) {
+            profile = try container.decode(ParentingProfile.self, forKey: .profile)
+        } else {
+            profile = .empty
+        }
     }
 
     public func validate() throws {
         guard schemaVersion == 1, revision >= 0 else { throw catError.corrupt("育儿账本版本不支持，已保留原数据。") }
-        let allIDs = children.map(\.id) + goals.map(\.id) + arrangements.map(\.id) + records.map(\.id) + editHistory.map(\.id)
+        let allIDs = children.map(\.id) + goals.map(\.id) + arrangements.map(\.id) + records.map(\.id) + editHistory.map(\.id) + profile.facts.map(\.id)
         guard Set(allIDs).count == allIDs.count else { throw catError.corrupt("育儿账本标识重复，已停止写入。") }
         let childIDs = Set(children.map(\.id))
         let goalsByID = Dictionary(uniqueKeysWithValues: goals.map { ($0.id, $0) })
@@ -84,6 +92,35 @@ public struct ParentingWorkspace: Codable, Sendable, Equatable {
             if let revertedAt = edit.revertedAt { try Self.dates(edit.createdAt, revertedAt) }
             if let supersededAt = edit.supersededAt { try Self.dates(edit.createdAt, supersededAt) }
         }
+        try validateProfile(childIDs: childIDs)
+    }
+
+    private func validateProfile(childIDs: Set<UUID>) throws {
+        let familyCount = profile.facts.filter { if case .family = $0.scope { return true }; return false }.count
+        guard familyCount <= ParentingProfile.maxFamilyFacts else { throw catError.corrupt("家庭画像条目过多。") }
+        var perChild: [UUID: Int] = [:]
+        for fact in profile.facts {
+            switch fact.scope {
+            case .family: break
+            case .child(let id):
+                guard childIDs.contains(id) else { throw catError.corrupt("画像条目的孩子关联无效。") }
+                perChild[id, default: 0] += 1
+            }
+            try Self.text(fact.text, limit: ParentingProfile.maxTextLength)
+            try Self.text(fact.payload, limit: ParentingProfile.maxPayloadLength, allowEmpty: true)
+            if let excerpt = fact.source.excerpt {
+                try Self.text(excerpt, limit: ParentingProfile.maxExcerptLength, allowEmpty: true)
+            }
+            try Self.date(fact.source.firstSeenAt)
+            try Self.dates(fact.createdAt, fact.updatedAt)
+            try Self.date(fact.lastSeenAt)
+            if let confirmed = fact.lastConfirmedAt { try Self.dates(fact.createdAt, confirmed) }
+            guard fact.evidenceCount >= 0 else { throw catError.corrupt("画像证据次数无效。") }
+            if fact.userConfirmed { guard fact.status == .confirmed || fact.status == .stale else { throw catError.corrupt("画像确认状态无效。") } }
+        }
+        if perChild.values.contains(where: { $0 > ParentingProfile.maxChildFacts }) {
+            throw catError.corrupt("孩子画像条目过多。")
+        }
     }
 
     /// Pure transition: callers persist the resulting value atomically before presenting it.
@@ -103,6 +140,7 @@ public struct ParentingWorkspace: Codable, Sendable, Equatable {
             next.children.removeAll { $0.id == id }; next.goals.removeAll { $0.childID == id }
             next.arrangements.removeAll { $0.childID == id }; next.records.removeAll { $0.childID == id }
             next.editHistory.removeAll { $0.before.childID == id }
+            next.profile.facts.removeAll { if case .child(let childID) = $0.scope { return childID == id }; return false }
         case .addGoal(let id, let childID, let title):
             try next.unused(id); _ = try next.childIndex(childID); try Self.text(title, limit: 120)
             next.goals.append(.init(id: id, childID: childID, title: title.trimmingCharacters(in: .whitespacesAndNewlines), createdAt: now))
@@ -220,6 +258,45 @@ public struct ParentingWorkspace: Codable, Sendable, Equatable {
         case .deleteAllRecords:
             // The parent's own erase: every child and everything attached to a child. The review setting stays.
             next.children = []; next.goals = []; next.arrangements = []; next.records = []; next.editHistory = []
+            next.profile = .empty
+        case .addProfileFact(let fact):
+            try next.unused(fact.id)
+            var candidate = fact
+            candidate.status = .candidate
+            candidate.userConfirmed = false
+            candidate.lastConfirmedAt = nil
+            next.profile.facts.append(candidate)
+            try next.validateProfile(childIDs: Set(next.children.map(\.id)))
+        case .confirmProfileFact(let id):
+            guard let i = next.profile.facts.firstIndex(where: { $0.id == id }) else { throw catError.missing }
+            guard next.profile.facts[i].status == .candidate || next.profile.facts[i].status == .stale else {
+                throw catError.invalid("只能确认待确认或需再确认的画像。")
+            }
+            next.profile.facts[i].status = .confirmed
+            next.profile.facts[i].userConfirmed = true
+            next.profile.facts[i].lastConfirmedAt = now
+            next.profile.facts[i].updatedAt = now
+        case .dismissProfileFact(let id, let fingerprint):
+            guard let i = next.profile.facts.firstIndex(where: { $0.id == id }) else { throw catError.missing }
+            next.profile.facts[i].status = .dismissed
+            next.profile.facts[i].userConfirmed = false
+            next.profile.facts[i].suppressFingerprint = fingerprint
+            next.profile.facts[i].updatedAt = now
+        case .deleteProfileFact(let id):
+            guard next.profile.facts.contains(where: { $0.id == id }) else { throw catError.missing }
+            next.profile.facts.removeAll { $0.id == id }
+        case .clearProfile(let scope):
+            switch scope {
+            case .all:
+                next.profile.facts = []
+            case .family:
+                next.profile.facts.removeAll { if case .family = $0.scope { return true }; return false }
+            case .child(let id):
+                _ = try next.childIndex(id)
+                next.profile.facts.removeAll { if case .child(let childID) = $0.scope { return childID == id }; return false }
+            }
+        case .setProfileLearningEnabled(let enabled):
+            next.profile.learningEnabled = enabled
         }
         next.revision += 1
         try next.validate()
@@ -229,7 +306,8 @@ public struct ParentingWorkspace: Codable, Sendable, Equatable {
     private func unused(_ id: UUID) throws {
         guard !children.contains(where: { $0.id == id }), !goals.contains(where: { $0.id == id }),
               !arrangements.contains(where: { $0.id == id }), !records.contains(where: { $0.id == id }),
-              !editHistory.contains(where: { $0.id == id }) else { throw catError.conflict }
+              !editHistory.contains(where: { $0.id == id }),
+              !profile.facts.contains(where: { $0.id == id }) else { throw catError.conflict }
     }
     private mutating func supersedeEdits(arrangementID: UUID, now: Date) {
         for i in editHistory.indices where editHistory[i].after.id == arrangementID && editHistory[i].revertedAt == nil && editHistory[i].supersededAt == nil {
@@ -315,4 +393,18 @@ public enum ParentingCommand: Codable, Sendable, Equatable {
     case deleteRecord(id: UUID)
     case setSuggestionsEnabled(Bool)
     case deleteAllRecords
+    /// Candidate only: never becomes usable until confirmProfileFact.
+    case addProfileFact(ParentingProfileFact)
+    case confirmProfileFact(id: UUID)
+    case dismissProfileFact(id: UUID, fingerprint: String?)
+    case deleteProfileFact(id: UUID)
+    /// `.all` clears the whole archive; family/child scopes clear that slice.
+    case clearProfile(ParentingProfileClearScope)
+    case setProfileLearningEnabled(Bool)
+}
+
+public enum ParentingProfileClearScope: Codable, Sendable, Equatable {
+    case all
+    case family
+    case child(UUID)
 }
