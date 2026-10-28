@@ -15,6 +15,8 @@ class RecordingActions : ParentingActions {
     val completedOneTap = mutableListOf<UUID>()
     val completedWithNote = mutableListOf<Pair<UUID, String>>()
     var undoCompletions = 0
+    val commands = mutableListOf<com.heydusk.mimi.domain.parenting.ParentingCommand>()
+    override suspend fun applyCommand(command: com.heydusk.mimi.domain.parenting.ParentingCommand, operationID: UUID) = commands.add(command)
 
     override suspend fun addChild(name: String) = children.add(name)
     override suspend fun renameChild(id: UUID, name: String) = true

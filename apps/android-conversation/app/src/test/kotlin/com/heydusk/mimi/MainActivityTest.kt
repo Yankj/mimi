@@ -1,5 +1,6 @@
 package com.heydusk.mimi
 
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -59,7 +60,7 @@ class MainActivityTest {
             if (condition()) return
             Thread.sleep(50)
         }
-        throw AssertionError("timed out waiting for $what")
+        throw AssertionError("timed out waiting for $what; tags=" + rule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("any") { true }).fetchSemanticsNodes().mapNotNull { it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag) }.joinToString(","))
     }
 
     private fun passOnboarding() {
@@ -119,5 +120,37 @@ class MainActivityTest {
         assertEquals("Xiaoming", readyModel().workspace.children.single().name)
         rule.onNodeWithTag("parenting.tab.family").performClick()
         await("child on family") { rule.onAllNodesWithTag("parenting.family.child.${readyModel().workspace.children.single().id}").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test
+    fun composerShowsAfterAChildExistsAndKeyboardPathWritesOnlyAfterConfirm() {
+        passOnboarding()
+        await("ledger loaded") { runCatching { readyModel().loaded }.getOrDefault(false) }
+        assertTrue("没有孩子时不显示输入卡", rule.onAllNodesWithTag("parenting.natural.bar").fetchSemanticsNodes().isEmpty())
+        rule.onNodeWithTag("parenting.hero.addChild").performClick()
+        rule.onNodeWithTag("parenting.child.name").performTextInput("Xiaoming")
+        rule.onNodeWithTag("parenting.name.save").performClick()
+        await("composer") { rule.onAllNodesWithTag("parenting.composer.mic").fetchSemanticsNodes().isNotEmpty() }
+        // 第一次点话筒：先解释再申请权限；家长可以选“改用键盘”，此时不申请权限、不开会话。
+        rule.onNodeWithTag("parenting.composer.mic").performClick()
+        await("explanation") { rule.onAllNodesWithTag("parenting.composer.voiceExplain").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("parenting.composer.voiceExplain.keyboard").performClick()
+        await("keyboard field") { rule.onAllNodesWithTag("parenting.natural.field").fetchSemanticsNodes().isNotEmpty() }
+        val revision = readyModel().workspace.revision
+        rule.onNodeWithTag("parenting.natural.field").performTextInput("记一下，今天自己收拾了书包")
+        await("send") { rule.onAllNodesWithTag("parenting.natural.send").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("parenting.natural.send").performClick()
+        await("card") { rule.onAllNodesWithTag("parenting.natural.confirm").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals("确认之前零写入", revision, readyModel().workspace.revision)
+        rule.onNodeWithTag("parenting.natural.confirm").performClick()
+        await("record saved") { readyModel().workspace.records.size == 1 }
+    }
+
+    @Test
+    fun settingsShowsHowVoiceRecognitionWorksOnThisPhone() {
+        passOnboarding()
+        rule.onNodeWithTag("parenting.tab.family").performClick()
+        rule.onNodeWithTag("parenting.family.settings").performClick()
+        rule.onNodeWithTag("parenting.settings.voice").performScrollTo().assertIsDisplayed()
     }
 }

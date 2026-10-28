@@ -1,6 +1,7 @@
 package com.heydusk.mimi
 
 import android.os.Bundle
+import android.view.HapticFeedbackConstants
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,12 +15,32 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.heydusk.mimi.designsystem.MimiTheme
 import com.heydusk.mimi.feature.parenting.ParentingHomeScreen
+import com.heydusk.mimi.feature.parenting.composer.VoiceDeps
+import com.heydusk.mimi.voice.AndroidSpeechSegmentSource
+import com.heydusk.mimi.voice.ContinuousDictationEngine
+import com.heydusk.mimi.voice.DictationController
+import com.heydusk.mimi.voice.MainThreadScheduler
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject lateinit var voicePrefs: DataStoreVoicePrefs
     private val theme: ThemeViewModel by viewModels()
     private val shell: ParentingShellViewModel by viewModels()
+
+    /** 语音输入卡的依赖：系统识别器（本机优先，没有则系统语音服务）+ 停顿续听状态机；权限用系统对话框，由界面申请。 */
+    private val voiceDeps: VoiceDeps by lazy {
+        VoiceDeps(
+            engine = ContinuousDictationEngine(AndroidSpeechSegmentSource(applicationContext), MainThreadScheduler()),
+            prefs = voicePrefs,
+            haptic = { zone ->
+                val view = window.decorView
+                if (zone == DictationController.HoldZone.None) view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                else view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+            },
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen().setKeepOnScreenCondition {
@@ -59,6 +80,8 @@ class MainActivity : ComponentActivity() {
                         onCompleteOnboarding = shell::completeOnboarding,
                         onClearData = shell::clearData,
                         onSignOut = shell::signOut,
+                        voice = voiceDeps,
+                        busy = shellState.busy,
                     )
                 }
             }

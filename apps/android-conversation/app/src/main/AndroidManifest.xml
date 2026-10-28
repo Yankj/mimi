@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- M0 不申请任何运行时权限；网络、麦克风、通知等随各自里程碑引入。 -->
+    <!--
+        M3：麦克风（RECORD_AUDIO）与识别服务可见性（<queries>）由 :core:voice 的清单合并进来。
+        权限只在家长按麦克风、并看过站内说明之后才向系统申请；拒绝后键盘照常可用。
+        网络、通知等随各自里程碑引入。
+    -->
 
     <application
         android:name=".MimiApplication"

@@ -19,7 +19,7 @@ import org.robolectric.annotation.Config
 /**
  * 对标 iOS `ParentingWorkspaceUITests` 的账本旅程：真实 Compose 界面 + 真实加密账本；
  * 「冷启动」= 同一目录与密钥上重建会话和整棵 UI，只能读回磁盘上的密文。
- * 没有 AI 整理（M5）和语音输入卡（M3），所以安排由手动表单创建；其余断言与 iOS 一致。
+ * 这里不挂语音输入卡（voice = null；输入卡的旅程在 composer/ComposerJourneyTest），安排由手动表单创建；其余断言与 iOS 一致。AI 整理（M5）另算。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "zh-w411dp-h891dp")

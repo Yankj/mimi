@@ -5,6 +5,8 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.heydusk.mimi.data.prefs.MimiDataStore
 import com.heydusk.mimi.data.prefs.ThemePreferencesRepository
+import com.heydusk.mimi.data.prefs.VoicePreferencesRepository
+import com.heydusk.mimi.DataStoreVoicePrefs
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -29,6 +31,12 @@ object PersistenceModule {
     @Provides @Singleton
     fun preferencesDataStore(@ApplicationContext context: Context, @ApplicationScope scope: CoroutineScope): DataStore<Preferences> =
         MimiDataStore.create(File(context.filesDir, "datastore/" + MimiDataStore.FILE_NAME), scope)
+
+    @Provides @Singleton
+    fun voicePreferences(store: DataStore<Preferences>) = VoicePreferencesRepository(store)
+
+    @Provides @Singleton
+    fun voicePrefs(repository: VoicePreferencesRepository, @ApplicationScope scope: CoroutineScope) = DataStoreVoicePrefs(repository, scope)
 
     @Provides @Singleton
     fun themePreferences(store: DataStore<Preferences>) = ThemePreferencesRepository(store)

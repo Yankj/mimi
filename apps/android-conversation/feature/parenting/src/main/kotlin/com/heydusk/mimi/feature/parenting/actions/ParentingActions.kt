@@ -36,6 +36,15 @@ interface ParentingActions {
     suspend fun deleteRecord(id: UUID): Boolean
     fun clearError()
 
+    /**
+     * 自然输入确认卡「确认」之后逐条执行的命令（创建→确认安排、观察、改期）。`operationID` 是账本的幂等键：
+     * 部分失败后重试同一步不会重复写入。默认不写（预览用）。
+     */
+    suspend fun applyCommand(command: ParentingCommand, operationID: UUID): Boolean = false
+
+    /** 账本最近一次写失败的文案（没有则 null）；确认卡失败时显示。 */
+    fun lastError(): String? = null
+
     /** 什么都不写：预览与只看界面的测试用。 */
     object None : ParentingActions by NoActions
 }
@@ -113,4 +122,9 @@ open class ModelParentingActions(
     override suspend fun editRecord(id: UUID, text: String) = run(ParentingCommand.EditRecord(id, text))
     override suspend fun deleteRecord(id: UUID) = run(ParentingCommand.DeleteRecord(id))
     override fun clearError() { model()?.clearError() }
+
+    override suspend fun applyCommand(command: ParentingCommand, operationID: UUID): Boolean =
+        withContext(NonCancellable) { model()?.apply(command, operationID) ?: false }
+
+    override fun lastError(): String? = model()?.state?.value?.error
 }

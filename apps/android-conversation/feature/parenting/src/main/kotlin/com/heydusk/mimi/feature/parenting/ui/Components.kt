@@ -47,6 +47,12 @@ import com.heydusk.mimi.i18n.ui
 import java.time.ZoneId
 import java.util.UUID
 
+/**
+ * 悬浮底部（输入卡 + 底栏）占掉的高度，页面据此给滚动内容留出底部空白。默认 120dp = 只有底栏时的值；
+ * Home 在有输入卡时量出实际高度提供进来。
+ */
+val LocalFloatingBottomInset = androidx.compose.runtime.compositionLocalOf { 120.dp }
+
 /** 页面里所有点击的去向。Home 把它们接到表单浮层、确认浮层与账本写入。 */
 class PageHandlers(
     val onConfirmArrangement: (UUID) -> Unit = {},
@@ -94,7 +100,7 @@ fun TitledPage(
                 .fillMaxSize()
                 .verticalScroll(scroll)
                 .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 120.dp),
+                .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = LocalFloatingBottomInset.current),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             if (onBack != null) {

@@ -2,6 +2,7 @@ package com.heydusk.mimi.feature.parenting
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -21,6 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -38,7 +42,16 @@ import com.heydusk.mimi.domain.parenting.ParentingTodayHome
 import com.heydusk.mimi.domain.parenting.ParentingWeekDensity
 import com.heydusk.mimi.domain.parenting.ParentingWorkspace
 import com.heydusk.mimi.domain.theme.ThemePreferences
+import com.heydusk.mimi.domain.parenting.ParentingIntentKind
+import com.heydusk.mimi.domain.parenting.ParentingNaturalContext
+import com.heydusk.mimi.domain.parenting.ParentingNaturalProposal
 import com.heydusk.mimi.feature.parenting.actions.ParentingActions
+import com.heydusk.mimi.feature.parenting.composer.NaturalInputModel
+import com.heydusk.mimi.feature.parenting.composer.ParentingComposerBar
+import com.heydusk.mimi.feature.parenting.composer.ParentingNaturalSheet
+import com.heydusk.mimi.feature.parenting.composer.VoiceDeps
+import com.heydusk.mimi.feature.parenting.composer.rememberVoiceState
+import com.heydusk.mimi.feature.parenting.ui.LocalFloatingBottomInset
 import com.heydusk.mimi.feature.parenting.forms.ArrangementEntryDialog
 import com.heydusk.mimi.feature.parenting.forms.ChildEntryDialog
 import com.heydusk.mimi.feature.parenting.forms.CompleteEntryDialog
@@ -65,6 +78,7 @@ import com.heydusk.mimi.feature.parenting.ui.TodayAllPage
 import com.heydusk.mimi.feature.parenting.ui.TodayTabContent
 import com.heydusk.mimi.feature.parenting.ui.TodayUi
 import com.heydusk.mimi.i18n.ui
+import androidx.compose.ui.unit.Dp
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import java.time.Instant
@@ -99,6 +113,12 @@ fun ParentingHomeScreen(
     initialRoutes: List<ParentingRoute> = emptyList(),
     now: Instant = Instant.now(),
     zone: ZoneId = ZoneId.systemDefault(),
+    /** 语音输入卡的依赖；null = 不显示输入卡（M2 行为，预览与旧测试）。 */
+    voice: VoiceDeps? = null,
+    /** 账本正忙（写入中）：输入卡暂停提交。 */
+    busy: Boolean = false,
+    /** 提醒是否开启：确认卡里据此显示提醒说明；null = 不显示（提醒在 M4）。 */
+    remindersEnabled: Boolean? = null,
 ) {
     var tab by rememberSaveable { mutableStateOf(initialTab) }
     val stack = remember { mutableStateListOf<ParentingRoute>().apply { addAll(initialRoutes) } }
@@ -110,6 +130,11 @@ fun ParentingHomeScreen(
     val hazeState = rememberHazeState()
     val calendar = remember(zone) { MimiCalendar(zone) }
     val scope = rememberCoroutineScope()
+    val natural = remember { NaturalInputModel() }
+    val voiceState = if (voice != null) rememberVoiceState(voice) else null
+    var naturalOpen by remember { mutableStateOf(false) }
+    var floatingHeight by remember { mutableStateOf<Dp?>(null) }
+    val density = LocalDensity.current
 
     fun openSheet(next: ManualSheet) {
         actions.clearError()
@@ -128,6 +153,20 @@ fun ParentingHomeScreen(
 
     fun act(block: suspend () -> Boolean) {
         scope.launch { block() }
+    }
+
+    fun fallbackChild(): UUID? = ParentingGrowthInsights.scopedChild(workspace ?: ParentingWorkspace.EMPTY, selectedChild)?.id
+
+    /** 「手动调整」把家长交给现有表单：什么都不预填、不保存（与 iOS 一致）。 */
+    fun manualSheetFor(p: ParentingNaturalProposal): ManualSheet {
+        val child = p.childID ?: fallbackChild()
+        val target = p.targetID?.let { id -> workspace?.arrangements?.firstOrNull { it.id == id } }
+        return when {
+            p.kind == ParentingIntentKind.Observation && child != null -> ManualSheet.AddObservation(child)
+            p.kind == ParentingIntentKind.Reschedule && target != null -> ManualSheet.AdjustArrangement(target)
+            child != null -> ManualSheet.AddArrangement(child)
+            else -> ManualSheet.AddChild
+        }
     }
 
     val handlers = PageHandlers(
@@ -181,11 +220,16 @@ fun ParentingHomeScreen(
                     onClearData = onClearData,
                     onSignOut = onSignOut,
                     onClose = { showSettings = false },
+                    voiceTier = voiceState?.tier,
                 )
             }
             else -> {
                 val child = ParentingGrowthInsights.scopedChild(workspace, selectedChild)
                 val childID = child?.id
+                val showComposer = voiceState != null && workspace.children.isNotEmpty() &&
+                    (tab == ParentingTab.Today || tab == ParentingTab.Growth) && stack.isEmpty()
+                val bottomInset = if (showComposer) (floatingHeight ?: 120.dp) + 8.dp else 120.dp
+                CompositionLocalProvider(LocalFloatingBottomInset provides bottomInset) {
                 Box(Modifier.fillMaxSize().hazeSource(hazeState)) {
                     val page = Modifier.fillMaxSize().semantics { testTag = "parenting.page.${tab.id}" }
                     when (val route = stack.lastOrNull()) {
@@ -233,16 +277,45 @@ fun ParentingHomeScreen(
                         )
                     }
                 }
-                ParentingTabBar(
-                    selected = tab,
-                    onSelect = { tab = it; stack.clear() },
-                    hazeState = hazeState,
+                }
+                Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .padding(horizontal = 24.dp, vertical = 12.dp)
-                        .fillMaxWidth(),
-                )
+                        .fillMaxWidth()
+                        .onSizeChanged { floatingHeight = with(density) { it.height.toDp() } },
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                ) {
+                    if (voiceState != null && showComposer) {
+                        val context = remember(workspace, selectedChild) { ParentingNaturalContext(workspace, selectedChild) }
+                        ParentingComposerBar(
+                            input = natural,
+                            voice = voiceState,
+                            context = context,
+                            now = now,
+                            calendar = calendar,
+                            zone = zone,
+                            busy = busy || saving,
+                            hazeState = hazeState,
+                            onSubmit = {
+                                if (natural.canSubmit && !busy && !saving) {
+                                    natural.submit(context, now, calendar)
+                                    naturalOpen = true
+                                }
+                            },
+                            onManualArrangement = { openSheet(childID?.let { ManualSheet.AddArrangement(it) } ?: ManualSheet.AddChild) },
+                            onManualObservation = { openSheet(childID?.let { ManualSheet.AddObservation(it) } ?: ManualSheet.AddChild) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    ParentingTabBar(
+                        selected = tab,
+                        onSelect = { tab = it; stack.clear() },
+                        hazeState = hazeState,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
 
@@ -304,6 +377,32 @@ fun ParentingHomeScreen(
                 )
                 null -> Unit
             }
+        }
+
+        if (naturalOpen && workspace != null && loaded && voiceState != null) {
+            val context = remember(workspace, selectedChild) { ParentingNaturalContext(workspace, selectedChild) }
+            ParentingNaturalSheet(
+                input = natural,
+                workspace = workspace,
+                actions = actions,
+                context = context,
+                now = now,
+                calendar = calendar,
+                zone = zone,
+                busy = busy || saving,
+                remindersEnabled = remindersEnabled,
+                receiptMillis = voiceState.receiptMillis,
+                onClose = { natural.reset(); naturalOpen = false },
+                onNavigate = { kind ->
+                    when (kind) {
+                        ParentingIntentKind.ReviewGrowth -> { tab = ParentingTab.Growth; stack.clear() }
+                        ParentingIntentKind.ViewToday, ParentingIntentKind.ViewPlan -> { tab = ParentingTab.Today; stack.clear() }
+                        else -> Unit
+                    }
+                },
+                onManual = { p -> naturalOpen = false; openSheet(manualSheetFor(p)) },
+                onAddChild = { naturalOpen = false; openSheet(ManualSheet.AddChild) },
+            )
         }
 
         pending?.let { p ->

@@ -35,6 +35,7 @@ data class ParentingShellUi(
     val subjectID: UUID? = null,
     val undoSeconds: Int? = null,
     val privacyShield: Boolean = false,
+    val busy: Boolean = false,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -66,6 +67,7 @@ class ParentingShellViewModel @Inject constructor(
                 subjectID = phase.subjectID,
                 undoSeconds = undo,
                 privacyShield = shield,
+                busy = model?.busy ?: false,
             )
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ParentingShellUi())

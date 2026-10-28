@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.heydusk.mimi.designsystem.LocalMimiColors
 import com.heydusk.mimi.designsystem.toColor
 import com.heydusk.mimi.designsystem.tokens.Rgba
+import com.heydusk.mimi.domain.dictation.DictationEngineTier
 import com.heydusk.mimi.domain.theme.Appearance
 import com.heydusk.mimi.domain.theme.Palette
 import com.heydusk.mimi.domain.theme.ThemePreferences
@@ -45,6 +46,8 @@ fun SettingsScreen(
     onSignOut: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 这台手机的语音识别档位（null = 没有语音输入卡，不显示这一行）。如实告知是否可能在线识别。 */
+    voiceTier: DictationEngineTier? = null,
 ) {
     val colors = LocalMimiColors.current
     Column(
@@ -101,6 +104,19 @@ fun SettingsScreen(
         Text(ui("体验账号"), color = colors.ink, modifier = Modifier.semantics { testTag = "parenting.settings.account" })
         TextButton(onClick = onSignOut, modifier = Modifier.semantics { testTag = "parenting.settings.signOut" }) {
             Text(ui("退出登录"))
+        }
+
+        if (voiceTier != null) {
+            Text(ui("语音输入"), style = MaterialTheme.typography.titleMedium, color = colors.ink2)
+            Text(
+                when (voiceTier) {
+                    DictationEngineTier.OnDeviceRecognizer -> ui("本机语音识别：声音只在这台手机上识别，不上传。")
+                    DictationEngineTier.ServerRecognizer -> ui("系统语音服务：这台手机没有本机识别，说话时可能经系统语音服务在线识别，小咪不保存录音。")
+                    else -> ui("这台手机暂时没有可用的语音识别服务，可以用键盘输入。")
+                },
+                color = colors.ink,
+                modifier = Modifier.semantics(mergeDescendants = true) { testTag = "parenting.settings.voice" },
+            )
         }
 
         Text(ui("数据与隐私"), style = MaterialTheme.typography.titleMedium, color = colors.ink2)

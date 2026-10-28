@@ -59,6 +59,7 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:i18n"))
+    implementation(project(":core:voice"))
     implementation(project(":feature:parenting"))
 
     implementation(platform(libs.androidx.compose.bom))

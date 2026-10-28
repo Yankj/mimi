@@ -37,6 +37,7 @@ import com.heydusk.mimi.domain.theme.Palette
 import com.heydusk.mimi.domain.theme.ThemePreferences
 import com.heydusk.mimi.feature.parenting.ParentingHomeScreen
 import com.heydusk.mimi.feature.parenting.actions.ModelParentingActions
+import com.heydusk.mimi.feature.parenting.composer.VoiceDeps
 import com.heydusk.mimi.feature.parenting.model.ParentingSession
 import com.heydusk.mimi.feature.parenting.model.ParentingWorkspaceModel
 import java.io.IOException
@@ -105,12 +106,18 @@ class JourneyHarness {
     val workspace: ParentingWorkspace get() = model()?.workspace ?: ParentingWorkspace.EMPTY
 
     @Composable
-    fun Host(zone: java.time.ZoneId = ZoneOffset.UTC, dark: Boolean = false, fontScale: Float = 1f) {
+    fun Host(
+        zone: java.time.ZoneId = ZoneOffset.UTC,
+        dark: Boolean = false,
+        fontScale: Float = 1f,
+        voice: VoiceDeps? = null,
+        now: Instant? = null,
+    ) {
         val current = session
         if (current != null) {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
-                key(generation) { JourneyContent(current, zone, dark) }
+                key(generation) { JourneyContent(current, zone, dark, voice, now) }
             }
         }
     }
@@ -123,7 +130,7 @@ class JourneyHarness {
 }
 
 @Composable
-private fun JourneyContent(current: ParentingSession, zone: java.time.ZoneId, dark: Boolean) {
+private fun JourneyContent(current: ParentingSession, zone: java.time.ZoneId, dark: Boolean, voice: VoiceDeps?, now: Instant?) {
     val phase by current.phase.collectAsState()
     val ready = phase as? ParentingSession.Phase.Ready
     val modelState = ready?.model?.state?.collectAsState()
@@ -148,6 +155,9 @@ private fun JourneyContent(current: ParentingSession, zone: java.time.ZoneId, da
             onClearData = {},
             onSignOut = {},
             zone = zone,
+            voice = voice,
+            busy = st?.busy == true,
+            now = now ?: Instant.now(),
         )
     }
 }

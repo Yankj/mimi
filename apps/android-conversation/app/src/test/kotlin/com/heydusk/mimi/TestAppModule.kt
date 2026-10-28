@@ -10,6 +10,7 @@ import com.heydusk.mimi.data.ledger.LedgerCipher
 import com.heydusk.mimi.data.ledger.LedgerKeyProvider
 import com.heydusk.mimi.data.prefs.MimiDataStore
 import com.heydusk.mimi.data.prefs.ThemePreferencesRepository
+import com.heydusk.mimi.data.prefs.VoicePreferencesRepository
 import com.heydusk.mimi.di.ApplicationScope
 import com.heydusk.mimi.di.LedgerModule
 import com.heydusk.mimi.di.PersistenceModule
@@ -39,6 +40,12 @@ object TestAppModule {
 
     @Provides @Singleton
     fun theme(store: DataStore<Preferences>) = ThemePreferencesRepository(store)
+
+    @Provides @Singleton
+    fun voiceRepository(store: DataStore<Preferences>) = VoicePreferencesRepository(store)
+
+    @Provides @Singleton
+    fun voicePrefs(repository: VoicePreferencesRepository, @ApplicationScope scope: CoroutineScope) = DataStoreVoicePrefs(repository, scope)
 
     @Provides @Singleton
     fun blobs(): LedgerBlobStore = FileLedgerBlobStore(Files.createTempDirectory("mimi-ledger-test").toFile())
