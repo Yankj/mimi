@@ -27,6 +27,10 @@ interface LedgerBlobStore {
     /** `expectedVersion` 为 null 表示"期待它还不存在"。版本不符抛 [LedgerBlobConflictException]。 */
     @Throws(IOException::class)
     fun writeIfUnchanged(key: String, expectedVersion: String?, bytes: ByteArray): String
+
+    /** 永久删除这条密文（清除数据 / 退出登录时用）。没有文件也算成功。 */
+    @Throws(IOException::class)
+    fun delete(key: String)
 }
 
 internal fun sha256Hex(bytes: ByteArray): String =
@@ -40,6 +44,12 @@ class FileLedgerBlobStore(private val directory: File) : LedgerBlobStore {
     private val locks = ConcurrentHashMap<String, Any>()
 
     override fun read(key: String): LedgerBlob? = synchronized(lockFor(key)) { readLocked(key) }
+
+    override fun delete(key: String) = synchronized(lockFor(key)) {
+        val file = fileFor(key)
+        if (file.exists() && !file.delete()) throw IOException("cannot delete ledger blob")
+        syncDirectory()
+    }
 
     override fun writeIfUnchanged(key: String, expectedVersion: String?, bytes: ByteArray): String = synchronized(lockFor(key)) {
         val current = readLocked(key)

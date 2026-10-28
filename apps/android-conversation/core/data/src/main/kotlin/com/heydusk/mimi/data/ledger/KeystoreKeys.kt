@@ -41,6 +41,8 @@ class KeystoreLedgerKeyProvider(
     }
 
     /** 删除一个主体的账本密钥：不可恢复地让它的账本失效。普通登出不得调用；只给"永久删除全部数据"用。 */
+    override fun deleteKey(subjectID: UUID) = delete(subjectID)
+
     fun delete(subjectID: UUID) = synchronized(lock) {
         val alias = alias(subjectID)
         try {

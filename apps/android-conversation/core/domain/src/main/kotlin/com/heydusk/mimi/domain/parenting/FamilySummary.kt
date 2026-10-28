@@ -50,6 +50,8 @@ data class FamilyLaunchStep(val id: String, val title: String, val isDone: Boole
 data class FamilyLaunchChecklist(val steps: List<FamilyLaunchStep>) {
     val doneCount: Int get() = steps.count { it.isDone }
     val totalCount: Int get() = steps.size
+    /** 前两步必做；提醒步可选，完成或未出现都算清单可收起。 */
+    val isFinished: Boolean get() = steps.filter { it.id != "reminders" }.all { it.isDone }
 
     companion object {
         fun from(checklist: ParentingLaunchChecklist) = FamilyLaunchChecklist(

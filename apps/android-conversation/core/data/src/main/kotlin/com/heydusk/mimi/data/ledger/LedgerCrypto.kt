@@ -28,6 +28,9 @@ interface LedgerKeyProvider {
     /** 只取已有密钥，不创建。读取一个本不存在密钥的账本不该凭空造出新密钥。 */
     @Throws(LedgerCryptoException::class)
     fun existingKey(subjectID: UUID): Key?
+
+    /** 删除该主体的密钥（清除数据 / 退出时用）。没有密钥也算成功。 */
+    fun deleteKey(subjectID: UUID) {}
 }
 
 /**

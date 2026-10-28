@@ -43,6 +43,8 @@ internal class FaultyBlobStore(private val delegate: LedgerBlobStore) : LedgerBl
         return result
     }
 
+    override fun delete(key: String) = delegate.delete(key)
+
     override fun writeIfUnchanged(key: String, expectedVersion: String?, bytes: ByteArray): String {
         if (failNextWrite) { failNextWrite = false; throw IOException("Synthetic disk write failure") }
         return delegate.writeIfUnchanged(key, expectedVersion, bytes).also { writes.incrementAndGet() }
