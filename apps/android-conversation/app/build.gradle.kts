@@ -57,6 +57,7 @@ kotlin {
 dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:data"))
+    implementation(project(":core:device"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:i18n"))
     implementation(project(":core:voice"))

@@ -29,5 +29,6 @@ object AccountModule {
         cipher: LedgerCipher,
         keys: LedgerKeyProvider,
         @ApplicationScope scope: CoroutineScope,
-    ) = ParentingSession(identity, epoch, blobs, cipher, keys, scope)
+        reminders: ParentingSession.ReminderFactory,
+    ) = ParentingSession(identity, epoch, blobs, cipher, keys, scope, reminders = reminders)
 }

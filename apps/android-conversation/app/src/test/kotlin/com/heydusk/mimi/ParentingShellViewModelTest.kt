@@ -44,6 +44,12 @@ class ParentingShellViewModelTest {
     private lateinit var blobDir: java.io.File
     private lateinit var session: ParentingSession
     private lateinit var vm: ParentingShellViewModel
+    private val opened = mutableListOf<String>()
+    private val settings = object : SystemSettingsOpener {
+        override fun notifications() { opened += "notifications" }
+        override fun exactAlarms() { opened += "exactAlarms" }
+        override fun battery() { opened += "battery" }
+    }
 
     @BeforeTest fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -62,7 +68,7 @@ class ParentingShellViewModelTest {
             LocalIdentityStore(MimiDataStore.create(dir.resolve(MimiDataStore.FILE_NAME), scope)),
             epoch, FileLedgerBlobStore(blobDir), AesGcmLedgerCipher(keys), keys, scope,
         )
-        vm = ParentingShellViewModel(session)
+        vm = ParentingShellViewModel(session, settings)
     }
 
     @AfterTest fun tearDown() = runBlocking {

@@ -4,7 +4,9 @@
     <!--
         M3：麦克风（RECORD_AUDIO）与识别服务可见性（<queries>）由 :core:voice 的清单合并进来。
         权限只在家长按麦克风、并看过站内说明之后才向系统申请；拒绝后键盘照常可用。
-        网络、通知等随各自里程碑引入。
+        M4：通知（POST_NOTIFICATIONS）、闹钟、开机重排的权限与接收器由 :core:device 的清单合并进来。
+        通知权限只在家长打开「到点提醒」之后才向系统申请；不使用 USE_EXACT_ALARM（只有闹钟/日历类应用才允许）。
+        网络等随各自里程碑引入。
     -->
 
     <application
@@ -20,6 +22,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

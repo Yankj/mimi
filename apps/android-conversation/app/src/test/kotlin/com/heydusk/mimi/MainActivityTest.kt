@@ -153,4 +153,79 @@ class MainActivityTest {
         rule.onNodeWithTag("parenting.family.settings").performClick()
         rule.onNodeWithTag("parenting.settings.voice").performScrollTo().assertIsDisplayed()
     }
+
+    // ---- M4：本机提醒的生产接线（真实 Hilt 图：AlarmManager/NotificationManager 的 Robolectric 影子，不是假中心）----
+
+    private fun seedPlanned(title: String = "Swim"): java.util.UUID {
+        val child = java.util.UUID.randomUUID()
+        val id = java.util.UUID.randomUUID()
+        val due = java.time.Instant.now().plus(2, java.time.temporal.ChronoUnit.DAYS).atZone(java.time.ZoneOffset.UTC)
+            .withHour(15).withMinute(0).withSecond(0).withNano(0).toInstant()
+        runBlocking {
+            val model = readyModel()
+            model.apply(com.heydusk.mimi.domain.parenting.ParentingCommand.AddChild(child, "Xiaoming"))
+            model.apply(com.heydusk.mimi.domain.parenting.ParentingCommand.CreateDraft(id, child, title, due, null, "src"))
+            model.apply(com.heydusk.mimi.domain.parenting.ParentingCommand.ConfirmArrangement(id))
+        }
+        return id
+    }
+
+    @Test
+    fun todayOffersRemindersAndTurningThemOnSchedulesARealAlarm() {
+        shadowOf(RuntimeEnvironment.getApplication()).grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+        org.robolectric.shadows.ShadowAlarmManager.setCanScheduleExactAlarms(true)
+        passOnboarding()
+        await("ledger loaded") { runCatching { readyModel().loaded }.getOrDefault(false) }
+        seedPlanned()
+        await("prompt") { rule.onAllNodesWithTag("parenting.reminders.prompt").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("parenting.reminders.enable").performClick()
+        await("alarm scheduled") {
+            shadowOf(RuntimeEnvironment.getApplication().getSystemService(android.app.AlarmManager::class.java)).scheduledAlarms.size == 1
+        }
+        await("prompt gone") { rule.onAllNodesWithTag("parenting.reminders.prompt").fetchSemanticsNodes().isEmpty() }
+        assertTrue(readyModel().state.value.reminderSettings.enabled)
+        // 退出登录：闹钟、设置一并清掉。
+        runBlocking { session.signOutAndStartFresh() }
+        await("alarms cleared") {
+            shadowOf(RuntimeEnvironment.getApplication().getSystemService(android.app.AlarmManager::class.java)).scheduledAlarms.isEmpty()
+        }
+        assertEquals(false, readyModel().state.value.reminderSettings.enabled)
+    }
+
+    @Test
+    fun familyHasARemindersPageInTheRealApp() {
+        passOnboarding()
+        rule.onNodeWithTag("parenting.tab.family").performClick()
+        rule.onNodeWithTag("parenting.family.reminders").performScrollTo().performClick()
+        await("page") { rule.onAllNodesWithTag("parenting.reminders.toggle").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test
+    fun tappingAReminderNotificationReturnsToTodayAndAForeignAccountIsIgnored() {
+        tapBody()
+    }
+
+    /** `rule.activity`/`scenario.onActivity` 会让 Robolectric 下的 scenario.close() 卡住；直接取前台 Activity。 */
+    private fun resumedActivity(): MainActivity =
+        androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
+            .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED).filterIsInstance<MainActivity>().single()
+
+    private fun tapBody() {
+        passOnboarding()
+        await("ledger loaded") { runCatching { readyModel().loaded }.getOrDefault(false) }
+        val subject = (session.phase.value as ParentingSession.Phase.Ready).subjectID.toString()
+        rule.onNodeWithTag("parenting.tab.family").performClick()
+        await("family") { rule.onAllNodesWithTag("parenting.page.family").fetchSemanticsNodes().isNotEmpty() }
+        resumedActivity().let {
+            it.onNewIntent(com.heydusk.mimi.device.reminders.ReminderOpen.intent(it, "00000000-0000-4000-8000-000000000000", "a1"))
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+        rule.waitForIdle()
+        rule.onNodeWithTag("parenting.tab.family").assertIsSelected() // 别的账号：不动
+        resumedActivity().let {
+            it.onNewIntent(com.heydusk.mimi.device.reminders.ReminderOpen.intent(it, subject, "a2"))
+        }
+        await("today") { rule.onAllNodesWithTag("parenting.page.today").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("parenting.tab.today").assertIsSelected()
+    }
 }
