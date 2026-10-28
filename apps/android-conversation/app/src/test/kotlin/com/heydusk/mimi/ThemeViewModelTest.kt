@@ -15,7 +15,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -42,14 +43,14 @@ class ThemeViewModelTest {
         assertEquals(ThemePreferences(), first.ready(), "nothing saved yet: defaults")
         first.update(saved)
         assertEquals(saved, withTimeout(5_000) { first.state.first { (it as? ThemeUiState.Ready)?.preferences == saved } }.let { (it as ThemeUiState.Ready).preferences })
-        firstScope.cancel() // 进程结束
+        firstScope.coroutineContext[Job]!!.cancelAndJoin() // 进程结束（等 DataStore 释放文件登记）
 
         val secondScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         try {
             val second = ThemeViewModel(ThemePreferencesRepository(MimiDataStore.create(file, secondScope)))
             assertEquals(saved, second.ready())
         } finally {
-            secondScope.cancel()
+            secondScope.coroutineContext[Job]!!.cancelAndJoin()
         }
     }
 }

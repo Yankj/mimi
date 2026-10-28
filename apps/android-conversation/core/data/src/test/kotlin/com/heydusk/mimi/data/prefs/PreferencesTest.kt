@@ -17,7 +17,8 @@ import kotlin.test.assertNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -29,7 +30,7 @@ class PreferencesTest {
     private fun open(scope: CoroutineScope): DataStore<Preferences> = MimiDataStore.create(file, scope)
     private fun <T> withStore(body: suspend (DataStore<Preferences>) -> T): T = runBlocking {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        try { body(open(scope)) } finally { scope.cancel() }
+        try { body(open(scope)) } finally { scope.coroutineContext[Job]!!.cancelAndJoin() } // 等 DataStore 释放文件登记，否则下一个实例会撞上“同一文件多个 DataStore”
     }
 
     @Test fun themeDefaultsThenPersistsAcrossAColdStoreWithTheIosKeys() {
