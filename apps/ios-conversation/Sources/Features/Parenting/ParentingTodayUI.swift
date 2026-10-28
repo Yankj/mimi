@@ -43,6 +43,64 @@ extension View {
     }
 }
 
+// MARK: - Two-action row (confirm cards)
+
+/// Where the pair sits: side by side, or stacked (accessibility Dynamic Type sizes).
+enum ParentingActionPairLayout: Equatable {
+    case sideBySide, stacked
+    /// Side by side normally; stacked once the text size reaches the accessibility range, where two labels no longer fit a row.
+    static func resolve(dynamicTypeSize: DynamicTypeSize) -> ParentingActionPairLayout {
+        dynamicTypeSize.isAccessibilitySize ? .stacked : .sideBySide
+    }
+}
+
+/// The one layout for a confirm card's two actions: secondary on the left (system `.glass`), primary on the right (translucent
+/// orange `.glassProminent`, never a solid fill), equal width and equal height. Stacked with the primary on top when the text
+/// size is an accessibility size. Used by the 「小咪来整理」 sheet and by the 待确认 / 待完成 arrangement cards, so every
+/// two-button confirmation in the parenting area looks and behaves the same. Identifiers stay on the buttons.
+struct ParentingActionPair<SecondaryLabel: View, PrimaryLabel: View>: View {
+    let secondaryAction: () -> Void
+    let primaryAction: () -> Void
+    let secondaryDisabled: Bool
+    let primaryDisabled: Bool
+    let secondaryID: String
+    let primaryID: String
+    let secondaryLabel: SecondaryLabel
+    let primaryLabel: PrimaryLabel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    init(secondaryAction: @escaping () -> Void, primaryAction: @escaping () -> Void,
+         secondaryDisabled: Bool = false, primaryDisabled: Bool = false, secondaryID: String, primaryID: String,
+         @ViewBuilder secondaryLabel: () -> SecondaryLabel, @ViewBuilder primaryLabel: () -> PrimaryLabel) {
+        self.secondaryAction = secondaryAction; self.primaryAction = primaryAction
+        self.secondaryDisabled = secondaryDisabled; self.primaryDisabled = primaryDisabled
+        self.secondaryID = secondaryID; self.primaryID = primaryID
+        self.secondaryLabel = secondaryLabel(); self.primaryLabel = primaryLabel()
+    }
+
+    private var secondary: some View {
+        Button(action: secondaryAction) { secondaryLabel.frame(maxWidth: .infinity, minHeight: 28) }
+            .parentingTodaySecondaryGlassButton()
+            .disabled(secondaryDisabled)
+            .accessibilityIdentifier(secondaryID)
+    }
+    private var primary: some View {
+        Button(action: primaryAction) { primaryLabel.frame(maxWidth: .infinity, minHeight: 28) }
+            .parentingTodayPrimaryGlassButton()
+            .disabled(primaryDisabled)
+            .accessibilityIdentifier(primaryID)
+    }
+
+    var body: some View {
+        switch ParentingActionPairLayout.resolve(dynamicTypeSize: dynamicTypeSize) {
+        case .sideBySide:
+            HStack(spacing: 12) { secondary; primary }
+        case .stacked:
+            VStack(spacing: 10) { primary; secondary }
+        }
+    }
+}
+
 // MARK: - Today: one hero card, a short rail, undo
 
 /// 今天: the one recommended start action as a hero card, what comes next as a horizontal rail, and a 3-second undo after a
@@ -364,70 +422,6 @@ extension View {
 }
 
 // MARK: - Inside 「全部安排」
-
-/// 「上次周复盘时间」 and a one-tap mark. Stored in `ParentingWeeklyReviewStore` (UserDefaults, key
-/// `mimi.parenting.weeklyReview.lastAt.v1.<subject uuid>`), never in the ledger. Without a signed-in subject the value
-/// only lives while this page is open.
-@MainActor struct ParentingWeeklyReviewRow: View {
-    let workspace: ParentingWorkspace
-    let subjectID: UUID?
-    let childID: UUID?
-    let now: Date
-    @Environment(\.locale) private var locale
-    @State private var lastAt: Date?
-
-    init(workspace: ParentingWorkspace, subjectID: UUID?, childID: UUID?, now: Date) {
-        self.workspace = workspace; self.subjectID = subjectID; self.childID = childID; self.now = now
-    }
-
-    private func ui(_ key: String) -> String { AppLanguage(locale: locale).ui(key) }
-    private func ui(_ key: String, _ arguments: [String]) -> String { AppLanguage(locale: locale).ui(key, arguments: arguments) }
-    private var store: ParentingWeeklyReviewStore? { subjectID.map { ParentingWeeklyReviewStore(subjectID: $0) } }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label(ui("周复盘"), systemImage: "calendar.badge.clock").font(.title3.weight(.semibold))
-                .accessibilityAddTraits(.isHeader)
-            Text(verbatim: statusText).font(.subheadline).foregroundStyle(catColors.calmSecondary)
-                .accessibilityIdentifier("parenting.today.weeklyReview.status")
-            if let reason = dueReason {
-                Text(verbatim: ui(reason == .sundayEvening ? "周日晚上，适合回看这一周。" : "距离上次复盘已满 7 天。") + ui("可以到「成长」里回看。"))
-                    .font(catTypography.Role.caption.font).foregroundStyle(catColors.attention)
-                    .accessibilityIdentifier("parenting.today.weeklyReview.due")
-            }
-            Button { mark() } label: { Text(ui("标记本周已复盘")).frame(maxWidth: .infinity, minHeight: 28) }
-                .parentingTodaySecondaryGlassButton()
-                .accessibilityIdentifier("parenting.today.weeklyReview.mark")
-            Text(ui("只记下时间，用来决定什么时候再提醒你复盘。")).font(catTypography.Role.caption.font)
-                .foregroundStyle(catColors.calmSecondary)
-        }
-        .parentingCard()
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("parenting.today.weeklyReview")
-        .onAppear { if let stored = store?.load() { lastAt = stored } }
-    }
-
-    private var statusText: String {
-        switch ParentingWeeklyReviewStatus.make(lastAt: lastAt, now: now) {
-        case .never: return ui("还没有记录过周复盘。")
-        case .today: return ui("今天已经复盘过。")
-        case .daysAgo(let days):
-            let date = lastAt?.formatted(.dateTime.month().day()) ?? ""
-            return ui("上次复盘：{0} 天前（{1}）", [String(days), date])
-        }
-    }
-    private var dueReason: ParentingWeeklyReviewReason? {
-        let action = ParentingStartAction.resolve(.growth, workspace: workspace, now: now,
-                                                  context: ParentingStartContext(lastWeeklyReviewAt: lastAt, childID: childID))
-        if case .weeklyReview(let reason) = action { return reason }
-        return nil
-    }
-    private func mark() {
-        let date = Date()
-        store?.save(date)
-        lastAt = date
-    }
-}
 
 /// The only hand-filled-form entry on the Today side: small, quiet, one level down (inside 「全部安排」).
 struct ParentingTodayManualEntry: View {

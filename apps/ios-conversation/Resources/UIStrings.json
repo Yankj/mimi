@@ -9462,5 +9462,13 @@
   "会一并删除{0}的 {1} 个目标、{2} 件安排和 {3} 条记录，以及头像。这些内容只保存在这台设备上，移除后无法恢复。": {
     "en": "This also deletes {0}'s {1} goals, {2} plans and {3} records, plus the photo. They are stored only on this device and can't be recovered once removed.",
     "zh-Hans": "会一并删除{0}的 {1} 个目标、{2} 件安排和 {3} 条记录，以及头像。这些内容只保存在这台设备上，移除后无法恢复。"
+  },
+  "近期安排": {
+    "en": "Coming up",
+    "zh-Hans": "近期安排"
+  },
+  "今天还没有安排。直接对小咪说一件事就行。": {
+    "en": "Nothing on for today. Just tell Mimi one thing.",
+    "zh-Hans": "今天还没有安排。直接对小咪说一件事就行。"
   }
 }
