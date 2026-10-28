@@ -276,7 +276,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
                        "Rescheduling and undo must not manufacture a completion record.")
     }
 
-    func testSyntheticPreparationFailureCancelCleanupAndNewIntake() {
+    func testSyntheticPreparationFailureCancelCleanupAndNewIntake() throws {
         // Full UI journey dropped for CI headroom (~6m on green baseline). Domain coverage:
         // ParentingWorkspaceTests.testInlinePreparationFailureCleanupSurvivesReopenAndUnblocksNewRequest.
         throw XCTSkip("UI preparation-failure journey deferred — unit test covers cleanup; parenting CI step near 60m.")
@@ -322,7 +322,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         capture(app, "Interaction-v05-7-family-tab")
     }
 
-    func testInteractionFloatingTabBarAtLargestAccessibilityText() {
+    func testInteractionFloatingTabBarAtLargestAccessibilityText() throws {
         // Deferred for CI headroom (~70s). Default-size tab reachability stays in testThreeTabsAreReachableAndComposerBelongsToTodayAndGrowth.
         throw XCTSkip("Largest accessibility5 floating-bar gallery deferred — parenting CI step near 60m.")
     }
@@ -372,7 +372,7 @@ final class ParentingWorkspaceUITests: XCTestCase {
         throw XCTSkip("Overlaps testComposerIsVoiceFirstWithPlusMenuAndAutoDismissingConfirmCard; skipped for parenting CI headroom.")
     }
 
-    func testSyntheticDarkLargeTextEmptyAndEditorSmoke() {
+    func testSyntheticDarkLargeTextEmptyAndEditorSmoke() throws {
         // Deferred for CI headroom (~90s). Empty-state + manual discard paths stay in other journeys; Mac shots cover dark/a11y chrome.
         throw XCTSkip("Dark+accessibility5 editor smoke deferred — parenting CI step near 60m under runner capacity.")
     }
