@@ -141,12 +141,13 @@ class ShellRemindersTest {
 
     @Test fun signOutClearsTheQueueAndSettings() = runBlocking {
         build(withReminders = true)
-        ready()
+        val before = ready().subjectID
         vm.reminderActions.setEnabled(true)
         ready { it.reminders?.settings?.enabled == true }
         vm.signOut().join()
         assertEquals(1, signedOut)
         assertTrue(center.requests.isEmpty())
-        assertEquals(false, ready().reminders?.settings?.enabled)
+        // 等壳状态切到新账号（旧模型的状态可能还没被新模型顶掉），再看新账号的设置是默认关闭。
+        assertEquals(false, ready { it.subjectID != before && it.loaded }.reminders?.settings?.enabled)
     }
 }
