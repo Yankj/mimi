@@ -51,6 +51,18 @@ class PreferencesTest {
         }
     }
 
+    @Test fun voiceExplanationFlagDefaultsFalsePersistsAndUsesTheIosKey() {
+        withStore { ds ->
+            val repo = VoicePreferencesRepository(ds)
+            assertEquals(false, repo.permissionExplained.first())
+            repo.setPermissionExplained()
+        }
+        withStore { ds ->
+            assertEquals(true, VoicePreferencesRepository(ds).permissionExplained.first())
+            assertEquals(true, ds.data.first()[androidx.datastore.preferences.core.booleanPreferencesKey("mimi.voice.permissionExplained")])
+        }
+    }
+
     @Test fun unknownStoredValuesFallBackToDefaults() {
         withStore { ds ->
             ds.edit { it[stringPreferencesKey("palette")] = "no-such-palette"; it[stringPreferencesKey("theme")] = "???" }

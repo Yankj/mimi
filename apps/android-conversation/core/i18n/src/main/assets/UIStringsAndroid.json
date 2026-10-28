@@ -198,5 +198,37 @@
   "选择时间": {
     "en": "Choose time",
     "zh-Hans": "选择时间"
+  },
+  "这台手机没有本机语音识别，说话时可能经系统语音服务在线识别，小咪不保存录音。接下来系统会请你允许麦克风。": {
+    "en": "This phone has no on-device speech recognition, so what you say may be recognised online by the system speech service. Mimi does not keep recordings. Android will now ask you to allow the microphone.",
+    "zh-Hans": "这台手机没有本机语音识别，说话时可能经系统语音服务在线识别，小咪不保存录音。接下来系统会请你允许麦克风。"
+  },
+  "小咪的语音识别只在你的手机上完成，不会上传。接下来系统会请你允许麦克风。": {
+    "en": "Speech recognition happens only on your phone and is never uploaded. Android will now ask you to allow the microphone.",
+    "zh-Hans": "小咪的语音识别只在你的手机上完成，不会上传。接下来系统会请你允许麦克风。"
+  },
+  "需要麦克风权限才能说话。可以在“设置”里开启，或直接打字。": {
+    "en": "Speaking needs microphone permission. You can turn it on in Settings, or just type.",
+    "zh-Hans": "需要麦克风权限才能说话。可以在“设置”里开启，或直接打字。"
+  },
+  "这台手机暂时没有可用的语音识别服务。可以点键盘，用系统键盘上的麦克风听写。": {
+    "en": "No speech recognition service is available on this phone right now. Tap the keyboard and use the microphone on the system keyboard to dictate.",
+    "zh-Hans": "这台手机暂时没有可用的语音识别服务。可以点键盘，用系统键盘上的麦克风听写。"
+  },
+  "语音输入": {
+    "en": "Voice input",
+    "zh-Hans": "语音输入"
+  },
+  "本机语音识别：声音只在这台手机上识别，不上传。": {
+    "en": "On-device recognition: your voice is recognised on this phone only and is not uploaded.",
+    "zh-Hans": "本机语音识别：声音只在这台手机上识别，不上传。"
+  },
+  "系统语音服务：这台手机没有本机识别，说话时可能经系统语音服务在线识别，小咪不保存录音。": {
+    "en": "System speech service: this phone has no on-device recognition, so what you say may be recognised online by the system speech service. Mimi does not keep recordings.",
+    "zh-Hans": "系统语音服务：这台手机没有本机识别，说话时可能经系统语音服务在线识别，小咪不保存录音。"
+  },
+  "这台手机暂时没有可用的语音识别服务，可以用键盘输入。": {
+    "en": "No speech recognition service is available on this phone right now; you can type instead.",
+    "zh-Hans": "这台手机暂时没有可用的语音识别服务，可以用键盘输入。"
   }
 }

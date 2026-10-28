@@ -72,4 +72,77 @@ object MimiIcons {
             line { moveTo(10f, 19f); lineTo(10f, 14f); lineTo(14f, 14f); lineTo(14f, 19f) }
         }
     }
+
+    // 输入卡用的图标（对应 SF Symbols mic / plus / keyboard / arrow.up / xmark / waveform / sparkles）。
+
+    val Mic: ImageVector by lazy {
+        stroked("Mic") {
+            line {
+                moveTo(9f, 6f); arcToRelative(3f, 3f, 0f, false, true, 6f, 0f); lineTo(15f, 12f)
+                arcToRelative(3f, 3f, 0f, false, true, -6f, 0f); close()
+            }
+            line { moveTo(5.5f, 11f); arcToRelative(6.5f, 6.5f, 0f, false, false, 13f, 0f) }
+            line { moveTo(12f, 17.5f); lineTo(12f, 21f) }
+        }
+    }
+
+    val Plus: ImageVector by lazy {
+        stroked("Plus") {
+            line { moveTo(12f, 5f); lineTo(12f, 19f) }
+            line { moveTo(5f, 12f); lineTo(19f, 12f) }
+        }
+    }
+
+    val Keyboard: ImageVector by lazy {
+        stroked("Keyboard") {
+            line {
+                moveTo(5f, 6f); lineTo(19f, 6f); arcToRelative(2f, 2f, 0f, false, true, 2f, 2f); lineTo(21f, 16f)
+                arcToRelative(2f, 2f, 0f, false, true, -2f, 2f); lineTo(5f, 18f)
+                arcToRelative(2f, 2f, 0f, false, true, -2f, -2f); lineTo(3f, 8f)
+                arcToRelative(2f, 2f, 0f, false, true, 2f, -2f); close()
+            }
+            line { moveTo(7f, 10f); lineTo(7.2f, 10f) }
+            line { moveTo(11f, 10f); lineTo(11.2f, 10f) }
+            line { moveTo(15f, 10f); lineTo(15.2f, 10f) }
+            line { moveTo(8f, 14.5f); lineTo(16f, 14.5f) }
+        }
+    }
+
+    val ArrowUp: ImageVector by lazy {
+        stroked("ArrowUp") {
+            line { moveTo(12f, 19f); lineTo(12f, 5.5f) }
+            line { moveTo(6f, 11f); lineTo(12f, 5f); lineTo(18f, 11f) }
+        }
+    }
+
+    val Close: ImageVector by lazy {
+        stroked("Close") {
+            line { moveTo(6f, 6f); lineTo(18f, 18f) }
+            line { moveTo(18f, 6f); lineTo(6f, 18f) }
+        }
+    }
+
+    val Check: ImageVector by lazy {
+        stroked("Check") { line { moveTo(5f, 12.5f); lineTo(10f, 17.5f); lineTo(19f, 7f) } }
+    }
+
+    val Waveform: ImageVector by lazy {
+        stroked("Waveform") {
+            line { moveTo(5f, 10f); lineTo(5f, 14f) }
+            line { moveTo(9f, 6f); lineTo(9f, 18f) }
+            line { moveTo(13f, 3.5f); lineTo(13f, 20.5f) }
+            line { moveTo(17f, 8f); lineTo(17f, 16f) }
+            line { moveTo(21f, 10.5f); lineTo(21f, 13.5f) }
+        }
+    }
+
+    val Sparkles: ImageVector by lazy {
+        stroked("Sparkles") {
+            line {
+                moveTo(10f, 4f); lineTo(11.6f, 9f); lineTo(16.5f, 10.5f); lineTo(11.6f, 12f)
+                lineTo(10f, 17f); lineTo(8.4f, 12f); lineTo(3.5f, 10.5f); lineTo(8.4f, 9f); close()
+            }
+            line { moveTo(18f, 15f); lineTo(18.8f, 17.2f); lineTo(21f, 18f); lineTo(18.8f, 18.8f); lineTo(18f, 21f); lineTo(17.2f, 18.8f); lineTo(15f, 18f); lineTo(17.2f, 17.2f); close() }
+        }
+    }
 }
