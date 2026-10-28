@@ -977,10 +977,23 @@ final class ParentingWorkspaceUITests: XCTestCase {
     }
     private func input(_ app: XCUIApplication, _ id: String) -> XCUIElement {
         // A virtualized upper field can still exist with a zero frame. Search upward in that case as well.
-        let upperField = ["parenting.arrangement.source", "parenting.arrangement.title", "parenting.child.name", "parenting.goal.title"].contains(id)
+        // arrangement.title sits BELOW the inline-intake section — never treat it as upper or reveal scrolls the wrong way
+        // and the Form never materializes the cell (4 failures on CI after acbe252).
+        let upperField = ["parenting.arrangement.source", "parenting.child.name", "parenting.goal.title"].contains(id)
         // TextEditor and TextField identifiers come from the actual host form; do not scan all AX types.
+        // Title uses TextField(axis: .vertical); some runtimes expose it as a TextView — accept either.
         let multiline = ["parenting.arrangement.source", "parenting.record.text"].contains(id)
-        let field = multiline ? app.textViews.matching(identifier: id).firstMatch : app.textFields.matching(identifier: id).firstMatch
+        let asView = app.textViews.matching(identifier: id).firstMatch
+        let asField = app.textFields.matching(identifier: id).firstMatch
+        let field: XCUIElement
+        if multiline {
+            field = asView
+        } else if id == "parenting.arrangement.title" {
+            _ = asField.waitForExistence(timeout: 2)
+            field = asField.exists ? asField : asView
+        } else {
+            field = asField
+        }
         // The editor sheet was just presented: let it land before searching. PR #127's "Synthetic native UI target is unreachable"
         // came from reveal() finding no field yet and dragging down (the direction for top-of-form fields): a drag over a sheet that
         // is still presenting dismisses it, and over the Home page it pulls to refresh (`.refreshable { await model.load() }`,
