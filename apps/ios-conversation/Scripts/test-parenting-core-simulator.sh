@@ -111,6 +111,7 @@ env -u CATPAW_SUPABASE_PROJECT_URL -u CATPAW_SUPABASE_PUBLISHABLE_KEY \
     -only-testing:catTests/ParentingPlushAndFixesTests \
     -only-testing:catTests/ParentingStartActionTests \
     -only-testing:catTests/ParentingGrowthInsightsTests \
+    -only-testing:catTests/ParentingChildPickerTests \
     -only-testing:catTests/NativeAuthApplicationLifecycleTests/testActiveKnownRotationRecoversAutomaticallyInSameLocalChat \
     -only-testing:catTests/NativeAuthApplicationLifecycleTests/testWorkspace503RetriesSilentlyAndCoalescesUntilSuccess \
     -only-testing:catTests/NativeAuthApplicationLifecycleTests/testReturningLocalChatStaysReadableAndForegroundWakesRetryInPlace \

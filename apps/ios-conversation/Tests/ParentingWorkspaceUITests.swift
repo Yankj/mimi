@@ -604,6 +604,19 @@ final class ParentingWorkspaceUITests: XCTestCase {
         capture(app, "observation-cold-read-deletion-persists-child-and-goal-retained")
     }
 
+    /// No child yet: 今天, 成长 and 我们家 all show the same add-child card (`parenting.emptyChild`) with the same button,
+    /// and 我们家 does not repeat the request in its 启航 card.
+    func testEmptyStateIsOneSharedCardOnEveryTab() {
+        let app = launch("p0-ui-parenting-success")
+        ready(app)
+        for tab in ParentingUI.Tab.allCases {
+            ParentingUI.selectTab(app, tab)
+            XCTAssertTrue(element(app, "parenting.emptyChild").waitForExistence(timeout: 10), "\(tab) must show the shared empty card\n" + app.debugDescription)
+            XCTAssertTrue(app.buttons["parenting.firstChild"].waitForExistence(timeout: 5), "\(tab) must offer the same add-child button")
+            XCTAssertFalse(element(app, "parenting.family.launch").exists, "\(tab): the launch card must not repeat the add-child request")
+        }
+    }
+
     func testSyntheticSwiftDataRollbackRetainsInputRetriesAndColdReadsOneChild() {
         let app = launch("p0-ui-parenting-save-rollback")
         let name = "Synthetic Rollback Child"
@@ -636,10 +649,12 @@ final class ParentingWorkspaceUITests: XCTestCase {
         ready(app)
         XCTAssertFalse(firstChildButton(app).exists)
         showAllArrangements(app)
-        tap(app, element(app, "parenting.childFilter"))
+        // 全部安排 now uses the shared child switcher: one chip per child, always visible (no menu to open first).
+        XCTAssertTrue(element(app, "parenting.childFilter").waitForExistence(timeout: 5), app.debugDescription)
         let choices = app.buttons.matching(NSPredicate(format: "label == %@", name))
         XCTAssertTrue(choices.firstMatch.waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertEqual(choices.count, 1, "The real cold-read child picker must contain exactly one child from the failed-then-retried form.")
+        XCTAssertTrue(choices.firstMatch.isSelected, "With a single child the switcher still shows who the page is about, selected.")
         choices.firstMatch.tap()
         assertNoArrangement(app)
         capture(app, "save-rollback-cold-read-single-child")
@@ -747,10 +762,9 @@ final class ParentingWorkspaceUITests: XCTestCase {
         XCTAssertTrue(inputExistsEventually(app, "parenting.arrangement.source", timeout: 10),
                       "Add-an-arrangement form did not show its source field.\n" + app.debugDescription, file: file, line: line)
     }
-    /// With no child, 今天 offers the nickname action in its hero; 成长 and 我们家 keep `parenting.firstChild`.
+    /// With no child, 今天, 成长 and 我们家 all show the one shared add-child card; its button is `parenting.firstChild`.
     private func firstChildButton(_ app: XCUIApplication) -> XCUIElement {
-        let hero = app.buttons["parenting.today.hero.addChild"]
-        return hero.exists ? hero : app.buttons["parenting.firstChild"]
+        app.buttons["parenting.firstChild"]
     }
     private func assertEmpty(_ app: XCUIApplication) {
         XCTAssertTrue(firstChildButton(app).exists, app.debugDescription)

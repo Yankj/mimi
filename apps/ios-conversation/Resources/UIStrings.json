@@ -7415,10 +7415,6 @@
     "en": "Edit nickname",
     "zh-Hans": "修改昵称"
   },
-  "删除孩子": {
-    "en": "Delete child",
-    "zh-Hans": "删除孩子"
-  },
   "孩子资料操作": {
     "en": "Child profile actions",
     "zh-Hans": "孩子资料操作"
@@ -9390,6 +9386,82 @@
   "这个目标还没有记录。": {
     "en": "Nothing has been written for this goal yet.",
     "zh-Hans": "这个目标还没有记录。"
+  },
+  "从相册选择": {
+    "en": "Choose from Photos",
+    "zh-Hans": "从相册选择"
+  },
+  "恢复默认猫头像": {
+    "en": "Use the default cat",
+    "zh-Hans": "恢复默认猫头像"
+  },
+  "孩子头像": {
+    "en": "Child photo",
+    "zh-Hans": "孩子头像"
+  },
+  "照片只保存在这台设备上，退出登录时会一起清除。": {
+    "en": "Photos stay on this device and are cleared when you sign out.",
+    "zh-Hans": "照片只保存在这台设备上，退出登录时会一起清除。"
+  },
+  "这张照片打不开，请换一张。": {
+    "en": "This photo can't be opened. Please try another.",
+    "zh-Hans": "这张照片打不开，请换一张。"
+  },
+  "头像没有保存成功，请换一张试试。": {
+    "en": "The photo couldn't be saved. Please try another.",
+    "zh-Hans": "头像没有保存成功，请换一张试试。"
+  },
+  "头像预览": {
+    "en": "Photo preview",
+    "zh-Hans": "头像预览"
+  },
+  "拖动和缩放，让孩子刚好在圆圈里。": {
+    "en": "Drag and zoom to fit your child inside the circle.",
+    "zh-Hans": "拖动和缩放，让孩子刚好在圆圈里。"
+  },
+  "缩放": {
+    "en": "Zoom",
+    "zh-Hans": "缩放"
+  },
+  "调整头像": {
+    "en": "Adjust photo",
+    "zh-Hans": "调整头像"
+  },
+  "使用这张": {
+    "en": "Use this photo",
+    "zh-Hans": "使用这张"
+  },
+  "更换头像": {
+    "en": "Change photo",
+    "zh-Hans": "更换头像"
+  },
+  "移除孩子资料": {
+    "en": "Remove child profile",
+    "zh-Hans": "移除孩子资料"
+  },
+  "会一并删除这个孩子的目标、安排、记录和头像，且无法恢复。移除前会再确认一次。": {
+    "en": "This also deletes this child's goals, plans, records and photo, and it can't be undone. You'll be asked to confirm first.",
+    "zh-Hans": "会一并删除这个孩子的目标、安排、记录和头像，且无法恢复。移除前会再确认一次。"
+  },
+  "确认移除": {
+    "en": "Remove",
+    "zh-Hans": "确认移除"
+  },
+  "先不移除": {
+    "en": "Not now",
+    "zh-Hans": "先不移除"
+  },
+  "移除「{0}」的资料？": {
+    "en": "Remove {0}'s profile?",
+    "zh-Hans": "移除「{0}」的资料？"
+  },
+  "会删除{0}的资料和头像。移除后无法恢复，之后可以重新添加。": {
+    "en": "This deletes {0}'s profile and photo. It can't be undone, but you can add them again later.",
+    "zh-Hans": "会删除{0}的资料和头像。移除后无法恢复，之后可以重新添加。"
+  },
+  "会一并删除{0}的 {1} 个目标、{2} 件安排和 {3} 条记录，以及头像。这些内容只保存在这台设备上，移除后无法恢复。": {
+    "en": "This also deletes {0}'s {1} goals, {2} plans and {3} records, plus the photo. They are stored only on this device and can't be recovered once removed.",
+    "zh-Hans": "会一并删除{0}的 {1} 个目标、{2} 件安排和 {3} 条记录，以及头像。这些内容只保存在这台设备上，移除后无法恢复。"
   },
   "近期安排": {
     "en": "Coming up",

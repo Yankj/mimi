@@ -11,6 +11,8 @@ struct ParentingGrowthHomeActions {
     var openTimeline: () -> Void
     var renameChild: (ParentingChild) -> Void
     var deleteChild: (UUID) -> Void
+    /// Opens the avatar sheet (photo or default plush cat).
+    var changeAvatar: (ParentingChild) -> Void = { _ in }
 }
 
 /// 成长首页: one recommended starting action, one picture of the last seven days, and two quiet doors to the sub pages.
@@ -35,7 +37,7 @@ struct ParentingGrowthHomeView: View {
             let goals = ParentingGoalProgress.build(workspace: workspace, childID: child.id, now: now, calendar: calendar)
             let recordCount = workspace.records.filter { $0.childID == child.id }.count
             VStack(alignment: .leading, spacing: 20) {
-                if workspace.children.count > 1 { chips(selected: child.id) }
+                switcher(selected: child.id)
                 header(child)
                 startCard(start, child: child, goals: goals)
                 ParentingWeekDensityView(density: density, calendar: calendar)
@@ -46,43 +48,23 @@ struct ParentingGrowthHomeView: View {
 
     // MARK: Child
 
-    private func chips(selected: UUID) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(workspace.children) { child in
-                    Button { actions.selectChild(child.id) } label: {
-                        HStack(spacing: 8) {
-                            ParentingChildAvatar(accent: accent(child.id), size: 28)
-                            Text(verbatim: child.name).font(.subheadline.weight(selected == child.id ? .semibold : .regular))
-                        }
-                        .padding(.horizontal, 12).frame(minHeight: 44)
-                        .background(selected == child.id ? catColors.card : catColors.fillSelected.opacity(0.6), in: Capsule())
-                        .overlay(Capsule().stroke(selected == child.id ? catColors.ink.opacity(0.35) : Color.clear, lineWidth: 1))
-                        .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(catColors.ink)
-                    .accessibilityAddTraits(selected == child.id ? [.isSelected] : [])
-                    .accessibilityIdentifier("parenting.growth.child." + child.id.uuidString)
-                }
-            }
-            .padding(.vertical, 1)
-        }
-        .accessibilityIdentifier("parenting.growth.childChips")
+    /// The shared child switcher; shown for one child too, so the page always says who it is about.
+    private func switcher(selected: UUID) -> some View {
+        ParentingChildSwitcher(children: workspace.children, selectedID: selected, accent: accent,
+                               onSelect: { if let id = $0 { actions.selectChild(id) } },
+                               identifier: "parenting.growth.childChips", chipIdentifierPrefix: "parenting.growth.child.")
     }
 
+    /// The switcher above already names the child, so this row only carries the start date and the profile actions.
     private func header(_ child: ParentingChild) -> some View {
         HStack(alignment: .center, spacing: 12) {
-            ParentingChildAvatar(accent: accent(child.id), size: 48)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(verbatim: child.name).font(.title3.weight(.semibold))
-                Text(verbatim: ui("开始记录于") + " " + child.createdAt.formatted(date: .abbreviated, time: .omitted))
-                    .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
-            }
+            Text(verbatim: ui("开始记录于") + " " + child.createdAt.formatted(date: .abbreviated, time: .omitted))
+                .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
             Spacer(minLength: 0)
             Menu {
                 Button(ui("修改昵称")) { actions.renameChild(child) }
-                Button(ui("删除孩子"), role: .destructive) { actions.deleteChild(child.id) }
+                Button(ui("更换头像")) { actions.changeAvatar(child) }
+                Button(ui("移除孩子资料"), role: .destructive) { actions.deleteChild(child.id) }
             } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
             .accessibilityLabel(ui("孩子资料操作")).disabled(busy)
         }
