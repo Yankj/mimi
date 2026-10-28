@@ -309,13 +309,21 @@ import Combine
                            allPage: { allArrangementsPage })
     }
 
-    /// 全部安排 (pushed from 今天): the previous Today body plus 「上次周复盘时间」.
+    /// 全部安排 (pushed from 今天).
+    ///
+    /// Why a parent opens this page: "what is on for today and the next few days, what is still waiting for my yes, what did we
+    /// finish, and can I add one more". So the order is: child (who am I looking at) → 待确认 (only when there is something,
+    /// on top because it is the only thing that needs a decision) → 今天 timeline → 待重新安排 / 近期 → 已完成 / 已取消.
+    ///
+    /// 「周复盘」 decision (was the first card here): removed from this page. It stored one date ("last marked reviewed") whose
+    /// only reader was the card itself (`ParentingStartAction.resolve(.growth)` → `.weeklyReview` is read nowhere else), i.e. an
+    /// internal log with a button and no outcome for the parent. Looking back at the week already has a real home: the 成长 tab's
+    /// "这一周的轨迹" card and timeline. The domain rule and the per-subject key stay (sign-out still erases them) so a future
+    /// reminder can use them, but nothing here asks the parent to "mark" anything.
     private var allArrangementsPage: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 26) {
+            VStack(alignment: .leading, spacing: 24) {
                 if let error = model.error { errorBanner(error) }
-                ParentingWeeklyReviewRow(workspace: workspace, subjectID: conversationModel.trustedSubjectID,
-                                         childID: selectedChildID, now: now)
                 todayContent
                 localStorageNote
             }
@@ -337,19 +345,20 @@ import Combine
         if workspace.children.isEmpty { firstChildEmpty }
         else {
             let timeline = ParentingTodayTimeline.build(workspace: workspace, childID: selectedChildID, now: now)
-            ParentingTodaySummaryView(summary: timeline.summary, childName: { childName($0) })
-            reminderPrompt
+            // MERGE POINT: replace `childFilter` with the shared ChildSwitcher (it also offers 「全部孩子」, tag nil).
             childFilter
-            arrangementSection("待确认", items: timeline.pending,
-                               empty: "还没有待确认的事。直接说一件事，小咪会先给你一张确认卡。")
-            ParentingTodayManualEntry(busy: model.busy) { sheet = .newArrangement(selectedChildID, nil) }
+            if !timeline.pending.isEmpty {
+                arrangementSection("待确认", count: timeline.pending.count, items: timeline.pending)
+            }
             todayTimeline(timeline)
+            ParentingTodayManualEntry(busy: model.busy) { sheet = .newArrangement(selectedChildID, nil) }
             if !timeline.overdue.isEmpty {
                 arrangementSection("待重新安排", items: timeline.overdue,
                                    explanation: "时间已经过去，仍未标记完成。可调整时间或取消，不会自动算作完成。")
             }
-            if !timeline.upcoming.isEmpty { arrangementSection("以后的安排", items: timeline.upcoming) }
+            if !timeline.upcoming.isEmpty { arrangementSection("近期安排", items: timeline.upcoming) }
             historySection(excluding: Set(timeline.entries.map(\.id)))
+            reminderPrompt
             todayGrowthPreview
             if workspace.suggestionsEnabled { suggestions }
         }
@@ -358,9 +367,9 @@ import Combine
     /// 今天时间轴: today's confirmed items and observations on one rail, with a "now" line and same-minute flags.
     @ViewBuilder private func todayTimeline(_ timeline: ParentingTodayTimeline) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(ui("今天的时间轴")).font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
+            Text(ui("今天")).font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
             if timeline.entries.isEmpty {
-                Text(ui("今天没有已确认的安排。可以留白，也可以直接说一件事。"))
+                Text(ui("今天还没有安排。直接对小咪说一件事就行。"))
                     .font(.subheadline).foregroundStyle(catColors.calmSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading).parentingCard()
             } else {
@@ -452,10 +461,10 @@ import Combine
         .parentingCard()
     }
 
-    @ViewBuilder private func arrangementSection(_ title: String, items: [ParentingArrangement],
+    @ViewBuilder private func arrangementSection(_ title: String, count: Int? = nil, items: [ParentingArrangement],
                                                 empty: String? = nil, explanation: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(ui(title)).font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
+            Text(count.map { ui(title) + " · " + String($0) } ?? ui(title)).font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
             if let explanation {
                 Text(ui(explanation)).font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
             }
@@ -541,15 +550,9 @@ import Combine
             arrangementEditHistory(item)
             if item.state == .draft {
                 Text(ui("待确认 · 尚未进入安排")).font(catTypography.Role.caption.font).foregroundStyle(catColors.attention)
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 12) { arrangementConfirm(item); arrangementEdit(item) }
-                    VStack(alignment: .leading, spacing: 8) { arrangementConfirm(item); arrangementEdit(item) }
-                }
+                arrangementConfirm(item)
             } else if item.state == .planned {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 12) { arrangementComplete(item); arrangementEdit(item) }
-                    VStack(alignment: .leading, spacing: 8) { arrangementComplete(item); arrangementEdit(item) }
-                }
+                arrangementComplete(item)
             } else if item.state == .completed {
                 Label(ui("家长已标记完成"), systemImage: "checkmark.circle").font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
                     .accessibilityElement(children: .combine)
@@ -605,20 +608,20 @@ import Combine
         }
     }
 
-    private func arrangementConfirm(_ item: ParentingArrangement) -> some View {
-        Button(ui("确认安排")) { perform(.confirmArrangement(id: item.id), key: "confirm.\(item.id)") }
-            .parentingPrimaryButton().disabled(model.busy)
-            .accessibilityIdentifier("parenting.confirm.\(item.id)")
+    private func arrangementPair(_ item: ParentingArrangement, primaryTitle: String, primaryID: String,
+                                 primaryAction: @escaping () -> Void) -> some View {
+        ParentingActionPair(secondaryAction: { sheet = .editArrangement(item) }, primaryAction: primaryAction,
+                            secondaryDisabled: model.busy, primaryDisabled: model.busy,
+                            secondaryID: "parenting.adjust.\(item.id)", primaryID: primaryID,
+                            secondaryLabel: { Text(ui("调整安排")) }, primaryLabel: { Text(ui(primaryTitle)) })
     }
-    private func arrangementEdit(_ item: ParentingArrangement) -> some View {
-        Button(ui("调整安排")) { sheet = .editArrangement(item) }
-            .parentingSecondaryButton().disabled(model.busy)
-            .accessibilityIdentifier("parenting.adjust.\(item.id)")
+    private func arrangementConfirm(_ item: ParentingArrangement) -> some View {
+        arrangementPair(item, primaryTitle: "确认安排", primaryID: "parenting.confirm.\(item.id)") {
+            perform(.confirmArrangement(id: item.id), key: "confirm.\(item.id)")
+        }
     }
     private func arrangementComplete(_ item: ParentingArrangement) -> some View {
-        Button(ui("完成并记录")) { sheet = .complete(item) }
-            .parentingPrimaryButton().disabled(model.busy)
-            .accessibilityIdentifier("parenting.complete.\(item.id)")
+        arrangementPair(item, primaryTitle: "完成并记录", primaryID: "parenting.complete.\(item.id)") { sheet = .complete(item) }
     }
 
     private var addChildButton: some View {

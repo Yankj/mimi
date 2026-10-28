@@ -408,20 +408,27 @@ extension View {
             switch input.phase {
             case .confirming, .saving, .failed:
                 let saving = input.phase == .saving
-                VStack(spacing: 10) {
-                    Button {
-                        if card.writes { Task { await input.confirm(model: workspaceModel) } }
-                        else { let kind = p.kind; input.reset(); dismiss(); onNavigate(kind) }
-                    } label: {
-                        HStack { if saving { ProgressView() }; Text(ui(card.confirmTitle)) }.frame(maxWidth: .infinity)
-                    }
-                    .parentingPrimaryButton()
-                    .disabled(saving || workspaceModel.busy)
-                    .accessibilityIdentifier("parenting.natural.confirm")
+                let confirmAction: () -> Void = {
                     if card.writes {
-                        Button(ui("手动调整")) { onManual(p); dismiss() }
-                            .parentingSecondaryButton().disabled(saving)
-                            .accessibilityIdentifier("parenting.natural.manual")
+                        Task { await input.confirm(model: workspaceModel) }
+                    } else {
+                        let kind = p.kind
+                        input.reset(); dismiss(); onNavigate(kind)
+                    }
+                }
+                let confirmLabel = HStack { if saving { ProgressView() }; Text(ui(card.confirmTitle)) }
+                Group {
+                    if card.writes {
+                        // 手动调整 on the left, the save on the right (ParentingActionPair: equal width, stacked at accessibility sizes).
+                        ParentingActionPair(secondaryAction: { onManual(p); dismiss() }, primaryAction: confirmAction,
+                                            secondaryDisabled: saving, primaryDisabled: saving || workspaceModel.busy,
+                                            secondaryID: "parenting.natural.manual", primaryID: "parenting.natural.confirm",
+                                            secondaryLabel: { Text(ui("手动调整")) }, primaryLabel: { confirmLabel })
+                    } else {
+                        Button(action: confirmAction) { confirmLabel.frame(maxWidth: .infinity, minHeight: 28) }
+                            .parentingTodayPrimaryGlassButton()
+                            .disabled(saving || workspaceModel.busy)
+                            .accessibilityIdentifier("parenting.natural.confirm")
                     }
                 }
                 .padding(.horizontal, 20).padding(.vertical, 10)
