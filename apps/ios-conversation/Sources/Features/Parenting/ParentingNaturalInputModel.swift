@@ -43,6 +43,20 @@ final class ParentingNaturalInputModel: ObservableObject {
         adopt(ParentingNaturalInput.applying(answer, to: current, context: context, now: now))
     }
 
+    /// 记一笔 | 加安排 on the card: re-reads the same words with the other kind locked in. Works while a question is open or the card
+    /// shows, never after something was partly saved (that record would then belong to the other kind).
+    var canSwitchType: Bool {
+        guard let kind = proposal?.kind, completedSteps == 0 else { return false }
+        guard kind == .observation || kind == .newArrangement else { return false }
+        switch phase { case .asking, .confirming, .failed: return true; default: return false }
+    }
+
+    func switchType(to kind: ParentingIntentKind, context: ParentingNaturalContext, now: Date) {
+        guard canSwitchType, let current = proposal, current.kind != kind, kind == .observation || kind == .newArrangement else { return }
+        reply = ""
+        adopt(ParentingNaturalInput.applying(.intent(kind), to: current, context: context, now: now))
+    }
+
     func answerWithReply(context: ParentingNaturalContext, now: Date) {
         let text = reply.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
@@ -79,6 +93,7 @@ final class ParentingNaturalInputModel: ObservableObject {
         switch proposal.kind {
         case .newArrangement: phase = .saved("已安排好了")
         case .reschedule: phase = .saved("已改期")
+        case .cancel: phase = .saved("已取消这项安排")
         case .observation: phase = .saved("已保存这条观察")
         default: break
         }

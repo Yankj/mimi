@@ -9470,5 +9470,105 @@
   "今天还没有安排。直接对小咪说一件事就行。": {
     "en": "Nothing on for today. Just tell Mimi one thing.",
     "zh-Hans": "今天还没有安排。直接对小咪说一件事就行。"
+  },
+  "加安排": {
+    "en": "Add a plan",
+    "zh-Hans": "加安排"
+  },
+  "记下来": {
+    "en": "Just note it",
+    "zh-Hans": "记下来"
+  },
+  "安排提醒": {
+    "en": "Set a reminder",
+    "zh-Hans": "安排提醒"
+  },
+  "已经发生，只记录，不提醒": {
+    "en": "Already happened. Saved only, no reminder.",
+    "zh-Hans": "已经发生，只记录，不提醒"
+  },
+  "还没发生，到点提醒我": {
+    "en": "Not yet. Remind me when it's time.",
+    "zh-Hans": "还没发生，到点提醒我"
+  },
+  "这条怎么记？": {
+    "en": "How should I save this?",
+    "zh-Hans": "这条怎么记？"
+  },
+  "小咪没太听明白，这条怎么记？": {
+    "en": "I didn't quite get that. How should I save it?",
+    "zh-Hans": "小咪没太听明白，这条怎么记？"
+  },
+  "这句话有两种理解": {
+    "en": "This could mean two things",
+    "zh-Hans": "这句话有两种理解"
+  },
+  "这条是": {
+    "en": "This is",
+    "zh-Hans": "这条是"
+  },
+  "只记录，不提醒。要提醒就点“加安排”。": {
+    "en": "Saved only, no reminder. Tap “Add a plan” to be reminded.",
+    "zh-Hans": "只记录，不提醒。要提醒就点“加安排”。"
+  },
+  "到点提醒你。只想记下来就点“记一笔”。": {
+    "en": "You'll be reminded. Tap “Jot down” to only save it.",
+    "zh-Hans": "到点提醒你。只想记下来就点“记一笔”。"
+  },
+  "改为加安排": {
+    "en": "Add a plan instead",
+    "zh-Hans": "改为加安排"
+  },
+  "没说几点，先定在 9:00；不对可以点“手动调整”。": {
+    "en": "No time was said, so it's set to 9:00. Tap “Adjust manually” to change it.",
+    "zh-Hans": "没说几点，先定在 9:00；不对可以点“手动调整”。"
+  },
+  "只记录这一笔，不会提醒你，也不会写入长期记忆；之后可以修改或删除。要提醒就点上面的“加安排”。": {
+    "en": "Saved only, with no reminder and nothing written to long-term memory. You can edit or delete it later. Tap “Add a plan” above to be reminded.",
+    "zh-Hans": "只记录这一笔，不会提醒你，也不会写入长期记忆；之后可以修改或删除。要提醒就点上面的“加安排”。"
+  },
+  "取消安排": {
+    "en": "Cancel arrangement",
+    "zh-Hans": "取消安排"
+  },
+  "确认取消": {
+    "en": "Confirm cancel",
+    "zh-Hans": "确认取消"
+  },
+  "已取消这项安排": {
+    "en": "Arrangement cancelled",
+    "zh-Hans": "已取消这项安排"
+  },
+  "要取消哪一项安排？": {
+    "en": "Which arrangement should be cancelled?",
+    "zh-Hans": "要取消哪一项安排？"
+  },
+  "没有找到要取消的安排。说具体一点试试，例如：取消周五的游泳。": {
+    "en": "No matching arrangement found. Try being more specific, for example: cancel Friday's swimming.",
+    "zh-Hans": "没有找到要取消的安排。说具体一点试试，例如：取消周五的游泳。"
+  },
+  "确认后这项安排会取消，不再提醒；取消后还能在“已取消的安排”里看到它。": {
+    "en": "Once confirmed this arrangement is cancelled and no longer reminds you. You can still see it under Cancelled arrangements.",
+    "zh-Hans": "确认后这项安排会取消，不再提醒；取消后还能在“已取消的安排”里看到它。"
+  },
+  "没说日期，先定在今天；不对可以点“手动调整”。": {
+    "en": "No date was said, so it's set to today. Tap “Adjust manually” to change it.",
+    "zh-Hans": "没说日期，先定在今天；不对可以点“手动调整”。"
+  },
+  "没说日期，今天这个时间已过，先定在明天；不对可以点“手动调整”。": {
+    "en": "No date was said and today's time has passed, so it's set to tomorrow. Tap “Adjust manually” to change it.",
+    "zh-Hans": "没说日期，今天这个时间已过，先定在明天；不对可以点“手动调整”。"
+  },
+  "没说几点，先按你说的时段定了常用时间；不对可以点“手动调整”。": {
+    "en": "No time was said, so a usual time for that part of the day is set. Tap “Adjust manually” to change it.",
+    "zh-Hans": "没说几点，先按你说的时段定了常用时间；不对可以点“手动调整”。"
+  },
+  "今天这个时段的常用时间已过，先排在最近的半点；不对可以点“手动调整”。": {
+    "en": "Today's usual time for that part of the day has passed, so it's set to the next half hour. Tap “Adjust manually” to change it.",
+    "zh-Hans": "今天这个时段的常用时间已过，先排在最近的半点；不对可以点“手动调整”。"
+  },
+  "今天这个时间已过，先排在明天；要改回今天，点“手动调整”。": {
+    "en": "Today's time has passed, so it's set to tomorrow. Tap “Adjust manually” to go back to today.",
+    "zh-Hans": "今天这个时间已过，先排在明天；要改回今天，点“手动调整”。"
   }
 }
