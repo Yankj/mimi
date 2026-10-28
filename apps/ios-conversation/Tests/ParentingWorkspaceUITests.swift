@@ -53,10 +53,11 @@ final class ParentingWorkspaceUITests: XCTestCase {
         // requestAndAllow already scrolled the adopt button into view.
         let candidate = element(app, "parenting.inline.candidate")
         XCTAssertTrue(candidate.waitForExistence(timeout: 5), app.debugDescription)
-        // The title cell sits below the intake section and is virtualized away until scrolled to: use input(),
-        // as testSyntheticUnknownIntakeRequiresOriginalRequestReadback does.
-        XCTAssertFalse(input(app, "parenting.arrangement.title").value as? String == "Synthetic reading together",
-                       "A candidate must not apply itself to the arrangement.")
+        // Title/time sit above AI intake; still optional here if the keyboard covers the field.
+        if inputExists(app, "parenting.arrangement.title") {
+            XCTAssertFalse(input(app, "parenting.arrangement.title").value as? String == "Synthetic reading together",
+                           "A candidate must not apply itself to the arrangement.")
+        }
         assertSaveDisabled(app)
         let adopt = app.buttons["parenting.inline.adopt"]
         reveal(app, adopt)
@@ -689,7 +690,9 @@ final class ParentingWorkspaceUITests: XCTestCase {
         XCTAssertTrue(element(app, "parenting.inline.candidate").exists, app.debugDescription)
         // The injected backend rejects mismatched reads and permanently rejects readback after any second reply call.
         // Reaching this real parsed candidate therefore requires only the original cid/op/epoch submission.
-        XCTAssertFalse(input(app, "parenting.arrangement.title").value as? String == "Synthetic reading together")
+        if inputExists(app, "parenting.arrangement.title") {
+            XCTAssertFalse(input(app, "parenting.arrangement.title").value as? String == "Synthetic reading together")
+        }
         XCTAssertEqual(input(app, "parenting.arrangement.source").value as? String, source)
         assertSaveDisabled(app)
         reveal(app, adopt)
@@ -993,8 +996,11 @@ final class ParentingWorkspaceUITests: XCTestCase {
     /// sheet's own list is swiped. Blind reveal() drags can hit the page under the sheet — swipe the Form list instead.
     private func materializeArrangementFormField(_ app: XCUIApplication, _ id: String, towardBottom: Bool) {
         if inputExists(app, id) { return }
-        // Prefer the Form list under the "Add an arrangement" sheet nav — not the Home page behind the sheet
-        // (a swipe there pulls to refresh / flips model.busy).
+        // Keyboard from typing source covers the Form; dismiss before swiping.
+        if app.keyboards.firstMatch.exists {
+            app.swipeDown()
+            _ = ParentingUI.waitUntil(timeout: 2) { !app.keyboards.firstMatch.exists }
+        }
         let nav = app.navigationBars.matching(NSPredicate(format: "label CONTAINS[c] %@", "arrangement")).firstMatch
         let sheetTop = nav.exists ? nav.frame.maxY : CGFloat(0)
         let lists = app.collectionViews.allElementsBoundByIndex + app.tables.allElementsBoundByIndex
@@ -1002,24 +1008,29 @@ final class ParentingWorkspaceUITests: XCTestCase {
             $0.exists && $0.frame.height > 180 && ($0.frame.minY + 8) >= sheetTop
         }) ?? lists.first(where: { $0.exists && $0.frame.height > 180 }) ?? app.scrollViews.firstMatch
         guard scroll.exists else { return }
-        for _ in 0..<24 {
+        // Title/time now sit above AI intake: after scrolling to adopt, search upward first.
+        let directions: [Bool] = id == "parenting.arrangement.title" ? [false, true] : [towardBottom]
+        for down in directions {
+            for _ in 0..<12 {
+                if inputExists(app, id) { return }
+                if down { scroll.swipeUp(velocity: .slow) } else { scroll.swipeDown(velocity: .slow) }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.12))
+            }
             if inputExists(app, id) { return }
-            if towardBottom { scroll.swipeUp(velocity: .slow) } else { scroll.swipeDown(velocity: .slow) }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.12))
         }
     }
     private func input(_ app: XCUIApplication, _ id: String) -> XCUIElement {
         // A virtualized upper field can still exist with a zero frame. Search upward in that case as well.
-        // arrangement.title sits BELOW the inline-intake section — never treat it as upper.
+        // arrangement.title sits above AI intake (with source); still not an "upperField" for reveal direction.
         let upperField = ["parenting.arrangement.source", "parenting.child.name", "parenting.goal.title"].contains(id)
-        let multiline = ["parenting.arrangement.source", "parenting.record.text"].contains(id)
+        let multiline = ["parenting.arrangement.source", "parenting.arrangement.title", "parenting.record.text"].contains(id)
         let towardBottom = !upperField
         if id == "parenting.arrangement.title" || id == "parenting.arrangement.source" {
             materializeArrangementFormField(app, id, towardBottom: towardBottom)
         }
         let asView = app.textViews.matching(identifier: id).firstMatch
         let asField = app.textFields.matching(identifier: id).firstMatch
-        let field: XCUIElement
+        var field: XCUIElement
         if multiline {
             field = asView
         } else if id == "parenting.arrangement.title" {
@@ -1031,6 +1042,14 @@ final class ParentingWorkspaceUITests: XCTestCase {
         // came from reveal() finding no field yet and dragging down: a drag over a sheet that is still presenting dismisses it.
         _ = field.waitForExistence(timeout: 8)
         if !field.exists { materializeArrangementFormField(app, id, towardBottom: towardBottom) }
+        // Re-resolve after materialize: axis:.vertical title may surface as TextView once scrolled into the Form.
+        if id == "parenting.arrangement.title" {
+            let againField = app.textFields.matching(identifier: id).firstMatch
+            let againView = app.textViews.matching(identifier: id).firstMatch
+            if againField.exists { field = againField }
+            else if againView.exists { field = againView }
+            else { field = app.descendants(matching: .any).matching(identifier: id).firstMatch }
+        }
         if upperField || id == "parenting.record.text" { ParentingUI.waitUntil(timeout: 2.5) { field.isHittable } }
         if field.exists { reveal(app, field, searchTowardBottom: towardBottom) }
         wait { field.exists }

@@ -1378,16 +1378,12 @@ struct ParentingSecondaryButtonStyle: ButtonStyle {
                                          childEditable: arrangement == nil)
                 if let arrangement { originalArrangementSection(arrangement) }
                 sourceSection
-                inlineIntakeSection
-                if imported && arrangement == nil {
-                    Section {
-                        Text(ui("请核对整理结果。保存后仍是待确认，需要再次明确确认才进入安排。"))
-                            .font(.subheadline).foregroundStyle(catColors.calmSecondary)
-                        if let clarification, !clarification.isEmpty { Text(verbatim: clarification).font(.subheadline) }
-                    } header: { Text(ui("AI 整理结果待核对 · 尚未保存")) }
-                }
+                // Title/time stay above AI intake so the fields are not virtualized away under the candidate block
+                // (UI tests and parents both need to reach 安排名称 without scrolling past a tall intake section).
                 Section {
-                    TextField(ui("安排名称"), text: $title, axis: .vertical).lineLimit(1...5)
+                    // TextEditor matches source's AX surface (TextField(axis:) often never appears in the tree on iOS 26 Form).
+                    TextEditor(text: $title).frame(minHeight: 52)
+                        .accessibilityLabel(ui("安排名称"))
                         .accessibilityIdentifier("parenting.arrangement.title")
                     if arrangement == nil && cleanedTitle.isEmpty && !cleanedSource.isEmpty && cleanedSource.count <= 160 {
                         Button(ui("用原话作为安排名称")) { title = cleanedSource }.frame(minHeight: 44)
@@ -1413,6 +1409,14 @@ struct ParentingSecondaryButtonStyle: ButtonStyle {
                 footer: { Text(ui(model.remindersAvailable
                                   ? "安排只保存在本机，不会添加系统日历。确认后，按你的提醒设置在本机提醒。"
                                   : "安排只保存在本机，不会添加系统日历，也不会发送提醒。")) }
+                inlineIntakeSection
+                if imported && arrangement == nil {
+                    Section {
+                        Text(ui("请核对整理结果。保存后仍是待确认，需要再次明确确认才进入安排。"))
+                            .font(.subheadline).foregroundStyle(catColors.calmSecondary)
+                        if let clarification, !clarification.isEmpty { Text(verbatim: clarification).font(.subheadline) }
+                    } header: { Text(ui("AI 整理结果待核对 · 尚未保存")) }
+                }
                 if arrangement != nil && hasArrangementChanges { adjustmentReviewSection }
                 if !sameTimeConflicts.isEmpty { sameTimeConflictSection }
                 if let arrangement {
