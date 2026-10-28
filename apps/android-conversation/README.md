@@ -4,10 +4,11 @@ mimi 的 Android 版：Kotlin + Jetpack Compose + Material 3 原生实现，产�
 后端沿用同一套 Supabase Edge Functions（本目录不改后端、不放任何密钥）。
 选型理由、模块规划与里程碑见 [docs/android/PLAN.md](../../docs/android/PLAN.md)。
 
-**当前状态：M2（本机匿名身份 + 三 Tab 真实空态/有数据态 + 手动录入）。** 能构建并通过全部 JVM 测试（268 个）。
+**当前状态：M2b（M2 之上补齐改期/调整历史/删除/重命名/带备注完成/详情页/大标题折叠 + 真实账本旅程测试 + 有数据态截图基线）。** 能构建并通过全部 JVM 测试（285 个）。
 App 启动后在本机生成匿名“体验账号”（`AccountEpoch` 驱动，每个账号一个隔离的 Keystore 加密账本）；可手动添加孩子、目标、安排与观察
 （只有点“保存”才写账本，放弃零写入），确认草稿、一键完成并 3 秒内撤销；设置页有外观/配色、退出、清除全部数据、关于。
-还没有：语音/输入卡（M3）、提醒（M4）、账号与云整理（M5）、改期/删除/详情等入口（M2b，命令层已有）。真机验收等手机接入后再做。
+M2b 另有：改期（同一安排改时间/标题/目标，同一分钟冲突需勾选确认）+ 调整历史与撤销、孩子/目标/安排/记录的删除与重命名（先确认）、带备注的完成表单、孩子详情与目标回顾页、大标题折叠、孩子筛选。
+还没有：语音/输入卡（M3）、提醒（M4）、账号与云整理（M5）、M7、M8。真机验收等手机接入后再做。
 
 ## 版本（2026-10-28 复核）
 
@@ -74,6 +75,10 @@ scripts/verify.sh --no-build   # 同上但不出 APK
 | `core:i18n` | `UiCatalogTest` | 占位符、回落规则、语言选择、共享目录 2348 键一致性、补充目录不遮蔽共享目录 |
 | `feature:parenting` | `ParentingHomeScreenTest` | 三 Tab 空壳；测试标签 `parenting.tabBar`、`parenting.tab.today/growth/family` 与 iOS 的 accessibilityIdentifier 相同；中英文标题；配色与外观切换互相独立 |
 | `feature:parenting` | `ShellScreenshotTest` | 用 Robolectric 原生图形渲染 B/C × 浅/深 四张“我们家”页 PNG 到 `feature/parenting/build/screenshots/`（不入库） |
+| `feature:parenting` | `WorkspaceJourneyTest`（5） | 对标 iOS `ParentingWorkspaceUITests` 的账本旅程：真实 Compose 界面 + 真实 AES-GCM 文件账本；「冷启动」= 同目录同密钥上重建会话与整棵 UI。含创建→确认→调整→带备注完成→记录链接→冷启动、改期与撤销、取消、观察编辑/删除、写失败保留输入后重试 |
+| `feature:parenting` | `LayoutJourneyTest`（5） | 三 Tab 各自标题、大标题折叠/复位、悬浮底栏不遮末项、手动表单放弃无草稿、深色 + 200% 字体空态与编辑器冒烟 |
+| `feature:parenting` | `ManagementTest`（6） | 重命名孩子、删除安排/目标/孩子（先确认）、同一时间冲突确认、孩子筛选 |
+| `feature:parenting` | `PopulatedBaselineTest` | 有数据态 10 个画面 × 浅/深的亮度指纹基线（`src/test/resources/screenshot-baselines.json`；仓库禁提交 PNG，故存指纹）。重录：`MIMI_RECORD_BASELINES=1 ./gradlew :feature:parenting:testDebugUnitTest --tests '*PopulatedBaselineTest*'`，PNG 在 `build/screenshots/` 供目测 |
 | `app` | `MainActivityTest` | Hilt + Robolectric：真实 `MainActivity` 起得来；applicationId 固定；点配色/外观后写入 DataStore（键 `palette`/`theme`）；Hilt 图能给出可用的加密账本 |
 | `app` | `ThemeViewModelTest` | 主题偏好冷启动后仍在 |
 | `core:domain` | 育儿领域（164 个，含主题 4） | 移植自 iOS 领域测试，断言值不改；对照表见 PLAN 8.2 |
@@ -112,14 +117,17 @@ adb shell am start -n com.heydusk.mimi/.MainActivity
 首次真机验收清单（M0）：四种主题切换（我们家 → 配色/外观）；底栏 Haze 模糊在 Android 12+ 上是否真的模糊、
 在 Android 10/11 上是否退回纯色罩而不是空白；着色按钮按下态；启动页与桌面图标（含 Android 13 主题图标）。
 
-## 已知限制（M2）
+## 已知限制（M2b）
 
 - **没有模拟器验证**：开发机的 `/dev/kvm` 不可用，模拟器起不来；M0 的视觉验证靠 Robolectric 原生渲染截图 + 真机。
   Robolectric 里 Haze 走降级色罩，真实模糊只能在真机上看。
 - 真 AndroidKeyStore 没在任何设备上跑过（JVM 里用 JCA PKCS12 代替）；`AndroidKeystoreInstrumentedTest` 只编译。
 - 身份是本机匿名的，没有 Supabase 登录（M5）；退出会销毁本机账本与密钥，数据不会上云。
 - 表单是同窗口浮层而非 `Dialog` 窗口（Robolectric 里窗口内输入框不收敛）；真机软键盘表现未验证。
-- 改期 / 调整历史 / 删除 / 详情页 / 大标题折叠的界面入口未接（M2b）；补充文案 `UIStringsAndroid.json`（9 条）仍未并回共享目录。
+- 时间选择是步进器（日期/小时/分钟 ±），不是系统日期/时间选择器（Material 的选择器走 `Dialog` 窗口，Robolectric 不收敛）；溢出菜单用 `DropdownMenu`，真机弹出位置与 TalkBack 读序未验证。
+- 14 条 iOS 旅程里 4 条依赖 M3/M5（语音输入卡、确认卡、「让小咪整理」）而推迟，另 3 条只有布局/表单部分（见 PLAN §8.4）。
+- 截图基线是 Robolectric 原生图形（Linux）下的亮度指纹，容差为平均差 ≤0.6/15、最大差 ≤6；换 OS/字体/Compose 大版本后可能需重录。Haze 真实模糊不在其中。
+- 补充文案 `UIStringsAndroid.json`（50 条）仍未并回共享目录。
 - 备份：`allowBackup=false` 并排除全部数据（Keystore 密钥不迁移）。
 - “降低透明度”目前只有 `LocalReduceTransparency` 应用内开关；系统信号尚未接入（设置页只有应用内开关）。
 - 暂无 CI（GitHub Actions 额度已用完），本地 `scripts/verify.sh` 就是门禁。
