@@ -455,7 +455,7 @@ apps/android-conversation/
 | **M0 脚手架与主题** | 能构建、有品牌外壳 | 获批后：创建 `apps/android-conversation` Gradle 工程（10 个模块起步）；版本目录；仓库布局规则与检查脚本更新（4.14 / 第 5 节）；`core:designsystem`：B/C × 明/暗 tokens + 对比度单测 + `mimi-theme-tokens.json` 快照；着色玻璃按钮与 Haze 底栏原型；毛绒猫资源；`core:i18n` 加载 `UIStrings.json` + 检查脚本；启动页；`scripts/verify.sh`；组件画廊 + 4 主题截图基线 | 4–5 天 | `verify.sh` 全绿；对比度测试覆盖四种组合；box 产出 debug APK；评审 ≥20/25 |
 | **M1 领域层与加密账本** | 逻辑 1:1 | 移植 `Domain/Parenting*`（≈2350 行）：`ParentingWorkspace`/`ParentingCommand` reducer、自然语言词法与时间读取、改期、提醒规划、今天/成长投影、启航清单；`DictationPolicy`；`AccountEpoch`；严格/规范化 JSON；Keystore AES-GCM 账本 + CAS + 损坏阻写；金标准夹具（iOS 与 Android 共用）；iOS→Android 测试对照表 | 6–8 天 | L1/L2 全绿；金标准表双端一致；覆盖率 ≥90%（domain） |
 | **M2 三 Tab 壳 + 手动录入** | 可手动使用 | 今天/成长/我们家三屏、悬浮底栏、大标题折叠、孩子/目标/安排/观察/完成/改期/调整历史/删除的表单与菜单、一键完成 + 3 秒撤销、启航清单、设置页（外观/主题、数据清除、关于/版本）、隐私遮罩、首次引导；全部 `parenting.*` testTag；字体 200% 与深色冒烟 | 9–12 天 | L3 旅程测试（对标 `ParentingWorkspaceUITests` 全部 14 条）；截图基线；Mac 模拟器冒烟；**首个内部 APK** ——M2 主路径见 §8.3，剩余项 M2b 已完成（§8.4） |
-| **M3 输入卡 · 语音 · 确认卡** | 对标默认交互 | 语音优先输入卡、「+」菜单、`SpeechRecognizer` 封装与分段/重试状态机、按住手势（上滑发送/左滑取消）、电平与计时、权限说明、本机自然语言整理、缺字段追问、半屏确认卡与回执自动收起、手动调整回流；`device-acceptance-android-v1.md` A/D 组 | 7–9 天 | L3 + 假识别器旅程；**真机语音验收（A 组）**；确认前账本零写入有断言 |
+| **M3 输入卡 · 语音 · 确认卡**（**已完成 JVM 部分，真机语音待验，见 §8.5**） | 对标默认交互 | 语音优先输入卡、「+」菜单、`SpeechRecognizer` 封装与分段/重试状态机、按住手势（上滑发送/左滑取消）、电平与计时、权限说明、本机自然语言整理、缺字段追问、半屏确认卡与回执自动收起、手动调整回流；`device-acceptance-android-v1.md` A/D 组 | 7–9 天 | L3 + 假识别器旅程；**真机语音验收（A 组）**；确认前账本零写入有断言 |
 | **M4 本机提醒** | 到点提醒 | 通知渠道与权限、`AlarmManager` 调度、勿扰/每日上限/提前量、引导页、重启/时区/更新重排、状态行（已排/已到/已过/超限）；G 组验收 | 4–5 天 | L1/L3 + 真机 G 组（含 Doze 与电池优化说明） |
 | **M5 账号与「让小咪整理」** | 云联通 | Supabase Auth（匿名/邮箱/Google/GitHub PKCE）、令牌与刷新围栏、账号切换清除、`catpaw/account/v1/session`、原位整理（许可、等待、失败重试、取消、只读恢复、清理队列）、功能准入；需要 Supabase 允许 Android 回调（问题 5） | 8–10 天 | MockWebServer + iOS 夹具；真机连测试后端的一次受控检查（**需用户另行同意真实模型调用**） |
 | ━━ 育儿壳对标完成（M0–M5） | | | **约 38–49 天 ≈ 8–10 周** | 三方评分 ≥20/25，信任与安全 ≥4/5；真机 A–H 组验收 |
@@ -584,19 +584,19 @@ M1 验收（本机，无设备）：`scripts/verify.sh` 全绿，**242 个 JVM �
 | 1 | `testSyntheticParentingJourneyPersistsAcrossColdRelaunch` | `WorkspaceJourneyTest.parentingJourneyPersistsAcrossColdRelaunch` | 完成（安排用手动表单建，无 AI 整理） |
 | 2 | `…SelectedArrangementRescheduleAndUndoPersistAcrossColdRelaunch` | `rescheduleAndUndoPersistAcrossColdRelaunch` | 完成（改期用表单，无「让小咪整理」读回） |
 | 3 | `…PreparationFailureCancelCleanupAndNewIntake` | — | **推迟（M5）**：依赖云整理 |
-| 4 | `testInteractionScreenshotsConfirmCardTimelineAndFloatingTabBar` | `floatingTabBarNeverCoversTheLastItem` + `PopulatedBaselineTest` | **部分**；输入卡/确认卡部分属 M3 |
-| 5 | `testInteractionFloatingTabBarAtLargestAccessibilityText` | `darkTheme200PercentFontEmptyAndEditorSmoke` | **部分**；输入卡部分属 M3 |
-| 6 | `testThreeTabsAreReachableAndComposerBelongsToTodayAndGrowth` | `threeTabsAreReachableEachWithItsOwnTitle` | **部分**；「输入卡只在今天/成长」属 M3 |
+| 4 | `testInteractionScreenshotsConfirmCardTimelineAndFloatingTabBar` | `floatingTabBarNeverCoversTheLastItem` + `PopulatedBaselineTest` + M3 `ComposerLayoutTest` / `typedSentenceBecomesConfirmCardAndOnlyConfirmWrites` | **完成（M3 补齐输入卡/确认卡部分）** |
+| 5 | `testInteractionFloatingTabBarAtLargestAccessibilityText` | `darkTheme200PercentFontEmptyAndEditorSmoke` + M3 `ComposerLayoutTest.largeFontsForceTheKeyboardAndStillFit` / `twoHundredPercentDarkStillFits` | **完成（M3 补齐输入卡部分）** |
+| 6 | `testThreeTabsAreReachableAndComposerBelongsToTodayAndGrowth` | `threeTabsAreReachableEachWithItsOwnTitle` + M3 `composerIsHiddenWithoutChildrenAndOnTheFamilyTab` | **完成（M3）** |
 | 7 | `testComposerManualEntryOpensArrangementFormAndDiscardLeavesNoDraft` | `manualArrangementFormDiscardLeavesNoDraft` | 完成（入口是「全部安排」页的按钮；输入卡「+」菜单属 M3） |
-| 8 | `testComposerVoiceFirstIdleLayoutAndPlusMenu` | — | **推迟（M3）** |
+| 8 | `testComposerVoiceFirstIdleLayoutAndPlusMenu` | M3 `composerIsVoiceFirstWithPlusMenuAndManualFormsLast` | **完成（M3）** |
 | 9 | `testSyntheticDarkLargeTextEmptyAndEditorSmoke` | `darkTheme200PercentFontEmptyAndEditorSmoke` | 完成 |
 | 10 | `testSyntheticPlannedCancellationPersistsAcrossColdRelaunch` | `plannedCancellationPersistsAcrossColdRelaunch` | 完成 |
 | 11 | `testSyntheticIndependentObservationEditDeleteAcrossColdReads` | `observationEditAndDeleteAcrossColdReads` | 完成 |
 | 12 | `testSyntheticSwiftDataRollbackRetainsInputRetriesAndColdReadsOneChild` | `ledgerWriteFailureRetainsInputRetriesAndColdReadsOneChild` | 完成 |
-| 13 | `testSyntheticUnknownIntakeRequiresOriginalRequestReadback` | — | **推迟（M3/M5）**：自然语言整理 + 原话读回 |
-| 14 | `testComposerIsVoiceFirstWithPlusMenuAndAutoDismissingConfirmCard` | — | **推迟（M3）** |
+| 13 | `testSyntheticUnknownIntakeRequiresOriginalRequestReadback` | M3 `typedSentenceBecomesConfirmCardAndOnlyConfirmWrites`（端上整理 + 原话读回） | **部分（M3）**；云端「让小咪整理」那一半仍属 M5 |
+| 14 | `testComposerIsVoiceFirstWithPlusMenuAndAutoDismissingConfirmCard` | M3 `composerIsVoiceFirstWithPlusMenuAndManualFormsLast` + 回执自动收起测试 | **完成（M3）** |
 
-小结：**7 条完成、3 条部分、4 条推迟到 M3/M5**（它们测的是 M3/M5 才有的输入卡、确认卡与云整理，现在写只能是假测试）。另加 `ManagementTest`（6，重命名/删除/冲突确认/筛选）与大标题折叠测试，iOS 没有对应项。
+小结（M2b 时点）：**7 条完成、3 条部分、4 条推迟到 M3/M5**（M3 之后的最新状态见 §8.5）（它们测的是 M3/M5 才有的输入卡、确认卡与云整理，现在写只能是假测试）。另加 `ManagementTest`（6，重命名/删除/冲突确认/筛选）与大标题折叠测试，iOS 没有对应项。
 
 **偏差与取舍**（诚实记录）：
 
@@ -615,6 +615,40 @@ M1 验收（本机，无设备）：`scripts/verify.sh` 全绿，**242 个 JVM �
 **未验证（需要真机）**：同 M2 的各项，另加：步进器在真机上的可用性与 IME；`DropdownMenu` 在小屏/大字体下的弹出；200% 字体只在 Robolectric 里用 `Density.fontScale` 模拟，没有真实系统字体设置；TalkBack 读序与触控目标（仍未审计）；大标题折叠的滚动手感；截图基线只在 Linux Robolectric 原生图形下录制。
 
 **M3 需要**：同 §8.3「M3 需要」——**真机**（语音/按住手势只能真机验收）；M2b 的改期/编辑入口、`ParentingActions` façade 与 `JourneyHarness` 正好是确认卡「手动调整回流」和 M3 旅程测试的基座，不需要再补；不需要后端改动。**M7 开工前**需定：任务卡/Generative UI 的承载位置（原定在已取消的 `feature:chat` 下）。
+
+### 8.5 M3 实施记录与偏差（2026-10-28，分支 `feat/android-m3`，叠在 `feat/android-m2b` 上）
+
+**做了什么**（全部 JVM 内验证；无后端改动；真机语音未验）：
+
+- **新模块 `:core:voice`**（Android 库，只依赖 `:core:domain` 与协程）：`DictationEngine` 接口；`ContinuousDictationEngine`（按 `DictationRestart.decide` 重启，连续 3 次空失败才放弃，结束后最多等 2 秒收最终结果）盖在 `SpeechSegmentSource` 之上；`AndroidSpeechSegmentSource` 是唯一碰 `SpeechRecognizer` 的类（主线程、API 31+ 优先本机识别器、否则系统识别器、都没有则 `Unavailable`；错误码 6/7→无语音，5/8→忙，9→权限，12–14→语言不可用，其余→瞬时；`rms` −2..10 归一化到 0..1）。`FakeSegmentSource`/`ScriptedDictationEngine` 让全部听写逻辑可在 JVM 测试。`DictationController` 是 iOS `ComposerDictation` 的移植：点按/按住两种模式，按住手势区（左滑 >90dp 取消、上滑 >70dp 发送、按住延时 300ms，左滑优先），提示 `PermissionDenied/Unsupported/Failed/Empty/Interrupted`。manifest 声明 `RECORD_AUDIO` 与 `<queries>`（`android.speech.RecognitionService`）。
+- **语音优先输入卡**（`feature:parenting/composer`）：「+」菜单（手动记安排/记观察，放在语音之后）、键盘/语音切换、胶囊（电平条 + 计时 + 实时文字）、可编辑转写预览、首次使用说明（先说明再申请权限）、权限被拒的行内提示 + 打开系统设置 + 改用键盘、静音/中断提示自动消失、大字号（≥1.6）强制键盘。输入卡只在「今天/成长」、有孩子、无二级页时出现，浮在底栏之上并把高度上报给页面（`LocalFloatingBottomInset`），内容不被遮挡。
+- **端上自然语言整理 → 确认卡**：`NaturalInputModel`（Idle/Asking/Confirming/Saving/Saved/Failed）复用 M1 的 domain 词法/时间读取与确认卡模型；缺字段只追问一个问题、多孩子问「哪位孩子」、改期显示前后对比、查看类意图只导航不写入；**只有点「确认」才调用 `actions.applyCommand`**，逐步写入并用稳定的操作 ID（写失败保留卡片，重试只补缺的那一步，不重复写）；回执 1.6 秒自动收起（可关）；手动调整回流到**空白**手动表单（与 iOS 一致，不预填）。
+- **设置页**新增「语音识别」诊断行（`parenting.settings.voice`），如实显示本机识别 / 系统语音服务（可能在线）/ 不可用。
+- **`VoicePreferencesRepository`**（DataStore，键 `mimi.voice.permissionExplained`，与 iOS 同名）记录「已读过说明」。
+- 文案：`UIStringsAndroid.json` 50 → 58 条（`check-localization` 通过）；测试 tag 沿用 iOS `parenting.*` 约定。
+- `scripts/verify.sh` 追加 `:core:voice:assembleDebugAndroidTest`；`docs/android/device-acceptance-android-v1.md` 新建（A 语音 / D 确认卡 / Keystore 前置，**全部待真机**）。
+
+**iOS 14 条旅程现状**：1、2、4、5、6、7、8、9、10、11、12、14 完成；3 仍**推迟（M5）**（整理失败/取消/清理/重新整理依赖云整理）；13 **部分**（端上整理 + 原话读回已做，云端「让小咪整理」一半属 M5）。
+
+**测试**（`./scripts/verify.sh` 全绿）：**374 个 JVM 测试，0 失败**（M2b 为 285，+89）——`app` 15（+2：生产接线：加孩子后出现输入卡、键盘路径确认前零写入、确认后写入；设置页语音行）、`core:data` 45（+1）、`core:designsystem` 17、`core:domain` 164、`core:i18n` 5、`core:voice` 36（引擎 12、控制器 16、平台封装 3 + Robolectric `ShadowSpeechRecognizer` 5）、`feature:parenting` 92（+50：`ComposerJourneyTest` 23、`NaturalInputModelTest` 13、`VoiceStateTest` 10、`ComposerLayoutTest` 4）。`:core:voice:assembleDebugAndroidTest` 通过（`VoiceAvailabilityInstrumentedTest` 只编译未运行）。`scan-repository` blocking 19 / manual 8 未增加。
+
+**偏差与取舍**（诚实记录）：
+
+| 项 | 计划 | 实际 | 原因 / 后续 |
+|---|---|---|---|
+| 确认卡容器 | `ModalBottomSheet` | 同窗口浮层（带遮罩，按钮钉底） | 与 M2b 表单同因：Robolectric 对 `Dialog`/Sheet 窗口不收敛；真机拖动/IME 交互未验（D10） |
+| 在线识别回落 | 回落并如实说明（PLAN §4.6 / 问题 1） | 已按此实现：说明文案和设置行按三档区分（本机 / 系统语音服务可能在线 / 不可用） | **仍需产品确认文案与是否允许在线回落**；若不允许，把 `mayUseOnlineRecognition` 关掉即只剩本机或键盘 |
+| 离线识别（问题 1 选项 B） | 视决策追加 | **未做**（无 GMS 的国内 ROM 只剩键盘） | 等问题 1 决策 |
+| 手动调整回流 | 带入已理解内容 | 打开空白表单 | 与 iOS 实际行为一致 |
+| 14 条旅程的云端部分 | — | 3 与 13 的云半段仍待 M5 | 依赖账号与 `parenting-intake` |
+| 听写的 M6 部分 | 语音对话 + TTS | 不做 | M6 不做；本里程碑只做输入听写 |
+| 截图基线 | 含输入卡 | 输入卡用版式断言（底栏之上、不出屏、非空白渲染）+ 目测 PNG，**未并入指纹基线** | 不想重录既有 20 条基线；M8 视觉打磨时统一补 |
+
+**未验证（只能在真机上）**：`SpeechRecognizer` 实际行为（本机/系统/无 GMS）、系统权限框与「不再询问」流程、按住手势的手感与触感、软键盘与输入卡/确认卡的 IME 交互、`DropdownMenu` 弹出位置、TalkBack 读序、麦克风隐私指示点、来电/锁屏/切后台中断、耳机与蓝牙、真 AndroidKeyStore（仍从 M1 起未验）。清单见 `docs/android/device-acceptance-android-v1.md`。
+
+**M4 需要**：通知权限与精确闹钟权限的真机验证（Android 13+/12+），提醒设置页；M3 的确认卡/回执已经预留 `remindersEnabled` 入口。不需要后端改动。**M5 需要**：Supabase 回调（问题 5）、`parenting-intake` 接线（13 的云半段与旅程 3）。**M7** 保持「待用户确认」；**M6** 保持「不做」。
+
+---
 
 ---
 
