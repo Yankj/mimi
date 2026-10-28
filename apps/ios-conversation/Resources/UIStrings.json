@@ -9390,5 +9390,13 @@
   "这个目标还没有记录。": {
     "en": "Nothing has been written for this goal yet.",
     "zh-Hans": "这个目标还没有记录。"
+  },
+  "近期安排": {
+    "en": "Coming up",
+    "zh-Hans": "近期安排"
+  },
+  "今天还没有安排。直接对小咪说一件事就行。": {
+    "en": "Nothing on for today. Just tell Mimi one thing.",
+    "zh-Hans": "今天还没有安排。直接对小咪说一件事就行。"
   }
 }
