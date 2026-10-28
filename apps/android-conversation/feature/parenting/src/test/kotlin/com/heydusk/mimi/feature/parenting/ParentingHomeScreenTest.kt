@@ -91,16 +91,17 @@ class ParentingHomeScreenTest {
     }
 
     @Test
-    fun familyPageThemeControlsChangePaletteAndAppearance() {
+    fun settingsThemeControlsChangePaletteAndAppearance() {
         show()
         assertEquals(Palette.InkWhite, preferences.palette)
         rule.onNodeWithTag("parenting.tab.family").performClick()
+        rule.onNodeWithTag("parenting.family.settings").performClick()
+        rule.onNodeWithTag("parenting.settings").assertIsDisplayed()
         rule.onNodeWithTag("parenting.palette.inkWhite").assertIsSelected()
         rule.onNodeWithTag("parenting.palette.softBlush").performScrollTo().assertIsNotSelected().performClick()
         rule.waitForIdle()
         assertEquals(Palette.SoftBlush, preferences.palette)
         rule.onNodeWithTag("parenting.palette.softBlush").assertIsSelected()
-        // 配色与外观是两条独立的轴：改配色不动外观。
         assertEquals(Appearance.System, preferences.appearance)
         rule.onNodeWithTag("parenting.appearance.system").assertIsSelected()
         rule.onNodeWithTag("parenting.appearance.dark").performScrollTo().performClick()
@@ -111,11 +112,11 @@ class ParentingHomeScreenTest {
     }
 
     @Test
-    fun tintedButtonPreviewRendersEnabledAndDisabled() {
+    fun familyEmptyStateShowsAddChild() {
         show()
         rule.onNodeWithTag("parenting.tab.family").performClick()
-        rule.onNodeWithTag("parenting.demo.tintedButton").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithTag("parenting.demo.tintedButtonDisabled").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithTag("parenting.family.empty").assertIsDisplayed()
+        rule.onNodeWithTag("parenting.family.addChild").assertIsDisplayed()
     }
 
     @Test
