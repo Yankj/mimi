@@ -7,6 +7,7 @@ import com.heydusk.mimi.data.ledger.FileLedgerBlobStore
 import com.heydusk.mimi.data.ledger.KeystoreLedgerKeyProvider
 import com.heydusk.mimi.data.ledger.LedgerBlobStore
 import com.heydusk.mimi.data.ledger.LedgerCipher
+import com.heydusk.mimi.data.ledger.LedgerKeyProvider
 import com.heydusk.mimi.data.prefs.MimiDataStore
 import com.heydusk.mimi.data.prefs.ThemePreferencesRepository
 import com.heydusk.mimi.di.ApplicationScope
@@ -25,7 +26,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
-/** 测试图：DataStore 与账本落在临时目录；Keystore 换成 JCA 内存 PKCS12（Robolectric 里没有 AndroidKeyStore）。每个测试一个新图、新目录。 */
+/** 测试图：DataStore 与账本落在临时目录；Keystore 换成 JCA 内存 PKCS12。 */
 @Module
 @TestInstallIn(components = [SingletonComponent::class], replaces = [PersistenceModule::class, LedgerModule::class])
 object TestAppModule {
@@ -43,18 +44,19 @@ object TestAppModule {
     fun blobs(): LedgerBlobStore = FileLedgerBlobStore(Files.createTempDirectory("mimi-ledger-test").toFile())
 
     @Provides @Singleton
-    fun cipher(): LedgerCipher {
+    fun keys(): LedgerKeyProvider {
         val ks = KeyStore.getInstance("PKCS12").apply { load(null, null) }
         val pw = "test".toCharArray()
-        return AesGcmLedgerCipher(
-            KeystoreLedgerKeyProvider(
-                ks,
-                generate = { KeyGenerator.getInstance("AES").apply { init(256) }.generateKey() },
-                store = { alias, key -> ks.setEntry(alias, KeyStore.SecretKeyEntry(key), KeyStore.PasswordProtection(pw)) },
-                keyPassword = pw,
-            ),
+        return KeystoreLedgerKeyProvider(
+            ks,
+            generate = { KeyGenerator.getInstance("AES").apply { init(256) }.generateKey() },
+            store = { alias, key -> ks.setEntry(alias, KeyStore.SecretKeyEntry(key), KeyStore.PasswordProtection(pw)) },
+            keyPassword = pw,
         )
     }
+
+    @Provides @Singleton
+    fun cipher(keys: LedgerKeyProvider): LedgerCipher = AesGcmLedgerCipher(keys)
 
     @Provides @Singleton
     fun epoch(): AccountEpoch = AccountEpoch()
