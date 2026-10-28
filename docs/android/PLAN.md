@@ -11,11 +11,11 @@
 
 | 问题 | 结论 |
 |---|---|
-| 做什么 | 对标 **mimi iOS main 上真正的主入口**：「今天 / 成长 / 我们家」三 Tab + 底部语音优先输入卡 + 半屏确认卡 + 本机加密育儿账本 + 本机提醒 + B/C 两套主题（明/暗）。「高级与历史」里的原对话 Agent（SSE 聊天、记忆、主动、设备工具、任务卡）作为第二批。 |
+| 做什么 | 对标 **mimi iOS main 上真正的主入口**：「今天 / 成长 / 我们家」三 Tab + 底部语音优先输入卡 + 半屏确认卡 + 本机加密育儿账本 + 本机提醒 + B/C 两套主题（明/暗）。旧版 catpaw 的对话能力（「高级与历史」里的原对话 Agent：SSE 聊天、记忆、主动、设备工具、任务卡、Generative UI）**已决定不做**（用户 2026-10-28 t169u），见 §2.2 与 §8.3。 |
 | 技术路线 | **Kotlin + Jetpack Compose + Material 3 原生**。不选 Flutter / React Native / KMP（理由见第 4.1 节：iOS 已是原生 Swift，跨端复用几乎为零，却要付出品牌细节、语音、系统集成、可测性的代价）。 |
 | 架构 | 单 Activity + Compose Navigation；MVVM + 单向数据流（`StateFlow` + 不可变 `UiState` + 事件）；**纯 Kotlin/JVM 的领域层**（可在无模拟器的 Linux 上跑全部单测）；Keystore + AES-GCM 加密账本；OkHttp + kotlinx.serialization 手写合同（与 iOS 一致的严格 JSON）；Hilt 只在 `:app` 做装配。 |
 | 本机能不能构建 | **能**。Linux box 上已装好 JDK 21、Android SDK（platform 36/37.1、build-tools 36）、Gradle 9.7，实测用 AGP 9.4 + Compose BOM 2026.09 编出 29 MB debug APK（约 45 秒）。**可用 KVM 节点**，但权限会被系统重置，无头模拟器实测**未能启动**（第 7.4 节）；JVM 单测/Robolectric Compose UI 测试实测可跑。不依赖 GitHub Actions。 |
-| 里程碑 | M0 脚手架与主题 → M1 领域层与加密账本 → M2 三 Tab 壳 → M3 输入卡/语音/确认卡 → M4 本机提醒 → M5 账号与「让小咪整理」 = **育儿壳对标，约 38–49 个有效工作日（8–10 周）**；M6 聊天、M7 记忆/主动/设备、M8 小组件与发布 = 完整对标约 **72–94 个工作日（15–19 周）**（估算与假设见第 8 节）。 |
+| 里程碑 | M0 脚手架与主题 → M1 领域层与加密账本 → M2 三 Tab 壳 → M3 输入卡/语音/确认卡 → M4 本机提醒 → M5 账号与「让小咪整理」 → ~~M6 高级聊天~~（不做）→ ~~M7 记忆/主动/设备~~（不做）→ M8 小组件、推送、打磨与发布。**范围 = M0–M5 + M8（全部要做），约 46–61 个有效工作日（10–13 周）**（估算与假设见第 8 节）。 |
 | 最大风险 | ① 国内安卓机无 Google 服务（语音识别、FCM、Google 登录）；② 玻璃效果只能近似；③ 后端目前只有 APNs，没有 FCM；④ 仓库规则当前禁止第二个活跃 App（需要 M0 里显式改规则）；⑤ 没有 Android 真机时语音/通知/玻璃只能算「未真机验证」。 |
 
 需要用户拍板的 5 个问题见第 10 节。
@@ -78,7 +78,9 @@ ParentingHomeView（iOS 26 用系统 TabView + 玻璃；17–25 用自绘悬浮�
 | 吉祥物 | 毛绒猫多姿态（待命/思考/写作/完成/抱歉/晚安…） | `DesignSystem/catPlushMascot.swift`、`Resources/Assets.xcassets/catBrand/Mascot` |
 | 本地化 | 中/英双语；**2348 条** UI 文案，键 = 中文原句（带 `{0}` 占位），值 = `en` / `zh-Hans` | `Resources/UIStrings.json`、`UIStringExemptions.json`、`Scripts/check-localization.py` |
 
-### 2.2 高级与历史（P1/P2：原对话 Agent，在设置里以 sheet 打开）
+### 2.2 高级与历史（原对话 Agent）——**不做**（2026-10-28 用户决定，仅作 iOS 现状记录）
+
+> 下表是 iOS 上遗留的对话能力清单。Android **不实现**其中任何一项（含「设置 › 高级与历史」入口）；`feature:chat` / `feature:memory` / `feature:proactive`、Room 聊天缓存、聊天 SSE、TTS、设备工具均不建。育儿壳里需要的 `parenting-intake`（M5「让小咪整理」）、账号会话与功能准入**不属于**这一节，照常做。
 
 | 能力 | 内容 | iOS 主要文件 |
 |---|---|---|
@@ -104,7 +106,7 @@ ParentingHomeView（iOS 26 用系统 TabView + 玻璃；17–25 用自绘悬浮�
 
 ## 3. 功能对标矩阵（iOS → Android）
 
-阶段含义：**P0**＝育儿壳（M0–M5，首个可用版本）；**P1**＝高级聊天（M6）；**P2**＝记忆/主动/设备（M7）；**P3**＝小组件、Live Update、推送、打磨（M8）。「差异」列写清 Android 做不到完全一样的地方，产品文案/信息架构一律不变。
+阶段含义：**P0**＝育儿壳（M0–M5，首个可用版本）；**P1/P2**＝原对话 Agent 能力（**不做**，行 25–32 仅作记录）；**P3**＝小组件、Live Update、推送、打磨（M8，要做）。「差异」列写清 Android 做不到完全一样的地方，产品文案/信息架构一律不变。
 
 | # | iOS 功能 | iOS 文件 | Android 对应 | 阶段 | 差异 / 备注 |
 |---|---|---|---|---|---|
@@ -132,17 +134,17 @@ ParentingHomeView（iOS 26 用系统 TabView + 玻璃；17–25 用自绘悬浮�
 | 22 | 无障碍 id（`parenting.*`，约 196 个） | 全仓 `accessibilityIdentifier` | `Modifier.testTag("parenting.…")` + `testTagsAsResourceId`；`contentDescription` 单独写给 TalkBack | P0 | 见 4.9；动态 id（含 uuid）保持同格式 |
 | 23 | 中英双语（2348 条，键=中文原句） | `Resources/UIStrings.json` | 同一 JSON 作为 asset 加载，`ui(key, args)` 同语义；缺失键测试 | P0 | 见 4.10 |
 | 24 | 设置：账户、回顾提示、数据与隐私、高级与历史、关于（版本+构建号） | `ParentingHomeView.swift`（设置页）、`Domain/AppBuildInfo.swift` | `SettingsScreen`；版本来自 `BuildConfig` | P0 | 构建号=git 提交数（对标 iOS 规则） |
-| 25 | 流式聊天（SSE、断线按 turn 恢复、live text） | `Features/ConversationSessionService.swift`、`Providers/NativeChatHTTPBackend.swift` | `feature:chat`；OkHttp 流式读行 + 自写 SSE 解析（需要 `Last-Event`/sequence 恢复，不用通用 SSE 库） | P1 | 与 iOS 共用 `Tests/Fixtures` 做线格一致性测试 |
-| 26 | Markdown 渲染、回答阶段动画 | `Features/Markdown/*`、`Features/Answer/*` | Compose 自绘 Markdown 子集（或 `multiplatform-markdown-renderer`，M6 评估） | P1 | 先支持 iOS 实际用到的子集 |
-| 27 | 图片/相机/相册附件 | `packages/ios-image-composer`、`NativeMediaPicker.swift` | Photo Picker + CameraX；去 EXIF、缩图到长边 2048、≤5 MiB | P1 | 后端图片合同 `schema_version=2` 不变 |
-| 28 | 语音对话（朗读回复、插话） | `Domain/VoiceSession.swift`、`ComposerDictation.swift` | `TextToSpeech` + 同一状态机；音频焦点 | P1 | 默认开启语音回复规则不变 |
-| 29 | 记忆库 | `Features/Memory/*` | `feature:memory` | P2 | 同后端 `/catpaw/memory/v1` |
-| 30 | 主动能力（规则、配额、Why、撤销） | `Features/Proactive/*` | 规则/配额/去重纯 Kotlin 移植；信号源 `CalendarContract`、`WorkManager`（周期≥15 分钟）；卡片 + 可操作通知 | P2 | `BGAppRefresh` 无等价物，时机不如 iOS 精确，需验收标准里写明 |
-| 31 | 设备工具：日历/提醒/联系人/地图 | `Features/DeviceCalls/*`、`Features/Nearby/*` | `CalendarContract`（需 `READ/WRITE_CALENDAR`）、`ContactsContract`、`geo:` Intent；**附近地点与 ETA 需要地图服务**（Google Places/Routes 或国内图商） | P2 | Android 无「提醒事项」App，提醒落为日历事件或本地通知；地图后置（问题 1） |
-| 32 | 任务计划/审批/控制/成果/收件箱、Generative UI 块 | `Features/ConversationTask*`、`ConversationArtifact*`、`GenerativeBlocks/*` | `feature:chat` 内的卡片注册表，合同不变 | P2 | 与 iOS 同一份 typed contract |
+| 25 | ~~流式聊天（SSE、断线按 turn 恢复、live text）~~ | `Features/ConversationSessionService.swift`、`Providers/NativeChatHTTPBackend.swift` | `feature:chat`；OkHttp 流式读行 + 自写 SSE 解析（需要 `Last-Event`/sequence 恢复，不用通用 SSE 库） | 不做 | 与 iOS 共用 `Tests/Fixtures` 做线格一致性测试 |
+| 26 | ~~Markdown 渲染、回答阶段动画~~ | `Features/Markdown/*`、`Features/Answer/*` | Compose 自绘 Markdown 子集（或 `multiplatform-markdown-renderer`，M6 评估） | 不做 | 先支持 iOS 实际用到的子集 |
+| 27 | ~~图片/相机/相册附件~~ | `packages/ios-image-composer`、`NativeMediaPicker.swift` | Photo Picker + CameraX；去 EXIF、缩图到长边 2048、≤5 MiB | 不做 | 后端图片合同 `schema_version=2` 不变 |
+| 28 | ~~语音对话（朗读回复、插话）~~ | `Domain/VoiceSession.swift`、`ComposerDictation.swift` | `TextToSpeech` + 同一状态机；音频焦点 | 不做 | 默认开启语音回复规则不变 |
+| 29 | ~~记忆库~~ | `Features/Memory/*` | `feature:memory` | 不做 | 同后端 `/catpaw/memory/v1` |
+| 30 | ~~主动能力（规则、配额、Why、撤销）~~ | `Features/Proactive/*` | 规则/配额/去重纯 Kotlin 移植；信号源 `CalendarContract`、`WorkManager`（周期≥15 分钟）；卡片 + 可操作通知 | 不做 | `BGAppRefresh` 无等价物，时机不如 iOS 精确，需验收标准里写明 |
+| 31 | ~~设备工具：日历/提醒/联系人/地图~~ | `Features/DeviceCalls/*`、`Features/Nearby/*` | `CalendarContract`（需 `READ/WRITE_CALENDAR`）、`ContactsContract`、`geo:` Intent；**附近地点与 ETA 需要地图服务**（Google Places/Routes 或国内图商） | 不做 | Android 无「提醒事项」App，提醒落为日历事件或本地通知；地图后置（问题 1） |
+| 32 | ~~任务计划/审批/控制/成果/收件箱、Generative UI 块~~ | `Features/ConversationTask*`、`ConversationArtifact*`、`GenerativeBlocks/*` | `feature:chat` 内的卡片注册表，合同不变 | 不做 | 与 iOS 同一份 typed contract |
 | 33 | 小组件 / Live Activity | `Widgets/catWidgets/*`、`App/catLiveActivityCoordinator.swift` | Jetpack **Glance** 小组件；Android 16+ 用 `Notification.ProgressStyle`（Live Updates），低版本退化为常驻通知 | P3 | 非一一对应；验收单独写 |
 | 34 | 推送（APNs） | `App/catPushNotifications.swift`、`catPushTokenUploader.swift` | FCM（需要后端新增 `fcm` token 类型与发送实现）；国内无 GMS 机型不可用 | P3 | 后端改动需用户批准（问题 5）；P0–P2 不依赖推送 |
-| 35 | 功能准入（邀请码） | `Features/Settings/FeatureEnrollment.swift` | 同接口 | P2 | — |
+| 35 | 功能准入（邀请码） | `Features/Settings/FeatureEnrollment.swift` | 同接口，随 M5 做（「让小咪整理」的准入） | P0（M5） | 原标 P2；因原对话不做，只保留育儿整理需要的部分 |
 
 ---
 
@@ -194,18 +196,16 @@ ParentingHomeView（iOS 26 用系统 TabView + 玻璃；17–25 用自绘悬浮�
 :core:designsystem      MimiTheme（B/C × 明/暗）、tokens、对比度计算、玻璃封装、按钮样式、毛绒猫、动效、
                          AdaptiveTextLayout 等价物
 :core:i18n              UIStrings.json 加载与 ui(key,args)、缺失键检测
-:core:data              加密账本、Room（聊天缓存/outbox，P1 起）、DataStore 偏好、BlobStore、Keystore 封装
-:core:network           Auth HTTP、parenting-intake、（P1）chat SSE、（P2）memory/proactive/devices
-:core:voice             SpeechRecognizer 封装、听写会话状态机、（P1）TTS
-:core:device            通知渠道/提醒调度、（P2）日历/联系人/定位
+:core:data              加密账本、DataStore 偏好、BlobStore、Keystore 封装（不建聊天缓存/outbox）
+:core:network           Auth HTTP、parenting-intake、account session（不含聊天 SSE / memory / proactive / devices）
+:core:voice             SpeechRecognizer 封装、听写会话状态机（不含 TTS）
+:core:device            通知渠道/提醒调度（不含日历/联系人/定位）
 :feature:parenting      今天/成长/我们家/输入卡/确认卡/表单/设置/引导（对应 iOS Features/Parenting 与 Launch/Onboarding）
-:feature:chat           （P1/P2）聊天、任务卡、成果、收件箱、Generative UI
-:feature:memory         （P2）记忆库
-:feature:proactive      （P2）主动卡与 Why
+（~~:feature:chat / :feature:memory / :feature:proactive~~ 不做）
 :testing                假实现（Fake Clock/Store/Network/Recognizer）、夹具加载、Compose 测试工具
 ```
 
-起步只建 `:app :core:domain :core:designsystem :core:i18n :core:data :core:network :core:voice :core:device :feature:parenting :testing` 10 个模块（其余在 M6/M7 才添加）。模块边界保持：`core:domain` 不依赖任何别的模块；`feature:*` 不互相依赖，只依赖 `core:*`；`core:network` 不依赖 UI。
+起步只建 `:app :core:domain :core:designsystem :core:i18n :core:data :core:network :core:voice :core:device :feature:parenting :testing` 10 个模块（`feature:chat` 等原 M6/M7 模块不做）。模块边界保持：`core:domain` 不依赖任何别的模块；`feature:*` 不互相依赖，只依赖 `core:*`；`core:network` 不依赖 UI。
 
 ### 4.4 状态管理（MVVM + 单向数据流）
 
@@ -329,7 +329,7 @@ apps/android-conversation/
 ├── gradle/wrapper/           # 固定 Gradle 9.7.0
 ├── app/                      # :app
 ├── core/{domain,designsystem,i18n,data,network,voice,device}/
-├── feature/{parenting,chat,memory,proactive}/   # chat/memory/proactive 在 M6/M7 才建
+├── feature/{parenting,chat,memory,proactive}/   # chat/memory/proactive 不做（原 M6/M7，2026-10-28 用户决定）
 ├── testing/                  # :testing（Fake*、夹具加载）
 ├── scripts/
 │   ├── verify.sh             # 本机一键：lint + 单测 + Robolectric + 截图校验 + assembleDebug
@@ -452,15 +452,15 @@ apps/android-conversation/
 |---|---|---|---|---|
 | **M0 脚手架与主题** | 能构建、有品牌外壳 | 获批后：创建 `apps/android-conversation` Gradle 工程（10 个模块起步）；版本目录；仓库布局规则与检查脚本更新（4.14 / 第 5 节）；`core:designsystem`：B/C × 明/暗 tokens + 对比度单测 + `mimi-theme-tokens.json` 快照；着色玻璃按钮与 Haze 底栏原型；毛绒猫资源；`core:i18n` 加载 `UIStrings.json` + 检查脚本；启动页；`scripts/verify.sh`；组件画廊 + 4 主题截图基线 | 4–5 天 | `verify.sh` 全绿；对比度测试覆盖四种组合；box 产出 debug APK；评审 ≥20/25 |
 | **M1 领域层与加密账本** | 逻辑 1:1 | 移植 `Domain/Parenting*`（≈2350 行）：`ParentingWorkspace`/`ParentingCommand` reducer、自然语言词法与时间读取、改期、提醒规划、今天/成长投影、启航清单；`DictationPolicy`；`AccountEpoch`；严格/规范化 JSON；Keystore AES-GCM 账本 + CAS + 损坏阻写；金标准夹具（iOS 与 Android 共用）；iOS→Android 测试对照表 | 6–8 天 | L1/L2 全绿；金标准表双端一致；覆盖率 ≥90%（domain） |
-| **M2 三 Tab 壳 + 手动录入** | 可手动使用 | 今天/成长/我们家三屏、悬浮底栏、大标题折叠、孩子/目标/安排/观察/完成/改期/调整历史/删除的表单与菜单、一键完成 + 3 秒撤销、启航清单、设置页（外观/主题、数据清除、关于/版本）、隐私遮罩、首次引导；全部 `parenting.*` testTag；字体 200% 与深色冒烟 | 9–12 天 | L3 旅程测试（对标 `ParentingWorkspaceUITests` 全部 14 条）；截图基线；Mac 模拟器冒烟；**首个内部 APK** |
+| **M2 三 Tab 壳 + 手动录入** | 可手动使用 | 今天/成长/我们家三屏、悬浮底栏、大标题折叠、孩子/目标/安排/观察/完成/改期/调整历史/删除的表单与菜单、一键完成 + 3 秒撤销、启航清单、设置页（外观/主题、数据清除、关于/版本）、隐私遮罩、首次引导；全部 `parenting.*` testTag；字体 200% 与深色冒烟 | 9–12 天 | L3 旅程测试（对标 `ParentingWorkspaceUITests` 全部 14 条）；截图基线；Mac 模拟器冒烟；**首个内部 APK** ——实际交付与未交付项见 §8.3（剩余项记为 M2b） |
 | **M3 输入卡 · 语音 · 确认卡** | 对标默认交互 | 语音优先输入卡、「+」菜单、`SpeechRecognizer` 封装与分段/重试状态机、按住手势（上滑发送/左滑取消）、电平与计时、权限说明、本机自然语言整理、缺字段追问、半屏确认卡与回执自动收起、手动调整回流；`device-acceptance-android-v1.md` A/D 组 | 7–9 天 | L3 + 假识别器旅程；**真机语音验收（A 组）**；确认前账本零写入有断言 |
 | **M4 本机提醒** | 到点提醒 | 通知渠道与权限、`AlarmManager` 调度、勿扰/每日上限/提前量、引导页、重启/时区/更新重排、状态行（已排/已到/已过/超限）；G 组验收 | 4–5 天 | L1/L3 + 真机 G 组（含 Doze 与电池优化说明） |
 | **M5 账号与「让小咪整理」** | 云联通 | Supabase Auth（匿名/邮箱/Google/GitHub PKCE）、令牌与刷新围栏、账号切换清除、`catpaw/account/v1/session`、原位整理（许可、等待、失败重试、取消、只读恢复、清理队列）、功能准入；需要 Supabase 允许 Android 回调（问题 5） | 8–10 天 | MockWebServer + iOS 夹具；真机连测试后端的一次受控检查（**需用户另行同意真实模型调用**） |
 | ━━ 育儿壳对标完成（M0–M5） | | | **约 38–49 天 ≈ 8–10 周** | 三方评分 ≥20/25，信任与安全 ≥4/5；真机 A–H 组验收 |
-| **M6 高级聊天（P1）** | 「高级与历史」 | `feature:chat`：SSE 聊天与断线恢复、live text、Markdown、回答阶段、相机/相册附件（Photo Picker/CameraX）、模型许可、语音对话 + TTS、会话历史、Room 缓存与 outbox | 12–15 天 | 线格夹具一致；MockWebServer SSE；真机语音对话 |
-| **M7 记忆 · 主动 · 设备（P2）** | 能力补齐 | 记忆库、主动引擎（规则/配额/去重/Why/撤销，`CalendarContract` + `WorkManager`）、设备工具（日历/联系人/`geo:`）、任务计划/审批/成果/收件箱、Generative UI 块；地图类（附近/ETA）取决于问题 1 | 14–18 天 | 夹具 + 假后端；真机日历与通知；按 iOS 现有 `AF-*` 合同同版门分别报告 |
+| ~~**M6 高级聊天（P1）**~~ **不做** | 「高级与历史」 | `feature:chat`：SSE 聊天与断线恢复、live text、Markdown、回答阶段、相机/相册附件（Photo Picker/CameraX）、模型许可、语音对话 + TTS、会话历史、Room 缓存与 outbox | ~~12–15 天~~ 0 | 范围外（原对话不做） |
+| ~~**M7 记忆 · 主动 · 设备（P2）**~~ **不做** | 能力补齐 | 记忆库、主动引擎（规则/配额/去重/Why/撤销，`CalendarContract` + `WorkManager`）、设备工具（日历/联系人/`geo:`）、任务计划/审批/成果/收件箱、Generative UI 块；地图类（附近/ETA）取决于问题 1 | ~~14–18 天~~ 0 | 范围外（原对话不做） |
 | **M8 小组件 · 推送 · 打磨 · 发布（P3）** | 可发布 | Glance 小组件、Android 16 Live Updates、FCM（需后端改动与批准）、Baseline Profile、R8、无障碍全面审计（TalkBack 全旅程）、省电/厂商后台指南、签名与 APK/Release 分发、`device-acceptance` 全组 | 8–12 天 | 全组真机验收；发布前清单 |
-| ━━ 完整对标（M0–M8） | | | **约 72–94 天 ≈ 15–19 周** | |
+| ━━ 全部范围（M0–M5 + M8） | | | **约 46–61 天 ≈ 10–13 周**（原 72–94 天里去掉 M6、M7 的 26–33 天） | 全组真机验收；发布前清单 |
 
 排序理由：先做用户一打开就看到的东西（M0–M5），且 M0–M1 全在 JVM 里验证、风险最低；M3 才第一次依赖真机（语音），所以**最迟 M2 末要确定真机**；M5 之前不需要任何后端改动；推送（FCM）排最后，因为 iOS 的「主动」核心本来就是端上规则 + 本机通知，推送只是补充。
 
@@ -485,7 +485,7 @@ apps/android-conversation/
 | 文案补充目录 | 仅共享 `UIStrings.json` | 另有 `core/i18n/src/main/assets/UIStringsAndroid.json`（7 条，主题演示用，共享目录优先） | 共享目录里没有“素白墨黑/雾粉燕麦/配色/浅色”等词，而本次不改 iOS 的 Resources；设置页上线时并回共享目录并删除补充项 |
 | 版本微调 | activity-compose 1.11.0 | 1.13.0（stable）；Haze 2.0.1；Robolectric 4.17 | 复核时的最新稳定版 |
 
-复核结论（2026-10-28）：AGP 已有 9.4.1、Gradle 已有 9.8.2，仍按指定的 9.4.0 / 9.7.0 实现（lint 会提示新版可用，非错误）；`targetSdk 36` 低于 SDK 最新的 37，lint 的 `OldTargetApi` 为提示级，M6 发布前再升。
+复核结论（2026-10-28）：AGP 已有 9.4.1、Gradle 已有 9.8.2，仍按指定的 9.4.0 / 9.7.0 实现（lint 会提示新版可用，非错误）；`targetSdk 36` 低于 SDK 最新的 37，lint 的 `OldTargetApi` 为提示级，M8 发布前再升。
 
 M0 验收（本机，无设备）：见 README 的“构建与测试”；全部 36 个 JVM 测试通过、debug APK 约 30 MB 可产出。**未验证（需要真机）**：Haze 真实模糊（Android 12+）与 10/11 的降级色罩、着色按钮按下态手感、启动页与主题图标、不同厂商 ROM 的小差异。
 
@@ -532,6 +532,39 @@ M1 验收（本机，无设备）：`scripts/verify.sh` 全绿，**242 个 JVM �
 
 **M2 需要**：① 账号/会话到 `AccountEpoch` 的接线（登录、登出、切换账号时 `AccountEpoch` 推进，并调用 `ParentingLedgerFactory.open`）；② 三 Tab 的 ViewModel 读 `ParentingWorkspaceStore`（今日牌组、成长、我们家）；③ 设置页并回 7 条补充文案；④ **真机最迟 M2 末接入**：先跑 `AndroidKeystoreInstrumentedTest`（`./gradlew :core:data:connectedDebugAndroidTest`）与 M0/M1 的真机清单；M3 起语音必须真机。M2 不需要后端改动。
 
+### 8.3 M2 实施记录与偏差（2026-10-28，分支 `feat/android-m2`，叠在 `feat/android-m1` 上）
+
+**做了什么**（全部 JVM 内验证，无设备、无后端改动）：
+
+- **本机匿名身份 ↔ `AccountEpoch`**：`LocalIdentityStore`（DataStore，键 `local_anonymous_subject` + `onboarding_done`）在首次启动生成匿名主体 UUID，对应 iOS 的「体验账号」路径；`ParentingSession`（`:feature:parenting`）负责：`epoch.activate(subject)` → `ParentingLedgerFactory.open` → 载入账本。**退出**：先同步 `epoch.signOut()`（让所有在途写入立即失效），再删除该主体的密文账本与 Keystore 密钥、清身份、通知 `AccountChangeObservers`、生成新匿名主体并打开新账本。**清除全部数据**：`epoch.bump()` → 抹掉账本与密钥 → 同一主体重新 `activate`。每个账号一个 `(scope, subject)` 隔离的加密账本、一个 Keystore 别名；`LedgerBlobStore.delete`、`LedgerKeyProvider.deleteKey` 为此新增。**没有 Supabase**（M5）。
+- **ViewModel**：`ParentingWorkspaceModel`（账本写入的唯一入口：忙时拒绝、未载入拒绝、旧代际写入被 `AccountEpoch` 拒绝；一键完成 + 撤销句柄）与 `:app` 的 `ParentingShellViewModel`（`@HiltViewModel`，会话相位 → UI 状态；隐私遮罩；3 秒撤销倒计时；一键完成的并发闸门）。
+- **三个 Tab 的真实空态/有数据态**：今天（英雄卡 4 种状态、撤销条、待确认草稿、时间线）、成长（本周、目标、观察记录）、我们家（启航清单——必做两步完成后收起、孩子卡、设置入口）；首次引导；隐私遮罩（`ON_STOP` 遮、`ON_RESUME` 撤）；设置页（外观/配色、账号：体验账号 + 退出、清除全部数据、关于/版本）。
+- **手动录入表单**（孩子昵称、目标、安排草稿、观察）：草稿只活在内存；**只有点「保存」才回调写账本**，放弃/点遮罩/返回键零写入，输入过程零写入——均有断言。待确认草稿在今天页确认后才进入已安排；一键完成后 3 秒内可撤销。
+- `FamilyLaunchChecklist.isFinished`（前两步必做、「提醒」可选）。
+
+**偏差与取舍**（诚实记录）：
+
+| 项 | 计划 | 实际 | 原因 / 后续 |
+|---|---|---|---|
+| 表单形态 | 半屏表单 | 同一窗口内的遮罩 + 卡片浮层，不用 `Dialog`/`AlertDialog` 窗口 | Robolectric 里 `Dialog` 窗口中的输入框会让 Compose 永远等不到 idle（已用探针确认：窗口外的 `BasicTextField` 正常）；`BasicTextField` + 静态光标。真机上的软键盘/IME 表现未验证 |
+| 补充文案并回共享目录 | 设置页上线时并回 | **未并回**，`UIStringsAndroid.json` 仍作补充层（现 9 条） | 共享 `UIStrings.json` 在 iOS 的 `Resources/` 下，Android 线不改 iOS 目录；并回需要改 iOS 资源，留给用户决定 |
+| 改期 / 调整历史 / 删除（孩子、目标、安排、记录）/ 重命名 / 带备注的完成表单 / 详情页 / 大标题折叠 | M2 | **只有命令层与 `CompleteEntryDialog` 已就绪，界面入口未接** | 本轮取首条主路径（建孩子 → 目标/安排/观察 → 确认 → 一键完成 → 撤销）；这些是 M2 剩余项（M2b），M3 的「手动调整回流」依赖其中的改期/编辑入口 |
+| 对标 `ParentingWorkspaceUITests` 全部 14 条旅程、截图基线（有数据态）、字体 200%/深色冒烟 | M2 出口 | 只覆盖本轮路径（见下表）；M0 的 4 主题截图基线不变 | 同上，M2b |
+| 隐私遮罩 | 与 iOS 一致 | `ON_STOP` 遮、`ON_RESUME` 撤；**没有设置 `FLAG_SECURE`**（最近任务缩略图的遮挡未验证） | 需真机确认；是否加 `FLAG_SECURE` 待产品决定 |
+
+**测试**（`./scripts/verify.sh` 全绿）：**268 个 JVM 测试，0 失败**（M1 为 242）——`app` 13、`core:data` 44、`core:designsystem` 17、`core:domain` 164、`core:i18n` 5、`feature:parenting` 25。新增要点：
+
+| iOS 对标 | Android 用例 |
+|---|---|
+| 账号切换/退出清除、旧代际写入被拒 | `ParentingShellViewModelTest.signOutWipesTheLedgerAndMovesToAFreshSubject` / `aStaleModelCannotWriteAfterSignOut` / `clearDataKeepsTheSubjectButEmptiesTheLedger`；`ParentingSessionTest`（3）；`LocalIdentityStoreTest` |
+| 零写入（读取不建密文、确认前不写） | `startsLoadingThenShowsAnEmptyLedger…`、`ManualEntryFlowTest`（放弃/保存/家庭页放弃）、`MainActivityTest.addingAChildThroughTheForm…`（Hilt 全图 + 加密账本落盘断言） |
+| 草稿 → 确认 → 一键完成 → 撤销 | `ParentingShellViewModelTest.draftThenConfirm…`、`ParentingWorkspaceModelTest`（4）、`PopulatedStatesTest` |
+| 三 Tab 空态 / 有数据态、设置页、启航清单收起 | `ManualEntryFlowTest.threeTabsShowRealEmptyStates…`、`PopulatedStatesTest`（5）、`ParentingHomeScreenTest`（7） |
+
+**未验证（需要真机）**：同 M1 的各项，另加：首次引导与匿名身份在真机冷启动；软键盘/IME 与浮层表单；返回键手势（预测性返回）；`ON_STOP` 隐私遮罩在最近任务里的观感；退出后 Keystore 条目确实被删除（JVM 里用 JCA 代替）；触控目标 ≥48dp 与 TalkBack 读序（只有 testTag，没有做无障碍审计）。有数据态的“今天”页用 `Instant.now()`，在极少数跨午夜的瞬间可能与断言不一致。
+
+**M3 需要**：① **真机**——M3 起语音（`SpeechRecognizer`）与按住手势只能在真机验收，**M3 开工前应接入真机**（同时补跑 `AndroidKeystoreInstrumentedTest` 与 M0–M2 真机清单）；② M2b 里的改期/编辑/删除入口与 `CompleteEntryDialog` 接线（确认卡「手动调整回流」要用）；③ 听写控制器与 `DictationPolicy` 已在 M1（domain），M3 做端上封装与输入卡；④ 不需要后端改动。
+
 ---
 
 ## 9. 风险与对策
@@ -559,10 +592,9 @@ M1 验收（本机，无设备）：`scripts/verify.sh` 全绿，**242 个 JVM �
 1. **目标市场与设备范围（决定语音/推送/登录/地图怎么做）**
    选项 A（**推荐**）：首发面向**有 Google 服务的 Android 10+（minSdk 29）**，以 APK 侧载/GitHub Release 分发；无 Google 语音服务的机型只提供键盘输入并如实提示；国内 ROM 适配（离线识别、国内推送与图商、应用商店）作为后续独立里程碑。
    选项 B：首发就要覆盖国内主流 ROM（无 GMS）→ M3 需追加离线语音识别（约 +8–10 天、安装包 +数十 MB）、M5 去掉 Google 登录依赖、地图单独选型。
-2. **首个版本的范围**
-   选项 A（**推荐**）：1.0 = M0–M6（育儿壳 + 云整理 + 高级聊天），记忆/主动/设备（M7）与小组件/推送（M8）放 1.1+；
-   选项 B：只做 M0–M5，聊天整体后置；
-   选项 C：完整对标（M0–M8）再发布。
+2. **首个版本的范围**（**已由用户 t169u 决定，2026-10-28**）
+   原对话 Agent（M6 高级聊天、M7 记忆/主动/设备）**不做**；其余 M0–M5 与 M8 **全部要做**，不再限定首发为 M0–M6。
+   （原选项 A/B/C 作废。）
 3. **仓库策略：同仓还是新仓**
    选项 A（**推荐**）：在 `Yankj/mimi` 新增 `apps/android-conversation`（共用 `UIStrings.json`、后端合同夹具、文档与主题 tokens；M0 PR 修改 `repository-layout.json`、`check-repository-layout.py`、`AGENTS.md`，不碰 `.github/workflows`）；
    选项 B：新仓库 `Yankj/mimi-android`（互不干扰，但夹具/文案/主题要靠复制或子模块同步，漂移风险高）。
@@ -571,7 +603,7 @@ M1 验收（本机，无设备）：`scripts/verify.sh` 全绿，**242 个 JVM �
 5. **身份与后端配置许可（涉及部署的事项都需用户在对应 agent 的对话里直接批准）**
    ① Android `applicationId` / 应用名（建议 `com.heydusk.mimi`，显示名 `mimi`/`小咪`）；
    ② 是否同意在 Supabase Auth 允许列表里增加 Android 的 OAuth 回调（沿用 `catpawm://auth-callback` 或 App Link）——M5 需要；
-   ③ 推送：是否同意 M8 阶段由 三角 在后端新增 FCM 通道（需要你创建 Firebase 项目并提供服务账号 Secret）；若不同意，Android 不提供服务端推送，仅有本机提醒。
+   ③ 推送：是否同意 M8 阶段由 三角 在后端新增 FCM 通道（需要你创建 Firebase 项目并提供服务账号 Secret）；若不同意，Android 不提供服务端推送，仅有本机提醒。**注意**：原对话「主动」不做之后，iOS 上推送的主要用途（主动提醒）消失，M8 开工前需重新确认 FCM 还有没有必要。
 
 ---
 

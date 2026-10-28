@@ -4,8 +4,10 @@ mimi 的 Android 版：Kotlin + Jetpack Compose + Material 3 原生实现，产�
 后端沿用同一套 Supabase Edge Functions（本目录不改后端、不放任何密钥）。
 选型理由、模块规划与里程碑见 [docs/android/PLAN.md](../../docs/android/PLAN.md)。
 
-**当前状态：M1（领域层 + 加密账本 + Hilt/DataStore）。** 能构建并通过全部 JVM 测试（242 个）；界面仍只有“今天｜成长｜我们家”三 Tab 空壳，
-“我们家”页临时放了配色/外观切换和着色按钮预览，用来目测 B/C × 浅/深四种主题。真机验收等手机接入后再做。
+**当前状态：M2（本机匿名身份 + 三 Tab 真实空态/有数据态 + 手动录入）。** 能构建并通过全部 JVM 测试（268 个）。
+App 启动后在本机生成匿名“体验账号”（`AccountEpoch` 驱动，每个账号一个隔离的 Keystore 加密账本）；可手动添加孩子、目标、安排与观察
+（只有点“保存”才写账本，放弃零写入），确认草稿、一键完成并 3 秒内撤销；设置页有外观/配色、退出、清除全部数据、关于。
+还没有：语音/输入卡（M3）、提醒（M4）、账号与云整理（M5）、改期/删除/详情等入口（M2b，命令层已有）。真机验收等手机接入后再做。
 
 ## 版本（2026-10-28 复核）
 
@@ -110,13 +112,15 @@ adb shell am start -n com.heydusk.mimi/.MainActivity
 首次真机验收清单（M0）：四种主题切换（我们家 → 配色/外观）；底栏 Haze 模糊在 Android 12+ 上是否真的模糊、
 在 Android 10/11 上是否退回纯色罩而不是空白；着色按钮按下态；启动页与桌面图标（含 Android 13 主题图标）。
 
-## 已知限制（M1）
+## 已知限制（M2）
 
 - **没有模拟器验证**：开发机的 `/dev/kvm` 不可用，模拟器起不来；M0 的视觉验证靠 Robolectric 原生渲染截图 + 真机。
   Robolectric 里 Haze 走降级色罩，真实模糊只能在真机上看。
 - 真 AndroidKeyStore 没在任何设备上跑过（JVM 里用 JCA PKCS12 代替）；`AndroidKeystoreInstrumentedTest` 只编译。
-- 账本已就绪但没有 UI 使用它，`AccountEpoch` 也没人驱动（M2 接登录/三 Tab）；导航、网络与账号从 M2 起。
+- 身份是本机匿名的，没有 Supabase 登录（M5）；退出会销毁本机账本与密钥，数据不会上云。
+- 表单是同窗口浮层而非 `Dialog` 窗口（Robolectric 里窗口内输入框不收敛）；真机软键盘表现未验证。
+- 改期 / 调整历史 / 删除 / 详情页 / 大标题折叠的界面入口未接（M2b）；补充文案 `UIStringsAndroid.json`（9 条）仍未并回共享目录。
 - 备份：`allowBackup=false` 并排除全部数据（Keystore 密钥不迁移）。
-- “降低透明度”目前只有 `LocalReduceTransparency` 应用内开关；系统信号在 M2 的设置页接入。
+- “降低透明度”目前只有 `LocalReduceTransparency` 应用内开关；系统信号尚未接入（设置页只有应用内开关）。
 - 暂无 CI（GitHub Actions 额度已用完），本地 `scripts/verify.sh` 就是门禁。
-- Release 构建未配置签名与混淆验证（M6）。
+- Release 构建未配置签名与混淆验证（M8）。
