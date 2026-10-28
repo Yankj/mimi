@@ -99,12 +99,25 @@ public struct ParentingIntentEscalateDecision: Sendable, Equatable {
     }
 }
 
+/// One child alias for model prompts: code stays on-device-reversible.
+public struct ParentingIntentChildAlias: Sendable, Equatable {
+    public var code: ParentingIntentModelChildRef
+    public var childID: UUID
+    public var displayLabel: String
+
+    public init(code: ParentingIntentModelChildRef, childID: UUID, displayLabel: String) {
+        self.code = code
+        self.childID = childID
+        self.displayLabel = displayLabel
+    }
+}
+
 /// Maps real child names → c1/c2 before any cloud call. Reverse map stays on device.
 public struct ParentingIntentChildRedaction: Sendable, Equatable {
-    public var aliases: [(code: ParentingIntentModelChildRef, childID: UUID, displayLabel: String)]
+    public var aliases: [ParentingIntentChildAlias]
     public var selectedCode: ParentingIntentModelChildRef?
 
-    public init(aliases: [(code: ParentingIntentModelChildRef, childID: UUID, displayLabel: String)],
+    public init(aliases: [ParentingIntentChildAlias],
                 selectedCode: ParentingIntentModelChildRef? = nil) {
         self.aliases = aliases
         self.selectedCode = selectedCode
@@ -116,7 +129,7 @@ public struct ParentingIntentChildRedaction: Sendable, Equatable {
         let ordered = context.children.enumerated()
             .sorted { ($0.element.createdAt, $0.offset) < ($1.element.createdAt, $1.offset) }
             .map(\.element)
-        var aliases: [(ParentingIntentModelChildRef, UUID, String)] = []
+        var aliases: [ParentingIntentChildAlias] = []
         for (index, child) in ordered.prefix(codes.count).enumerated() {
             let label: String
             switch index {
@@ -125,9 +138,9 @@ public struct ParentingIntentChildRedaction: Sendable, Equatable {
             case 2: label = "老三"
             default: label = "孩子\(index + 1)"
             }
-            aliases.append((codes[index], child.id, label))
+            aliases.append(ParentingIntentChildAlias(code: codes[index], childID: child.id, displayLabel: label))
         }
-        let selected = context.activeChildID.flatMap { id in aliases.first { $0.1 == id }?.0 }
+        let selected = context.activeChildID.flatMap { id in aliases.first { $0.childID == id }?.code }
         return .init(aliases: aliases, selectedCode: selected)
     }
 
