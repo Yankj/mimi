@@ -16,8 +16,8 @@ python3 scripts/check-localization.py
 if [ "${1:-}" = "--no-build" ]; then
   ./gradlew test
 else
-  # assembleDebugAndroidTest：真机 Keystore 用例（core/data/src/androidTest）只编译，箱子上没有可用的模拟器去运行它。
-  ./gradlew test assembleDebug :core:data:assembleDebugAndroidTest
+  # assembleDebugAndroidTest：真机 Keystore 用例（core/data/src/androidTest）与识别器可用性用例（core/voice/src/androidTest）只编译，箱子上没有可用的模拟器去运行它。
+  ./gradlew test assembleDebug :core:data:assembleDebugAndroidTest :core:voice:assembleDebugAndroidTest
   ls -la app/build/outputs/apk/debug/app-debug.apk
 fi
 python3 scripts/test-counts.py

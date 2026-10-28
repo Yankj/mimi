@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 只在家长按住/点麦克风、并在站内说明之后才会向系统申请；拒绝后键盘照常可用。 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Android 11+ 的包可见性：没有它 SpeechRecognizer.isRecognitionAvailable() 会误报不可用。 -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+</manifest>
