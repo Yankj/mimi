@@ -230,5 +230,37 @@
   "这台手机暂时没有可用的语音识别服务，可以用键盘输入。": {
     "en": "No speech recognition service is available on this phone right now; you can type instead.",
     "zh-Hans": "这台手机暂时没有可用的语音识别服务，可以用键盘输入。"
+  },
+  "安排提醒": {
+    "en": "Arrangement reminders",
+    "zh-Hans": "安排提醒"
+  },
+  "在已确认的安排开始前提醒你。只在本机发送。": {
+    "en": "Reminds you before a confirmed arrangement starts. Sent on this device only.",
+    "zh-Hans": "在已确认的安排开始前提醒你。只在本机发送。"
+  },
+  "没有「闹钟和提醒」权限，提醒可能晚几分钟才到。": {
+    "en": "Without the Alarms & reminders permission, reminders may arrive a few minutes late.",
+    "zh-Hans": "没有「闹钟和提醒」权限，提醒可能晚几分钟才到。"
+  },
+  "打开闹钟和提醒设置": {
+    "en": "Open Alarms & reminders settings",
+    "zh-Hans": "打开闹钟和提醒设置"
+  },
+  "部分手机的省电设置会让后台提醒延迟或丢失。如果提醒不准，请把小咪加入电池优化白名单。": {
+    "en": "Battery-saving settings on some phones can delay or drop background reminders. If reminders are unreliable, exempt Mimi from battery optimization.",
+    "zh-Hans": "部分手机的省电设置会让后台提醒延迟或丢失。如果提醒不准，请把小咪加入电池优化白名单。"
+  },
+  "打开电池优化设置": {
+    "en": "Open battery optimization settings",
+    "zh-Hans": "打开电池优化设置"
+  },
+  "系统通知被关闭，小咪现在无法提醒你。点这里去系统设置打开通知。": {
+    "en": "System notifications are off, so Mimi can't remind you. Open system settings to turn them on.",
+    "zh-Hans": "系统通知被关闭，小咪现在无法提醒你。点这里去系统设置打开通知。"
+  },
+  "关闭提醒后，已排好的提醒会被取消。": {
+    "en": "Turning reminders off cancels the ones already scheduled.",
+    "zh-Hans": "关闭提醒后，已排好的提醒会被取消。"
   }
 }

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Android 13+：只在家长打开「到点提醒」时才向系统申请（先有站内说明）。拒绝后给「打开系统设置」，其余功能不受影响。 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+        精确闹钟：Android 12+ 需要「闹钟和提醒」特殊权限，Android 14+ 默认不授予新安装的应用。
+        不假设它可用（也不申请只给闹钟/日历类应用的 USE_EXACT_ALARM）：没有时降级为 setAndAllowWhileIdle，
+        界面如实说明「可能晚几分钟」，并给出打开系统设置的入口。
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <!-- 只用来在重启后重排提醒；不会开机自启任何界面或服务。 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application>
+        <!-- 到点：由 AlarmManager 的 PendingIntent 显式触发，不对外导出。 -->
+        <receiver
+            android:name="com.heydusk.mimi.device.reminders.ReminderReceiver"
+            android:exported="false" />
+
+        <!-- 系统广播：开机、更新、时区/校时变化、精确闹钟权限变化，之后按账本重排。 -->
+        <receiver
+            android:name="com.heydusk.mimi.device.reminders.ReminderSystemReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
