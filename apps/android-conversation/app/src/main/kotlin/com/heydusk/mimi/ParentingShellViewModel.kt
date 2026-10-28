@@ -2,11 +2,11 @@ package com.heydusk.mimi
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.heydusk.mimi.domain.parenting.ParentingCommand
 import com.heydusk.mimi.domain.parenting.ParentingCompletionUndo
 import com.heydusk.mimi.domain.parenting.ParentingOneTapGate
 import com.heydusk.mimi.domain.parenting.ParentingWorkspace
-import com.heydusk.mimi.feature.parenting.forms.ArrangementDraft
+import com.heydusk.mimi.feature.parenting.actions.ModelParentingActions
+import com.heydusk.mimi.feature.parenting.actions.ParentingActions
 import com.heydusk.mimi.feature.parenting.model.ParentingSession
 import com.heydusk.mimi.feature.parenting.model.ParentingWorkspaceModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -83,43 +83,27 @@ class ParentingShellViewModel @Inject constructor(
 
     fun completeOnboarding() = viewModelScope.launch { session.completeOnboarding() }
 
-    fun addChild(name: String) = viewModelScope.launch {
-        model()?.apply(ParentingCommand.AddChild(UUID.randomUUID(), name))
-    }
+    /**
+     * 界面的全部写入。一键完成带 800ms 防连点闸门与 3 秒撤销倒计时；其余直接透传到当前账本模型
+     * （退出/清除会换新模型，所以每次调用都现取）。
+     */
+    val actions: ParentingActions = object : ModelParentingActions({ model() }) {
+        override suspend fun completeOneTap(id: UUID): Boolean {
+            val now = clock()
+            if (!oneTap.begin(now)) return false
+            val ok = super.completeOneTap(id)
+            oneTap.finish(if (ok) now else null)
+            if (ok) model()?.state?.value?.undo?.let { startUndoCountdown(it) }
+            return ok
+        }
 
-    fun addGoal(childID: UUID, title: String) = viewModelScope.launch {
-        model()?.apply(ParentingCommand.AddGoal(UUID.randomUUID(), childID, title))
-    }
-
-    fun addArrangement(childID: UUID, draft: ArrangementDraft) = viewModelScope.launch {
-        model()?.apply(
-            ParentingCommand.CreateDraft(
-                UUID.randomUUID(), childID, draft.title, draft.dueAt, draft.goalID, draft.sourceText,
-            ),
-        )
-    }
-
-    fun addObservation(childID: UUID, text: String) = viewModelScope.launch {
-        model()?.apply(ParentingCommand.AddObservation(UUID.randomUUID(), childID, null, text))
-    }
-
-    fun confirmArrangement(id: UUID) = viewModelScope.launch {
-        model()?.apply(ParentingCommand.ConfirmArrangement(id))
-    }
-
-    fun completeArrangement(id: UUID) = viewModelScope.launch {
-        val now = clock()
-        if (!oneTap.begin(now)) return@launch
-        val undo = model()?.completeOneTap(id)
-        oneTap.finish(if (undo != null) now else null)
-        if (undo != null) startUndoCountdown(undo)
-    }
-
-    fun undoCompletion() = viewModelScope.launch {
-        val undo = model()?.state?.value?.undo ?: return@launch
-        if (model()?.undoCompletion(undo) == true) {
-            undoJob?.cancel()
-            undoTick.value = null
+        override suspend fun undoCompletion(): Boolean {
+            val ok = super.undoCompletion()
+            if (ok) {
+                undoJob?.cancel()
+                undoTick.value = null
+            }
+            return ok
         }
     }
 

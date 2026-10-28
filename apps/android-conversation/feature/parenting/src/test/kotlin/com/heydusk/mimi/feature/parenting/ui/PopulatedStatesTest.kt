@@ -44,15 +44,7 @@ class PopulatedStatesTest {
 
     private var workspace: ParentingWorkspace = build(withDraft = false)
 
-    private class Calls {
-        val confirmed = mutableListOf<UUID>()
-        val completed = mutableListOf<UUID>()
-        val goals = mutableListOf<Pair<UUID, String>>()
-        val observations = mutableListOf<Pair<UUID, String>>()
-        var undo = 0
-    }
-
-    private fun shell(calls: Calls, undoSeconds: Int? = null) = rule.setContent {
+    private fun shell(calls: RecordingActions, undoSeconds: Int? = null) = rule.setContent {
         MimiTheme {
             ParentingHomeScreen(
                 preferences = ThemePreferences(),
@@ -65,31 +57,26 @@ class PopulatedStatesTest {
                 undoSeconds = undoSeconds,
                 versionName = "0.1.0",
                 versionCode = 1,
-                onAddChild = {},
-                onAddGoal = { c, t -> calls.goals += c to t },
-                onAddArrangement = { _, _ -> },
-                onAddObservation = { c, t -> calls.observations += c to t },
-                onConfirmArrangement = { calls.confirmed += it },
-                onCompleteArrangement = { calls.completed += it },
-                onUndoCompletion = { calls.undo += 1 },
+                actions = calls,
                 onCompleteOnboarding = {},
                 onClearData = {},
                 onSignOut = {},
+                now = now,
             )
         }
     }
 
     @Test fun todayShowsTheHeroAndOneTapCompleteCallsBack() {
-        val calls = Calls()
+        val calls = RecordingActions()
         shell(calls)
         rule.onNodeWithTag("parenting.today.hero").assertIsDisplayed()
         rule.onNodeWithTag("parenting.complete.$planned").performClick()
-        assertEquals(listOf(planned), calls.completed)
+        assertEquals(listOf(planned), calls.completedOneTap)
     }
 
     @Test fun draftsAreListedForConfirmationAndConfirmCallsBackOnlyOnTap() {
         workspace = build(withDraft = true)
-        val calls = Calls()
+        val calls = RecordingActions()
         shell(calls)
         rule.onNodeWithTag("parenting.confirm.$draft").assertIsDisplayed()
         assertEquals(emptyList(), calls.confirmed)
@@ -98,38 +85,42 @@ class PopulatedStatesTest {
     }
 
     @Test fun undoBarAppearsWithTheCountdownAndCallsBack() {
-        val calls = Calls()
+        val calls = RecordingActions()
         shell(calls, undoSeconds = 5)
         rule.onNodeWithTag("parenting.undo.bar").assertIsDisplayed()
         rule.onNodeWithTag("parenting.undo").performClick()
-        assertEquals(1, calls.undo)
+        assertEquals(1, calls.undoCompletions)
     }
 
     @Test fun growthShowsGoalsAndRecordsAndTheFormsOnlyCallBackOnSave() {
-        val calls = Calls()
+        val calls = RecordingActions()
         shell(calls)
         rule.onNodeWithTag("parenting.tab.growth").performClick()
         rule.onNodeWithTag("parenting.growth.week").assertIsDisplayed()
-        rule.onNodeWithTag("parenting.goal.$goal").assertIsDisplayed()
+        rule.onNodeWithTag("parenting.growth.mode.timeline").performClick()
         rule.onNodeWithTag("parenting.record.body.$record").assertIsDisplayed()
+        rule.onNodeWithTag("parenting.back").performClick()
+        rule.onNodeWithTag("parenting.growth.mode.goals").performClick()
+        rule.onNodeWithTag("parenting.goal.$goal").assertIsDisplayed()
 
-        rule.onNodeWithTag("parenting.growth.addGoal").performClick()
+        rule.onNodeWithTag("parenting.addGoal").performClick()
         rule.onNodeWithTag("parenting.goal.title").performTextInput("Swim")
         rule.onNodeWithTag("parenting.form.discard").performClick()
-        assertEquals(emptyList(), calls.goals)
-        rule.onNodeWithTag("parenting.growth.addGoal").performClick()
+        assertEquals(emptyList<Pair<UUID, String>>(), calls.goals)
+        rule.onNodeWithTag("parenting.addGoal").performClick()
         rule.onNodeWithTag("parenting.goal.title").performTextInput("Swim")
         rule.onNodeWithTag("parenting.goal.save").performClick()
         assertEquals(listOf(child to "Swim"), calls.goals)
 
+        rule.onNodeWithTag("parenting.back").performClick()
         rule.onNodeWithTag("parenting.growth.addObservation").performClick()
         rule.onNodeWithTag("parenting.record.text").performTextInput("Shared a toy")
         rule.onNodeWithTag("parenting.record.save").performClick()
-        assertEquals(listOf(child to "Shared a toy"), calls.observations)
+        assertEquals(listOf(Triple<UUID, UUID?, String>(child, null, "Shared a toy")), calls.observations)
     }
 
     @Test fun familyShowsTheChildCard() {
-        val calls = Calls()
+        val calls = RecordingActions()
         shell(calls)
         rule.onNodeWithTag("parenting.tab.family").performClick()
         rule.onNodeWithTag("parenting.family.child.$child").assertIsDisplayed()
@@ -139,7 +130,7 @@ class PopulatedStatesTest {
     }
 
     @Test fun settingsOpensAndCloses() {
-        shell(Calls())
+        shell(RecordingActions())
         rule.onNodeWithTag("parenting.tab.family").performClick()
         rule.onNodeWithTag("parenting.family.settings").performClick()
         rule.onNodeWithTag("parenting.settings").assertIsDisplayed()

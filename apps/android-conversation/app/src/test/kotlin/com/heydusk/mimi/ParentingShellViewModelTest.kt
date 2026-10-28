@@ -87,7 +87,7 @@ class ParentingShellViewModelTest {
 
     @Test fun addingAChildWritesTheLedgerAndEmitsTheNewState() = runBlocking {
         ready()
-        vm.addChild("Xiaoming").join()
+        vm.actions.addChild("Xiaoming")
         val s = ready { it.workspace.children.isNotEmpty() }
         assertEquals("Xiaoming", s.workspace.children.single().name)
         assertEquals(1, ledgerFiles().size)
@@ -95,17 +95,17 @@ class ParentingShellViewModelTest {
 
     @Test fun draftThenConfirmThenOneTapCompleteThenUndo() = runBlocking {
         ready()
-        vm.addChild("Xiaoming").join()
+        vm.actions.addChild("Xiaoming")
         val child = ready { it.workspace.children.isNotEmpty() }.workspace.children.single().id
-        vm.addArrangement(child, ArrangementDraft(title = "Read", dueAt = Instant.now().plusSeconds(3600))).join()
+        vm.actions.addArrangement(child, ArrangementDraft(title = "Read", dueAt = Instant.now().plusSeconds(3600)))
         val arr = ready { it.workspace.arrangements.isNotEmpty() }.workspace.arrangements.single()
         assertEquals(ParentingArrangementState.Draft, arr.state)
-        vm.confirmArrangement(arr.id).join()
+        vm.actions.confirmArrangement(arr.id)
         ready { it.workspace.arrangements.single().state == ParentingArrangementState.Planned }
-        vm.completeArrangement(arr.id).join()
+        vm.actions.completeOneTap(arr.id)
         val done = ready { it.workspace.arrangements.single().state == ParentingArrangementState.Completed }
         assertNotNull(done.undoSeconds)
-        vm.undoCompletion().join()
+        vm.actions.undoCompletion()
         ready { it.workspace.arrangements.single().state == ParentingArrangementState.Planned }
         assertNull(vm.state.value.undoSeconds)
     }
@@ -126,7 +126,7 @@ class ParentingShellViewModelTest {
 
     @Test fun signOutWipesTheLedgerAndMovesToAFreshSubject() = runBlocking {
         val first = ready()
-        vm.addChild("Xiaoming").join()
+        vm.actions.addChild("Xiaoming")
         ready { it.workspace.children.isNotEmpty() }
         assertEquals(1, ledgerFiles().size)
         vm.signOut().join()
@@ -139,7 +139,7 @@ class ParentingShellViewModelTest {
 
     @Test fun clearDataKeepsTheSubjectButEmptiesTheLedger() = runBlocking {
         val first = ready()
-        vm.addChild("Xiaoming").join()
+        vm.actions.addChild("Xiaoming")
         ready { it.workspace.children.isNotEmpty() }
         vm.clearData().join()
         val after = ready { it.workspace.children.isEmpty() }

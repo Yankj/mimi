@@ -34,5 +34,169 @@
   "清除全部数据": {
     "en": "Clear all data",
     "zh-Hans": "清除全部数据"
+  },
+  "{0} 个目标 · {1} 条记录 · {2} 件安排": {
+    "en": "{0} goals · {1} records · {2} arrangements",
+    "zh-Hans": "{0} 个目标 · {1} 条记录 · {2} 件安排"
+  },
+  "为这个目标记一笔": {
+    "en": "Add a note for this goal",
+    "zh-Hans": "为这个目标记一笔"
+  },
+  "仍然撤销": {
+    "en": "Undo anyway",
+    "zh-Hans": "仍然撤销"
+  },
+  "修改于 {0}": {
+    "en": "Edited {0}",
+    "zh-Hans": "修改于 {0}"
+  },
+  "修改记录": {
+    "en": "Edit record",
+    "zh-Hans": "修改记录"
+  },
+  "关联的安排和记录会保留，只是不再属于这个目标。": {
+    "en": "Linked arrangements and records are kept; they just no longer belong to this goal.",
+    "zh-Hans": "关联的安排和记录会保留，只是不再属于这个目标。"
+  },
+  "删除 {0}？": {
+    "en": "Delete {0}?",
+    "zh-Hans": "删除 {0}？"
+  },
+  "删除孩子及其全部内容": {
+    "en": "Delete this child and everything under them",
+    "zh-Hans": "删除孩子及其全部内容"
+  },
+  "删除这个安排？": {
+    "en": "Delete this arrangement?",
+    "zh-Hans": "删除这个安排？"
+  },
+  "删除这个目标？": {
+    "en": "Delete this goal?",
+    "zh-Hans": "删除这个目标？"
+  },
+  "删除这条记录？": {
+    "en": "Delete this record?",
+    "zh-Hans": "删除这条记录？"
+  },
+  "取消这个安排": {
+    "en": "Cancel this arrangement",
+    "zh-Hans": "取消这个安排"
+  },
+  "取消这个安排？": {
+    "en": "Cancel this arrangement?",
+    "zh-Hans": "取消这个安排？"
+  },
+  "同一时间已有：{0}": {
+    "en": "Already at that time: {0}",
+    "zh-Hans": "同一时间已有：{0}"
+  },
+  "回顾这个目标": {
+    "en": "Review this goal",
+    "zh-Hans": "回顾这个目标"
+  },
+  "完成记录": {
+    "en": "Completion note",
+    "zh-Hans": "完成记录"
+  },
+  "小时": {
+    "en": "Hour",
+    "zh-Hans": "小时"
+  },
+  "已取消（{0}）": {
+    "en": "Cancelled ({0})",
+    "zh-Hans": "已取消（{0}）"
+  },
+  "已完成（{0}）": {
+    "en": "Completed ({0})",
+    "zh-Hans": "已完成（{0}）"
+  },
+  "开始目标：{0}": {
+    "en": "Start goal: {0}",
+    "zh-Hans": "开始目标：{0}"
+  },
+  "我已知道，仍然调整": {
+    "en": "I know, adjust anyway",
+    "zh-Hans": "我已知道，仍然调整"
+  },
+  "撤销这次调整？": {
+    "en": "Undo this adjustment?",
+    "zh-Hans": "撤销这次调整？"
+  },
+  "日期": {
+    "en": "Date",
+    "zh-Hans": "日期"
+  },
+  "本机安排不会发送提醒；它们只保存在这台手机上。": {
+    "en": "Arrangements here do not send reminders; they are stored only on this phone.",
+    "zh-Hans": "本机安排不会发送提醒；它们只保存在这台手机上。"
+  },
+  "核对这次调整": {
+    "en": "Review this adjustment",
+    "zh-Hans": "核对这次调整"
+  },
+  "没有原话": {
+    "en": "No original words",
+    "zh-Hans": "没有原话"
+  },
+  "没有未完成的安排。": {
+    "en": "No open arrangements.",
+    "zh-Hans": "没有未完成的安排。"
+  },
+  "目标：{0}": {
+    "en": "Goal: {0}",
+    "zh-Hans": "目标：{0}"
+  },
+  "确定": {
+    "en": "OK",
+    "zh-Hans": "确定"
+  },
+  "观察": {
+    "en": "Observation",
+    "zh-Hans": "观察"
+  },
+  "记录完成": {
+    "en": "Record completion",
+    "zh-Hans": "记录完成"
+  },
+  "记录来源": {
+    "en": "Record source",
+    "zh-Hans": "记录来源"
+  },
+  "该孩子的目标、安排和记录都会一并删除，无法恢复。": {
+    "en": "This child's goals, arrangements and records will all be deleted and cannot be recovered.",
+    "zh-Hans": "该孩子的目标、安排和记录都会一并删除，无法恢复。"
+  },
+  "调整": {
+    "en": "Adjust",
+    "zh-Hans": "调整"
+  },
+  "调整历史": {
+    "en": "Adjustment history",
+    "zh-Hans": "调整历史"
+  },
+  "调整说明（可选）": {
+    "en": "Adjustment note (optional)",
+    "zh-Hans": "调整说明（可选）"
+  },
+  "返回": {
+    "en": "Back",
+    "zh-Hans": "返回"
+  },
+  "这个孩子已经不存在。": {
+    "en": "This child no longer exists.",
+    "zh-Hans": "这个孩子已经不存在。"
+  },
+  "这个目标下还没有记录。": {
+    "en": "There are no records under this goal yet.",
+    "zh-Hans": "这个目标下还没有记录。"
+  },
+  "这个目标已经不存在。": {
+    "en": "This goal no longer exists.",
+    "zh-Hans": "这个目标已经不存在。"
+  },
+  "选择时间": {
+    "en": "Choose time",
+    "zh-Hans": "选择时间"
   }
 }

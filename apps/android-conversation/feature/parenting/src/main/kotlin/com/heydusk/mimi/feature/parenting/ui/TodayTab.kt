@@ -25,7 +25,7 @@ import com.heydusk.mimi.domain.parenting.ParentingTodayHome
 import com.heydusk.mimi.domain.parenting.ParentingTodayTimeline
 import com.heydusk.mimi.domain.parenting.ParentingWorkspace
 import com.heydusk.mimi.i18n.ui
-import java.util.UUID
+import java.time.ZoneId
 
 data class TodayUi(
     val home: ParentingTodayHome,
@@ -33,29 +33,22 @@ data class TodayUi(
     val workspace: ParentingWorkspace,
 )
 
+/** 今天：一张英雄卡、撤销条、待确认草稿、今天的时间线，以及进入「全部安排」的入口。 */
 @Composable
 fun TodayTabContent(
     uiState: TodayUi,
-    onAddChild: () -> Unit,
-    onAddArrangement: (UUID) -> Unit,
-    onConfirmArrangement: (UUID) -> Unit,
-    onCompleteArrangement: (UUID) -> Unit,
-    onUndo: () -> Unit,
+    handlers: PageHandlers,
     undoSeconds: Int?,
+    onUndo: () -> Unit,
+    zone: ZoneId,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalMimiColors.current
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(
-            text = ui("今天"),
-            style = MaterialTheme.typography.headlineLarge,
-            color = colors.ink,
-            modifier = Modifier.semantics { testTag = "parenting.title" },
-        )
+    TitledPage(ui("今天"), modifier) {
         Text(uiState.home.subtitle, style = MaterialTheme.typography.bodyMedium, color = colors.ink2,
             modifier = Modifier.semantics { testTag = "parenting.today.subtitle" })
 
-        HeroCard(uiState.deck, onAddChild, onAddArrangement, onConfirmArrangement, onCompleteArrangement)
+        HeroCard(uiState.deck, handlers)
 
         if (undoSeconds != null && undoSeconds > 0) {
             Card(
@@ -81,9 +74,11 @@ fun TodayTabContent(
             drafts.forEach { a ->
                 ArrangementRow(
                     title = a.title,
-                    tag = "parenting.confirm.${a.id}",
+                    whenLabel = formatWhen(a.dueAt, zone),
+                    rowTag = "parenting.row.${a.id}",
+                    actionTag = "parenting.confirm.${a.id}",
                     actionLabel = ui("确认安排"),
-                    onAction = { onConfirmArrangement(a.id) },
+                    onAction = { handlers.onConfirmArrangement(a.id) },
                 )
             }
         }
@@ -99,30 +94,26 @@ fun TodayTabContent(
                 val canComplete = a.state == ParentingArrangementState.Planned
                 ArrangementRow(
                     title = a.title,
-                    tag = "parenting.row.${a.id}",
+                    whenLabel = formatWhen(a.dueAt, zone),
+                    rowTag = "parenting.row.${a.id}",
+                    actionTag = "parenting.row.complete.${a.id}",
                     actionLabel = if (canComplete) ui("完成") else null,
-                    onAction = if (canComplete) ({ onCompleteArrangement(a.id) }) else null,
+                    onAction = if (canComplete) ({ handlers.onCompleteOneTap(a.id) }) else null,
                 )
             }
         }
 
-        uiState.deck.childID?.let { childID ->
+        if (uiState.deck.childID != null) {
             MimiTintedButton(
-                onClick = { onAddArrangement(childID) },
-                modifier = Modifier.semantics { testTag = "parenting.today.addArrangement" },
-            ) { Text(ui("记一件安排")) }
+                onClick = { handlers.onOpen(ParentingRoute.TodayAll) },
+                modifier = Modifier.semantics { testTag = "parenting.today.allArrangements" },
+            ) { Text(ui("全部安排")) }
         }
     }
 }
 
 @Composable
-private fun HeroCard(
-    deck: ParentingTodayDeck,
-    onAddChild: () -> Unit,
-    onAddArrangement: (UUID) -> Unit,
-    onConfirmArrangement: (UUID) -> Unit,
-    onCompleteArrangement: (UUID) -> Unit,
-) {
+private fun HeroCard(deck: ParentingTodayDeck, handlers: PageHandlers) {
     val colors = LocalMimiColors.current
     Card(
         colors = CardDefaults.cardColors(containerColor = colors.card),
@@ -133,14 +124,14 @@ private fun HeroCard(
                 ParentingStartAction.StartWithNickname -> {
                     Text(ui("从孩子的昵称开始"), style = MaterialTheme.typography.titleMedium, color = colors.ink)
                     Text(ui("不用填写生日和健康信息。添加昵称后，就能记录安排、观察与成长目标。"), color = colors.ink2)
-                    MimiTintedButton(onClick = onAddChild, modifier = Modifier.semantics { testTag = "parenting.hero.addChild" }) {
+                    MimiTintedButton(onClick = handlers.onAddChild, modifier = Modifier.semantics { testTag = "parenting.hero.addChild" }) {
                         Text(ui("添加孩子的昵称"))
                     }
                 }
                 is ParentingStartAction.ConfirmAll -> {
                     Text(ui("你有待确认的事。可以先核对孩子、时间和内容，再决定是否安排。"), color = colors.ink)
                     MimiTintedButton(
-                        onClick = { hero.arrangementIDs.firstOrNull()?.let(onConfirmArrangement) },
+                        onClick = { hero.arrangementIDs.firstOrNull()?.let(handlers.onConfirmArrangement) },
                         modifier = Modifier.semantics { testTag = "parenting.hero.confirmAll" },
                     ) { Text(ui("确认安排")) }
                 }
@@ -148,24 +139,28 @@ private fun HeroCard(
                     val title = deck.heroArrangement?.title ?: ""
                     Text(title, style = MaterialTheme.typography.titleMedium, color = colors.ink)
                     MimiTintedButton(
-                        onClick = { onCompleteArrangement(hero.arrangementID) },
+                        onClick = { handlers.onCompleteOneTap(hero.arrangementID) },
                         modifier = Modifier.semantics { testTag = "parenting.complete.${hero.arrangementID}" },
                     ) { Text(ui("完成")) }
                 }
                 is ParentingStartAction.HandleOverdue -> {
                     Text(ui("有安排的时间已经过去。可以按实际情况调整、取消或记录完成。"), color = colors.ink)
                     MimiTintedButton(
-                        onClick = { hero.arrangementIDs.firstOrNull()?.let(onCompleteArrangement) },
+                        onClick = { hero.arrangementIDs.firstOrNull()?.let(handlers.onCompleteOneTap) },
                         modifier = Modifier.semantics { testTag = "parenting.hero.overdue" },
                     ) { Text(ui("完成")) }
                 }
                 is ParentingStartAction.RecordTodaySmallThing -> {
                     Text(ui("记下今天的第一条观察"), color = colors.ink)
+                    MimiTintedButton(
+                        onClick = { handlers.onAddObservation(hero.childID, null) },
+                        modifier = Modifier.semantics { testTag = "parenting.hero.recordObservation" },
+                    ) { Text(ui("记下观察")) }
                 }
                 is ParentingStartAction.ExamplePrompt -> {
                     Text(hero.text, color = colors.ink2)
                     deck.childID?.let { id ->
-                        MimiTintedButton(onClick = { onAddArrangement(id) }) { Text(ui("记一件安排")) }
+                        MimiTintedButton(onClick = { handlers.onAddArrangement(id) }, modifier = Modifier.semantics { testTag = "parenting.hero.addArrangement" }) { Text(ui("记一件安排")) }
                     }
                 }
                 else -> Text(ui("今天暂无安排"), color = colors.ink2)
@@ -175,20 +170,30 @@ private fun HeroCard(
 }
 
 @Composable
-private fun ArrangementRow(title: String, tag: String, actionLabel: String?, onAction: (() -> Unit)?) {
+private fun ArrangementRow(
+    title: String,
+    whenLabel: String,
+    rowTag: String,
+    actionTag: String,
+    actionLabel: String?,
+    onAction: (() -> Unit)?,
+) {
     val colors = LocalMimiColors.current
     Card(
         colors = CardDefaults.cardColors(containerColor = colors.card),
-        modifier = Modifier.fillMaxWidth().semantics { testTag = tag },
+        modifier = Modifier.fillMaxWidth().semantics { testTag = rowTag },
     ) {
         Row(
             Modifier.fillMaxWidth().padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(title, color = colors.ink, modifier = Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                Text(title, color = colors.ink)
+                Text(whenLabel, color = colors.ink2, style = MaterialTheme.typography.labelMedium)
+            }
             if (actionLabel != null && onAction != null) {
-                TextButton(onClick = onAction) { Text(actionLabel) }
+                TextButton(onClick = onAction, modifier = Modifier.semantics { testTag = actionTag }) { Text(actionLabel) }
             }
         }
     }

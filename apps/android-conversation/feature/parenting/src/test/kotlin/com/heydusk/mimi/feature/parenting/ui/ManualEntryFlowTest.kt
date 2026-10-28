@@ -22,7 +22,7 @@ import org.robolectric.annotation.Config
 class ManualEntryFlowTest {
     @get:Rule val rule = createComposeRule()
 
-    private fun shell(onAddChild: (String) -> Unit = {}) = rule.setContent {
+    private fun shell(actions: RecordingActions = RecordingActions()) = rule.setContent {
         MimiTheme {
             ParentingHomeScreen(
                 preferences = ThemePreferences(),
@@ -35,13 +35,7 @@ class ManualEntryFlowTest {
                 undoSeconds = null,
                 versionName = "0.1.0",
                 versionCode = 1,
-                onAddChild = onAddChild,
-                onAddGoal = { _, _ -> },
-                onAddArrangement = { _, _ -> },
-                onAddObservation = { _, _ -> },
-                onConfirmArrangement = {},
-                onCompleteArrangement = {},
-                onUndoCompletion = {},
+                actions = actions,
                 onCompleteOnboarding = {},
                 onClearData = {},
                 onSignOut = {},
@@ -80,13 +74,13 @@ class ManualEntryFlowTest {
     }
 
     @Test fun openingAddChildFromFamilyShowsFormAndDiscardClosesWithoutCallback() {
-        var writes = 0
-        shell(onAddChild = { writes += 1 })
+        val actions = RecordingActions()
+        shell(actions)
         rule.onNodeWithTag("parenting.tab.family").performClick()
         rule.onNodeWithTag("parenting.family.addChild").performClick()
         rule.onNodeWithTag("parenting.form").assertIsDisplayed()
         rule.onNodeWithTag("parenting.form.discard").performClick()
-        assertEquals(0, writes)
+        assertEquals(emptyList(), actions.children)
         rule.onNodeWithTag("parenting.form").assertDoesNotExist()
     }
 }

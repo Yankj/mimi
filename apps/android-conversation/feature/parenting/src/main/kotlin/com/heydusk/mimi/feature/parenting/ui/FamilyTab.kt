@@ -3,15 +3,14 @@ package com.heydusk.mimi.feature.parenting.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -20,7 +19,9 @@ import com.heydusk.mimi.designsystem.LocalMimiColors
 import com.heydusk.mimi.designsystem.MimiTintedButton
 import com.heydusk.mimi.domain.parenting.FamilyLaunchChecklist
 import com.heydusk.mimi.domain.parenting.ParentingFamilyChildSummary
+import com.heydusk.mimi.domain.parenting.ParentingWorkspace
 import com.heydusk.mimi.i18n.ui
+import java.util.UUID
 
 data class FamilyUi(
     val children: List<ParentingFamilyChildSummary>,
@@ -30,29 +31,19 @@ data class FamilyUi(
 @Composable
 fun FamilyTabContent(
     uiState: FamilyUi,
-    onAddChild: () -> Unit,
-    onOpenSettings: () -> Unit,
+    handlers: PageHandlers,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalMimiColors.current
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = ui("我们家"),
-                style = MaterialTheme.typography.headlineLarge,
-                color = colors.ink,
-                modifier = Modifier.semantics { testTag = "parenting.title" },
-            )
-            Text(
-                ui("设置"),
-                color = colors.ink2,
-                modifier = Modifier
-                    .clickable(onClick = onOpenSettings)
-                    .semantics { testTag = "parenting.family.settings" }
-                    .padding(8.dp),
-            )
-        }
-
+    TitledPage(
+        ui("我们家"),
+        modifier,
+        trailing = {
+            TextButton(onClick = handlers.onOpenSettings, modifier = Modifier.semantics { testTag = "parenting.family.settings" }) {
+                Text(ui("设置"), color = colors.ink2)
+            }
+        },
+    ) {
         if (!uiState.checklist.isFinished) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = colors.card),
@@ -77,14 +68,17 @@ fun FamilyTabContent(
 
         if (uiState.children.isEmpty()) {
             Text(ui("先添加孩子的昵称"), color = colors.ink2, modifier = Modifier.semantics { testTag = "parenting.family.empty" })
-            MimiTintedButton(onClick = onAddChild, modifier = Modifier.semantics { testTag = "parenting.family.addChild" }) {
+            MimiTintedButton(onClick = handlers.onAddChild, modifier = Modifier.semantics { testTag = "parenting.family.addChild" }) {
                 Text(ui("添加孩子的昵称"))
             }
         } else {
             uiState.children.forEach { child ->
                 Card(
                     colors = CardDefaults.cardColors(containerColor = colors.card),
-                    modifier = Modifier.fillMaxWidth().semantics { testTag = "parenting.family.child.${child.id}" },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { handlers.onOpen(ParentingRoute.ChildDetail(child.id)) }
+                        .semantics { testTag = "parenting.family.child.${child.id}" },
                 ) {
                     Column(Modifier.padding(16.dp)) {
                         Text("${child.initial}  ${child.name}", style = MaterialTheme.typography.titleMedium, color = colors.ink)
@@ -95,9 +89,40 @@ fun FamilyTabContent(
                     }
                 }
             }
-            MimiTintedButton(onClick = onAddChild, modifier = Modifier.semantics { testTag = "parenting.family.addChild" }) {
+            MimiTintedButton(onClick = handlers.onAddChild, modifier = Modifier.semantics { testTag = "parenting.family.addChild" }) {
                 Text(ui("添加孩子的昵称"))
             }
+        }
+    }
+}
+
+@Composable
+fun ChildDetailPage(
+    workspace: ParentingWorkspace,
+    childID: UUID,
+    handlers: PageHandlers,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LocalMimiColors.current
+    val child = workspace.children.firstOrNull { it.id == childID }
+    TitledPage(child?.name ?: ui("孩子"), modifier, onBack = handlers.onBack) {
+        if (child == null) {
+            Text(ui("这个孩子已经不存在。"), color = colors.ink2)
+            return@TitledPage
+        }
+        val goals = workspace.goals.count { it.childID == childID }
+        val observations = workspace.records.count { it.childID == childID }
+        val arrangements = workspace.arrangements.count { it.childID == childID }
+        Text(
+            ui("{0} 个目标 · {1} 条记录 · {2} 件安排", goals.toString(), observations.toString(), arrangements.toString()),
+            color = colors.ink2,
+            modifier = Modifier.semantics { testTag = "parenting.child.counts" },
+        )
+        MimiTintedButton(onClick = { handlers.onRenameChild(child) }, modifier = Modifier.semantics { testTag = "parenting.child.rename" }) {
+            Text(ui("修改昵称"))
+        }
+        TextButton(onClick = { handlers.onDeleteChild(child) }, modifier = Modifier.semantics { testTag = "parenting.child.delete" }) {
+            Text(ui("删除孩子及其全部内容"), color = colors.danger)
         }
     }
 }
