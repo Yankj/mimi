@@ -151,7 +151,7 @@ struct ParentingActionPair<SecondaryLabel: View, PrimaryLabel: View>: View {
             Text(verbatim: now.formatted(.dateTime.month(.wide).day().weekday(.wide)))
                 .font(catTypography.Role.caption.font.weight(.medium)).foregroundStyle(catColors.calmSecondary)
                 .accessibilityIdentifier("parenting.today.date")
-            if workspace.children.count > 1, let id = deck.childID { childMenu(activeID: id) }
+            if workspace.children.count > 1, let id = deck.childID { childSwitcher(activeID: id) }
             if let activeUndo { undoBar(activeUndo) }
             hero(deck)
             if deck.childID != nil {
@@ -174,33 +174,28 @@ struct ParentingActionPair<SecondaryLabel: View, PrimaryLabel: View>: View {
         }
     }
 
-    // MARK: Child switcher (only with more than one child)
-    private func childMenu(activeID: UUID) -> some View {
-        Menu {
-            ForEach(workspace.children) { child in
-                Button { onSelectChild(child.id) } label: {
-                    if child.id == activeID { Label { Text(verbatim: child.name) } icon: { Image(systemName: "checkmark") } }
-                    else { Text(verbatim: child.name) }
-                }
-            }
-        } label: {
-            Label { Text(verbatim: workspace.children.first { $0.id == activeID }?.name ?? "") } icon: { Image(systemName: "person.crop.circle") }
-                .font(.subheadline.weight(.medium)).frame(minHeight: 44)
-        }
-        .accessibilityLabel(ui("查看哪个孩子"))
-        .accessibilityIdentifier("parenting.today.childMenu")
+    // MARK: Child switcher (only with more than one child; one child is implied by the hero)
+    private func childSwitcher(activeID: UUID) -> some View {
+        ParentingChildSwitcher(
+            children: workspace.children, selectedID: activeID,
+            accent: { ParentingChildAccent.color(slot: ParentingGrowthInsights.accentSlot(for: $0, in: workspace)) },
+            onSelect: { if let id = $0 { onSelectChild(id) } },
+            identifier: "parenting.today.childMenu", chipIdentifierPrefix: "parenting.today.child.")
     }
 
     // MARK: Hero
     @ViewBuilder private func hero(_ deck: ParentingTodayDeck) -> some View {
+        if case .startWithNickname = deck.hero {
+            // The same empty state card as 成长 and 我们家 (one component, one wording, one entry).
+            ParentingAddChildCard(busy: disabled, onAdd: onAddChild)
+        } else {
+            heroCard(deck)
+        }
+    }
+
+    @ViewBuilder private func heroCard(_ deck: ParentingTodayDeck) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             switch deck.hero {
-            case .startWithNickname:
-                heroText(symbol: "leaf", eyebrow: nil, title: ui("从孩子的昵称开始"),
-                         detail: ui("不用填写生日和健康信息。添加昵称后，就能记录安排、观察与成长目标。"))
-                Button(action: onAddChild) { heroButtonLabel(ui("添加孩子")) }
-                    .parentingTodayPrimaryGlassButton().disabled(disabled)
-                    .accessibilityIdentifier("parenting.today.hero.addChild")
             case .confirmAll(let ids):
                 heroText(symbol: "hourglass", eyebrow: ui("先核对一下"), title: ui("有 {0} 件待确认", [String(ids.count)]),
                          detail: ui("确认后才会进入安排，也才会提醒。不确定的可以先逐件查看。"))

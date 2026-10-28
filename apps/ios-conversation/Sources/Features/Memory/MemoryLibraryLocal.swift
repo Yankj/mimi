@@ -48,20 +48,22 @@ enum AccountLocalData {
     static let userDefaultsKeys = ["catpaw.proactive.inbox.v1", "catpaw.proactive.ledger.v1", "catpaw.proactive.ops.v1", "catpaw.proactive.suggestions.v1",
                                    "catpaw.proactive.attendees.v1", "catpaw.proactive.serverids.v1",
                                    "catpaw.devicecall.records.v1", "catpaw.devicecall.undos.v1"]
-    static func purge(defaults: UserDefaults) {
+    static func purge(defaults: UserDefaults, avatarDirectory: URL = ParentingChildAvatarStore.defaultDirectory) {
         for k in userDefaultsKeys { defaults.removeObject(forKey: k) }
         for k in defaults.dictionaryRepresentation().keys where k.hasPrefix(MemoryRecallLoader.offKeyPrefix) { defaults.removeObject(forKey: k) }
         // 周复盘: the "last reviewed" date is kept per subject in UserDefaults, outside the encrypted ledger, so sign-out clears it here.
         for k in defaults.dictionaryRepresentation().keys where k.hasPrefix(ParentingWeeklyReviewStore.keyPrefix) { defaults.removeObject(forKey: k) }
+        // 孩子头像: the photos a parent picked live as local files outside the encrypted ledger, so sign-out removes the folder here.
+        ParentingChildAvatarStore.purgeAll(directory: avatarDirectory)
     }
     /// Portable core of sign-out (the app adds notifications, widget, Live Activity, L2 wipe): first close the session
     /// generation so in-flight work cannot write back, then drop the memory cache, the local library and the keys.
-    @MainActor static func signOutCore(userID: UUID?, defaults: UserDefaults) {
+    @MainActor static func signOutCore(userID: UUID?, defaults: UserDefaults, avatarDirectory: URL = ParentingChildAvatarStore.defaultDirectory) {
         AccountEpoch.shared.signOut()   // FIRST: every token captured before this is dead
         MemoryCache.shared.reset()
         ConversationMemorySwitch.useMemory = nil
         if let userID { MemoryLibraryLocal.purge(owner: .account(userID.uuidString.lowercased())) } else { MemoryLibraryLocal.purge(owner: .guest) }
-        purge(defaults: defaults)
+        purge(defaults: defaults, avatarDirectory: avatarDirectory)
     }
 }
 
@@ -437,6 +439,7 @@ extension AccountLocalData {
         AccountConversationLocal.purge(defaults: .standard, stagingDirectory: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent("ComposerStaging", isDirectory: true))
         MessageReactionStore.shared.reset()
         signOutCore(userID: userID, defaults: .standard)   // generation first, then memory cache + library + keys
+        ParentingChildAvatarLibrary.shared.resetAfterSignOut()   // the photo files went with purge; drop the decoded images too
         MemoryLibraryHub.reset()
         DeviceCallStore.shared.reset()
         ProactiveFeedbackSync.shared.reset()

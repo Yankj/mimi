@@ -182,20 +182,29 @@ struct ParentingGoalMarksTrack: View {
     }
 }
 
-/// The one child avatar (今天, 成长, 我们家): the existing plush cat in a circular mask on a faint wash of the child's accent,
-/// with a ring in that accent. Only the mask and the ring differ between children; the cat image is the same asset.
+/// The one child avatar (今天, 成长, 我们家): the parent's own photo when one was chosen (`ParentingChildAvatarLibrary`), otherwise the
+/// existing plush cat, in a circular mask with a ring in the child's accent. Only the mask and the ring differ between
+/// children; the photo is a local file, never a pre-rendered coloured asset.
 struct ParentingChildAvatar: View {
     let accent: Color
     var size: CGFloat = 44
     var pose: PlushMascotPose = .idle
+    /// Pass the child's id to show their photo; nil always shows the plush cat.
+    var childID: UUID? = nil
     private var ring: CGFloat { max(2, size * 0.065) }
     var body: some View {
+        let photo = childID.flatMap { ParentingChildAvatarLibrary.shared.image(for: $0) }
         ZStack {
             Circle().fill(catColors.card)
-            Circle().fill(accent.opacity(0.18))
-            Image(pose.assetName)
-                .resizable().interpolation(.high).scaledToFit()
-                .padding(size * 0.14)
+            if let photo {
+                Image(uiImage: photo)
+                    .resizable().interpolation(.high).scaledToFill()
+            } else {
+                Circle().fill(accent.opacity(0.18))
+                Image(pose.assetName)
+                    .resizable().interpolation(.high).scaledToFit()
+                    .padding(size * 0.14)
+            }
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
