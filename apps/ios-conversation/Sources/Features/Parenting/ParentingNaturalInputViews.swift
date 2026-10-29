@@ -106,8 +106,9 @@ extension View {
     private var sendButton: some View {
         Button(action: handOver) {
             Image(systemName: "arrow.up").font(.body.weight(.semibold)).frame(width: 40, height: 40)
-                .foregroundStyle(catColors.calmGlyph)
-                .background(input.canSubmit && !busy ? catColors.calmCTATop : catColors.fillSelected, in: Circle())
+                .foregroundStyle(catColors.ink)
+                .background(input.canSubmit && !busy ? catColors.action.opacity(0.45) : catColors.fillSelected, in: Circle())
+                .overlay(Circle().stroke(catColors.hairline, lineWidth: 0.5))
                 .frame(width: 44, height: 44)
         }
         .buttonStyle(.plain)
