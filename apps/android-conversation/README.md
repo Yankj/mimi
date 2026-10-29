@@ -54,6 +54,22 @@ source apps/android-conversation/scripts/android-env.sh   # 设置并检查 JAVA
 SDK 组件：`platforms;android-37.1`、`platforms;android-36`、`build-tools;36.0.0`、`platform-tools`。
 脚本头部有安装命令。仓库自带 Gradle Wrapper（9.7.0，已固定校验和），首次构建会下载 Gradle 和依赖。
 
+## 云端配置（`local.properties`，M5）
+
+`local.properties` 已在 `.gitignore` 里，**永远不要提交**；不填就是「未配置云端」的离线构建（没有登录、没有「让小咪整理」，只走本机）。
+要试云端，在本目录 `apps/android-conversation/local.properties` 里加三行（值向项目负责人要，下面只是占位符）：
+
+```properties
+sdk.dir=/path/to/Android/sdk
+mimi.supabase.url=https://<project-ref>.supabase.co
+mimi.supabase.anonKey=<Supabase 项目的 anon public key>
+mimi.backend.origin=https://<后端域名>
+```
+
+也可以用同名环境变量 `MIMI_SUPABASE_URL`、`MIMI_SUPABASE_ANON_KEY`、`MIMI_BACKEND_ORIGIN`（CI 用）。改完重新 `./gradlew :app:assembleDebug`；
+Google/GitHub 登录还要在 Supabase「Authentication → URL Configuration → Redirect URLs」里加 `catpawm://auth-callback`。
+只放 anon key（公开可下发的那一把），**不要放 service_role key**。
+
 ## 构建与测试
 
 ```bash
