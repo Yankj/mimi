@@ -679,6 +679,45 @@ M1 验收（本机，无设备）：`scripts/verify.sh` 全绿，**242 个 JVM �
 
 **M5 需要**：同 §8.5「M5 需要」；M4 不需要后端改动。**M7** 保持「待用户确认」；**M6** 保持「不做」。
 
+### 8.7 M5 实施记录与偏差（2026-10-29，分支 `feat/android-m5`，叠在 `feat/android-m4` 上）
+
+**做了什么**（全部 JVM 内验证；无后端改动；真机与真实 Supabase/模型未验）：
+
+- **新模块 `:core:network`**（Android 库，依赖 `:core:domain`/`:core:data`/协程；生产传输 `HttpURLConnection`：不跟随重定向、不缓存、不带 Cookie、响应体有上限、可中断；单测用 MockWebServer）。
+  - `SupabaseAuthRemote`：手写 Supabase Auth HTTP（**不用 supabase-kt**），逐条移植 iOS `NativeAuthHTTPRemote`：匿名 `signup`、邮箱注册（需确认邮箱时响应里不得带令牌）、`token?grant_type=password|refresh_token|pkce`、`user`、`logout?scope=local`；错误码按允许清单映射为中文文案；`/catpaw/account/v1/logout` 撤销应用会话；`/catpaw/account/v1/session` 选服务端作用域（主体必须等于当前登录主体、只认 `local_output` 且带 profile/workspace 的作用域，未配置 `serverScopeID` 时必须恰好一个）。
+  - `OAuth`：Google/GitHub，PKCE S256（48 字节随机 verifier，只在内存），回调只认 `catpawm://auth-callback?code=…`（拒绝隐式流的 `#access_token`、重复参数、别的 scheme/host）；Custom Tabs 打开授权页，`MainActivity` 用 intent-filter 接回调。
+  - `AuthSessionManager`：iOS `NativeAuthSessionManager` 的移植——锁 + 代际（generation）、启动恢复、**刷新单飞**（共享 `Deferred`，取消的等待者只离开不取消共享刷新）、**不确定刷新栅栏**（刷新前先落 `signedOut` 栅栏；新令牌在 `/user` 之前写入轮换日志；进程中途被杀且日志没写成 → 下次只能重新登录，`startExperience` 抛 `SessionRecoveryRequired`，**绝不悄悄换一个新的体验账号、也不重交结果未知的旧刷新令牌**）、退出时先清日志/凭证再网络撤销（网络失败仍清本机，并提示「服务端会话撤销未确认」）、存储失败进入 `StorageBlocked` 可 `retryPersistence`。
+  - `SealedAuthVault`：令牌 JSON 用 AES-GCM 封存在 `noBackupFilesDir/auth`，密钥在 AndroidKeyStore（独立别名前缀 `mimi.auth.v1.`，与账本密钥分开）；`AuthCredential.toString()` 不含令牌。
+  - `ParentingIntakeClient`（`mimi.parenting-intake.v1`，受限命名空间 `/catpaw/parenting-intake/v1`）：建会话并核对用途字段为空、发送许可（`/catpaw/privacy/v1/model-route` + `model-consent`，按 `route_hash`/`expected_revision` 允许）、唯一一次 `turns`（`Idempotency-Key`=turn id、`X-Catpaw-Use-Memory: 0`、`context: []`）；**正文只认实时 SSE**，`turn_completed.final_text_hash` 必须等于拼接文本的 sha256；存档里的脱敏事件（`intake_redacted`）、JSON 回放回执、流断无终态一律 **Unknown（只读回读，不再发送）**；`observe`（GET events）、`cancel`、`DELETE` 清理。
+  - `SealedIntakeJournal`：恢复记录（≤24h）与清理队列按主体加密存放（不含令牌）。
+  - `FeatureEnrollmentClient`：`/catpaw/features/v1/me|enroll`，邀请码规则与 iOS 相同（可带 CP 前缀，12 位字母数字），422 → 无效、429 → 按 `retry_after_sec` 冷却、401 → 需重新登录。
+- **`:core:domain`**：`ParentingIntakeRequest`（提示词与 iOS **逐字节一致**，黄金哈希 `db7bcc3f…ec12` 用 iOS 夹具验证；严格解析模型回复：契约/版本/request_id/重复键/时间证据）、`ParentingIntakeDraft`、阶段与错误文案（iOS 原句）。
+- **`:feature:parenting`**：
+  - `CloudAccount`：Auth ↔ 账本主体 ↔ 服务端作用域 ↔ 功能准入的编排；`ParentingSession.bindCloudSubject`：第一次登录把本机体验账本带进该账号（`ParentingWorkspaceStore.adoptLedger` 重新封存到新主体，目标已有账本则不覆盖），换到另一个云端账号与 M2 退出相同（同步抬升代际、清提醒、删密文与密钥）；云端退出 = 撤销会话 + M2 的 `signOutAndStartFresh`。
+  - `InlineIntakeModel` + `InlineIntakeSection`：「记一件安排」表单里的「让小咪整理」（与 iOS 一样放在编辑表单内）：准备 → 发送许可（允许/暂不允许）→ 发送 → 候选（「整理建议 · 尚未采用或保存」）→ **家长点「采用整理结果」才填入名称与时间，仍需「保存」**；失败分「尚未发送（重试同一请求，同一 turn id 幂等）」与「已终止（重新发起）」；Unknown → 「检查本次结果」（只读）/「停止等待本次整理」（尽力服务端取消）；冷启动「恢复上次整理」只读回读；清理队列失败时阻止新请求并给「重试清理」；原话被改、账号变化、关闭表单 → 作废在途结果并清理临时会话。
+  - 设置页账户区：未配置云端 = M2 原样（体验账号 + 退出）；已配置 → 未登录显示「登录或注册」，登录浮层含邮箱/密码「登录」「注册」、「使用 Google 继续」「使用 GitHub 继续」、「无需注册，即刻开始」（Supabase 匿名）；已登录显示邮箱/体验账号，未开通时「输入邀请码」浮层。全部是**同窗口浮层**（无 `Dialog`/`ModalBottomSheet`），Material 3 + 现有设计系统，文案全走 `ui()`。
+- **配置与离线**：`app/build.gradle.kts` 只从未入库的 `local.properties`（`mimi.supabase.url` / `mimi.supabase.anonKey` / `mimi.backend.origin`，或同名环境变量 `MIMI_SUPABASE_URL` 等）生成 `BuildConfig`；**仓库里没有任何真实地址或密钥**。任何一项缺失 → `CloudModule` 给出未配置的 `CloudAccount`，不发任何请求，界面不出现登录与「让小咪整理」，整个 App 等同 M4。本次交付的 APK 就是**未配置构建**。
+- 文案：`UIStringsAndroid.json` 66 → 99 条（登录/注册/邀请码/错误提示；整理区文案全部复用 iOS 共享目录）。
+
+**测试**（`./scripts/verify.sh` 全绿）：**494 个 JVM 测试，0 失败**（M4 为 441，+53）——`core:network` 27（新：`OAuthTest` 4 = RFC 7636 向量/授权 URL/回调拒绝隐式流与重复参数；`SupabaseAuthRemoteTest` 6 = MockWebServer 下密码登录、错误映射、注册需确认且不得带令牌、PKCE 交换、302/429/400、`account/v1/session` 作用域选择；`AuthSessionManagerTest` 7 = 登录持久化、**三个并发请求只刷新一次**、**不确定刷新不换新体验账号也不重交旧令牌**、轮换日志恢复、刷新网络失败后栅栏保持、退出时服务端撤销失败仍清本机、错误发行者丢弃；`IntakeAndEnrollmentTest` 10 = 实时流哈希通过、脱敏回放 = Unknown、哈希不符、无终态、别的 turn、请求头/状态码映射、只读 GET、邀请码 422/429/401、封存令牌无明文、恢复记录按主体）、`core:domain` 172（+8 `ParentingIntakeTest`：iOS 黄金提示词哈希、严格解析）、`feature:parenting` 126（+18：`InlineIntakeModelTest` 11 = 候选需采用、许可前零发送/拒绝零发送、Unknown 只读不重发、未发送重试同一 turn、每日上限文案、取消、冷恢复只读、清理失败阻止新请求、换账号丢弃结果、未配置不可用；`InlineIntakeUiTest` 4 = Robolectric 表单内许可 → 候选 → 采用填入但不保存 → 保存、Unknown 的检查/停止、未配置不显示整理区、设置页登录与邀请码入口；`ParentingSessionTest` +3 = 首次登录带入体验账本、换云端账号清除、云端退出开新体验主体）、其余模块不变（`app` 23 含真实 Hilt 图在未配置下启动）。
+
+**偏差与取舍**（诚实记录）：
+
+| 项 | iOS / 计划 | Android M5 实际 | 原因 / 后续 |
+|---|---|---|---|
+| 账号与本机数据 | iOS 登录后数据按云端主体 | 第一次登录**带入**本机体验账本；切到另一个云端账号或退出 → 清除（与 M2 退出一致） | Android 账本只在本机加密存放、没有云同步；不带入会让试用数据丢失，跨账号保留又会串号 |
+| 身份绑定 | iOS 有「升级体验账号」 | 不做 identity linking：已登录时走 OAuth = 先退出再用新账号登录 | 链接需要 Supabase 端配置与更多状态机；后续可加 |
+| 体验账号启动 | iOS 启动时可预热匿名会话 | 不自动创建 Supabase 匿名会话；未登录时仍是 M2 的本机体验主体，用户在登录浮层点「无需注册，即刻开始」才建 | 不在用户不知情时向服务端注册身份 |
+| 功能准入 | — | 邀请码入口在设置页（已登录且未开通时）；**整理不以准入为前置**（与 iOS 一致：准入在服务端判） | 服务端未开放时返回 404/405 → 「AI 整理暂时不可用」 |
+| 改期整理 | iOS 调整安排时也可整理 | 只在「记一件安排」里提供；「调整安排」表单暂不显示整理区 | 调整需 `editTarget` 与冲突复核联动，留到 M8 打磨 |
+| 传输 | — | `HttpURLConnection`（无 OkHttp 运行时依赖） | 依赖最少、行为可控；MockWebServer 仅测试 |
+| OAuth 回调 | — | 自定义 scheme `catpawm://auth-callback`（非 App Link） | 与 iOS 同一回调；**仍需在 Supabase Auth「Redirect URLs」允许列表加入 `catpawm://auth-callback`，否则 Google/GitHub 会被拒**——用户已知此前置条件并要求先完成 M5 |
+| 配置 | — | 未配置 = 只走本机；交付 APK 为未配置构建 | 不把任何地址/密钥写进仓库或 APK；要联调需在本机 `local.properties` 填好后自行构建 |
+
+**未验证（需要真机 / 允许列表 / 真实模型）**：真实 Supabase 项目上的邮箱注册/确认/登录、匿名登录是否开启、Google/GitHub 授权页在 Custom Tabs 中的完整往返（依赖允许列表）、真 AndroidKeyStore 下令牌封存与冷启动恢复、`/catpaw/account/v1/session` 与 `features/v1` 在真实后端的响应、受限命名空间对真实模型的 SSE（哈希校验、15 分钟可读窗口、每日上限）、弱网/切后台时的 Unknown 与恢复、浏览器缺失的机型。清单见 `device-acceptance-android-v1.md` H 组。
+
+**M5 需要**：Supabase Auth 允许列表加入 `catpawm://auth-callback`（用户批准后由对应 agent 操作，本分支不碰后端）；联调构建所需的项目地址与 anon key 由用户提供，只写入本机 `local.properties`。**M6** 保持「不做」；**M7** 未开始。
+
 ---
 
 ## 9. 风险与对策
