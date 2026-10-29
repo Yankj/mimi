@@ -15,9 +15,9 @@ enum class ParentingIntentMode(val title: String) {
 }
 
 enum class ParentingIntentKind(val rawValue: String, val title: String) {
-    NewArrangement("newArrangement", "记一件安排"),
+    NewArrangement("newArrangement", "加安排"),
     Reschedule("reschedule", "改期"),
-    Observation("observation", "记一个观察"),
+    Observation("observation", "记一笔"),
     ViewToday("viewToday", "看今天"),
     ViewPlan("viewPlan", "看计划"),
     ReviewGrowth("reviewGrowth", "看成长回顾"),
@@ -81,7 +81,8 @@ data class ParentingFollowUp(
         data class DateTime(val date: Instant) : Label
     }
 
-    data class Option(val id: String, val label: Label, val detail: Instant?, val answer: ParentingNaturalAnswer)
+    /** subtitle：选项下面第二行的文案键（「记下来 / 安排提醒」两个大按钮用）。 */
+    data class Option(val id: String, val label: Label, val detail: Instant?, val answer: ParentingNaturalAnswer, val subtitle: String? = null)
 }
 
 data class ParentingNaturalProposal(
@@ -100,7 +101,16 @@ data class ParentingNaturalProposal(
     internal var targetChoices: List<UUID> = emptyList(),
     internal var ambiguousHour: Int? = null,
     internal var ambiguousDay: Instant? = null,
+    /** 家长没说时间时补了什么（卡片上会写明）。 */
+    var assumedTime: AssumedTime = AssumedTime.None,
+    /** 只说了钟点或时段时假定的那一天：今天，或今天已过时的明天。 */
+    var assumedDay: AssumedDay = AssumedDay.None,
+    /** 两边都有证据（或只有很弱的安排线索）：只问一次，两个大按钮。 */
+    var ambiguousIntent: Boolean = false,
 ) {
+    enum class AssumedTime { None, NineOClock, DayPart, LaterThisPart, NextDay }
+    enum class AssumedDay { None, Today, Tomorrow }
+    val defaultedTime: Boolean get() = assumedTime != AssumedTime.None
     val mode: ParentingIntentMode? get() = kind.mode
     val isReadyToConfirm: Boolean get() = missing.isEmpty() && kind != ParentingIntentKind.Unknown
 }
@@ -117,19 +127,23 @@ object ParentingNaturalInput {
         calendar: MimiCalendar,
         overrides: ParentingNaturalOverrides = ParentingNaturalOverrides(),
     ): ParentingNaturalProposal {
-        val text = rawText.trimSwift()
+        val text = lexicon.normalized(rawText)
         val p = ParentingNaturalProposal(sourceText = text, kind = ParentingIntentKind.Unknown, overrides = overrides)
         if (text.isEmpty() || text.graphemeCount() > MAX_LENGTH || text.containsNul()) {
             p.missing = listOf(ParentingMissingField.Intent); return p
         }
         val reading = lexicon.read(text, now, calendar)
-        val kind = overrides.kind ?: detect(text, reading, now, calendar)
+        var kind = overrides.kind ?: ParentingIntentKind.Unknown
+        if (overrides.kind == null) {
+            val verdict = detectVerdict(text, reading, now, calendar)
+            kind = verdict.first; p.ambiguousIntent = verdict.second
+        }
         p.kind = kind
         val missing = mutableListOf<ParentingMissingField>()
         when (kind) {
             ParentingIntentKind.Unknown -> missing.add(ParentingMissingField.Intent)
             ParentingIntentKind.ViewToday, ParentingIntentKind.ViewPlan, ParentingIntentKind.ReviewGrowth -> Unit
-            ParentingIntentKind.NewArrangement -> fillArrangement(p, missing, text, reading, context, calendar)
+            ParentingIntentKind.NewArrangement -> fillArrangement(p, missing, text, reading, context, now, calendar)
             ParentingIntentKind.Observation -> fillObservation(p, missing, text, context)
             ParentingIntentKind.Reschedule -> fillReschedule(p, missing, text, context, now, calendar)
         }
@@ -138,23 +152,38 @@ object ParentingNaturalInput {
     }
 
     // MARK: 意图
-    internal fun detect(text: String, reading: NaturalLexicon.TimeReading, now: Instant, calendar: MimiCalendar): ParentingIntentKind {
+    /**
+     * iOS #143 `detectVerdict`：second = true 表示「只问一次」（kind 为 Unknown，家长选 记下来 / 安排提醒）。
+     * 顺序：硬意图（回顾、查询、改期）优先；寒暄没有可存的；然后看证据。单独的 今天/今晚 不算安排证据（安排要有未来锚点），
+     * 了/昨天/刚/第一次 偏向记录，完全没有证据默认记录，只有两边冲突（或只有很弱的安排线索）才问。
+     */
+    internal fun detectVerdict(text: String, reading: NaturalLexicon.TimeReading, now: Instant, calendar: MimiCalendar): Pair<ParentingIntentKind, Boolean> {
         fun has(words: List<String>) = words.any { text.contains(it) }
-        if (has(lexicon.reviewMarkers)) return ParentingIntentKind.ReviewGrowth
+        if (has(lexicon.reviewMarkers)) return ParentingIntentKind.ReviewGrowth to false
         if (has(lexicon.todayQueryMarkers) ||
-            (has(lexicon.todayWords) && has(lexicon.queryCues) && !reading.hasClock && !has(lexicon.rescheduleTriggers))
-        ) return ParentingIntentKind.ViewToday
-        if (has(lexicon.planQueryMarkers)) return ParentingIntentKind.ViewPlan
-        if (has(lexicon.rescheduleTriggers)) return ParentingIntentKind.Reschedule
-        val today = calendar.startOfDay(now)
-        val future = (reading.day?.let { it > today } ?: false) || has(lexicon.futureDateWords)
-        val observed = has(lexicon.observationMarkers) || lexicon.observationLeads.any { text.startsWith(it) }
-        val past = lexicon.endsWithPastMarker(text)
-        if ((observed || past) && !future && !reading.hasClock) return ParentingIntentKind.Observation
-        if (reading.day != null || reading.hasClock || has(lexicon.arrangementWords)) return ParentingIntentKind.NewArrangement
-        if (lexicon.observationLeads.any { text.startsWith(it) }) return ParentingIntentKind.Observation
-        return ParentingIntentKind.Unknown
+            (has(lexicon.todayWords) && has(lexicon.queryCues) && !reading.hasClock && !has(lexicon.rescheduleTriggers) && !lexicon.hasCompletedParticle(text))
+        ) return ParentingIntentKind.ViewToday to false
+        if (has(lexicon.planQueryMarkers)) return ParentingIntentKind.ViewPlan to false
+        if (has(lexicon.rescheduleTriggers)) return ParentingIntentKind.Reschedule to false
+        val hasLetters = text.any { it in '\u4e00'..'\u9fff' || it in '0'..'9' }
+        if (!hasLetters) return ParentingIntentKind.Unknown to false
+        // 只有引导语（「记一下」）：是记录，卡片会问记什么。
+        if (lexicon.contentWithoutLeads(text).isEmpty() && lexicon.observationLeads.any { text.startsWith(it) }) return ParentingIntentKind.Observation to false
+        val e = lexicon.intentEvidence(text, reading, now, calendar)
+        if (lexicon.isChitchatOrQuestion(text, e)) return ParentingIntentKind.Unknown to false
+        if (e.arrangement == 0) return ParentingIntentKind.Observation to false
+        if (e.record <= 1) return if (e.arrangement >= 2) ParentingIntentKind.NewArrangement to false else ParentingIntentKind.Unknown to true
+        val d = e.arrangement - e.record
+        if (d >= 3) return ParentingIntentKind.NewArrangement to false
+        if (d <= -2) return ParentingIntentKind.Observation to false
+        return ParentingIntentKind.Unknown to true
     }
+
+    internal fun detect(text: String, reading: NaturalLexicon.TimeReading, now: Instant, calendar: MimiCalendar): ParentingIntentKind =
+        detectVerdict(text, reading, now, calendar).first
+
+    /** 有日期、没钟点、也没说时段时补的钟点。 */
+    const val DEFAULT_HOUR = 9
 
     // MARK: 字段
     private fun resolveChild(p: ParentingNaturalProposal, missing: MutableList<ParentingMissingField>, text: String, context: ParentingNaturalContext) {
@@ -177,27 +206,60 @@ object ParentingNaturalInput {
 
     private fun fillArrangement(
         p: ParentingNaturalProposal, missing: MutableList<ParentingMissingField>, text: String,
-        reading: NaturalLexicon.TimeReading, context: ParentingNaturalContext, calendar: MimiCalendar,
+        reading: NaturalLexicon.TimeReading, context: ParentingNaturalContext, now: Instant, calendar: MimiCalendar,
     ) {
         resolveChild(p, missing, text, context)
         val residual = stripChildNames(lexicon.removing(reading.consumed, text), context.children)
         val title = lexicon.cleanTitle(residual)
         if (title.isEmpty()) missing.add(ParentingMissingField.Title) else p.title = title.prefixGraphemes(160)
-        p.overrides.dueAt?.let { p.dueAt = it; return }
-        val day = reading.day
-        if (day == null) {
-            missing.add(ParentingMissingField.Date)
-            p.ambiguousHour = reading.ambiguousHour
-            if (!reading.hasClock) missing.add(ParentingMissingField.Time)
+
+        val part = lexicon.dayPart(text)
+        val hasAnchor = reading.day != null || reading.hasClock || part != null
+        val today = calendar.startOfDay(now)
+        fun tomorrow(d: Instant) = calendar.addingDays(d, 1)
+
+        p.overrides.dueAt?.let { forced ->
+            // 家长给没有日期的钟点选了上午/下午：今天，已过则明天。
+            if (reading.day == null && forced <= now) { p.dueAt = tomorrow(forced); p.assumedDay = ParentingNaturalProposal.AssumedDay.Tomorrow }
+            else { p.dueAt = forced; if (reading.day == null && hasAnchor) p.assumedDay = ParentingNaturalProposal.AssumedDay.Today }
+            return
+        }
+        // 日期、钟点、时段都没有：问哪一天（不问几点）。
+        if (!hasAnchor) { missing.add(ParentingMissingField.Date); return }
+        val statedDay = reading.day != null
+        val day = reading.day ?: today
+        if (!statedDay) p.assumedDay = ParentingNaturalProposal.AssumedDay.Today
+
+        // 没有上下午的钟点（「5点」）问 上午 / 下午。
+        if (reading.hour == null && reading.ambiguousHour != null) {
+            missing.add(ParentingMissingField.Time); p.ambiguousHour = reading.ambiguousHour; p.ambiguousDay = day
+            if (!statedDay) p.assumedDay = ParentingNaturalProposal.AssumedDay.None
             return
         }
         val hour = reading.hour
-        val date = if (hour != null) lexicon.date(day, hour, reading.minute, calendar) else null
-        if (date != null) {
-            p.dueAt = date
-        } else {
-            missing.add(ParentingMissingField.Time); p.ambiguousHour = reading.ambiguousHour; p.ambiguousDay = day
+        if (hour != null) {
+            var date = lexicon.date(day, hour, reading.minute, calendar)
+            if (date != null) {
+                // 说了的钟点照原样（过去了卡片会提示）；只有假定的那一天才顺延到明天。
+                if (!statedDay && date <= now) { date = tomorrow(date); p.assumedDay = ParentingNaturalProposal.AssumedDay.Tomorrow }
+                p.dueAt = date
+                return
+            }
         }
+        // 没钟点：用时段的常用钟点，没说时段就 9:00。
+        var date = lexicon.date(day, part?.hour ?: DEFAULT_HOUR, 0, calendar)
+        if (date == null) { missing.add(ParentingMissingField.Time); p.ambiguousDay = day; return }
+        p.assumedTime = if (part == null) ParentingNaturalProposal.AssumedTime.NineOClock else ParentingNaturalProposal.AssumedTime.DayPart
+        if (calendar.isSameDay(day, now) && date <= now) {
+            val minutes = (calendar.hour(now) * 60 + calendar.minute(now)) / 30 * 30 + 30
+            val later = if (part != null && minutes < part.windowEnd * 60) lexicon.date(day, minutes / 60, minutes % 60, calendar) else null
+            if (later != null) { date = later; p.assumedTime = ParentingNaturalProposal.AssumedTime.LaterThisPart }
+            else {
+                date = tomorrow(date)
+                if (statedDay) p.assumedTime = ParentingNaturalProposal.AssumedTime.NextDay else p.assumedDay = ParentingNaturalProposal.AssumedDay.Tomorrow
+            }
+        }
+        p.dueAt = date
     }
 
     private fun fillObservation(p: ParentingNaturalProposal, missing: MutableList<ParentingMissingField>, text: String, context: ParentingNaturalContext) {
@@ -272,10 +334,15 @@ object ParentingNaturalInput {
         val field = p.missing.minOrNull() ?: return null
         return when (field) {
             ParentingMissingField.Intent -> {
-                val kinds = listOf(ParentingIntentKind.NewArrangement, ParentingIntentKind.Observation)
+                // 两个大按钮，绝不在这里问时间：记下来（已经发生，不提醒）/ 安排提醒（到点提醒）。
                 ParentingFollowUp(
-                    field, "想记一件安排，还是记下一个观察？",
-                    kinds.map { ParentingFollowUp.Option("intent." + it.rawValue, ParentingFollowUp.Label.Key(it.title), null, ParentingNaturalAnswer.Intent(it)) },
+                    field, if (p.ambiguousIntent) "这条怎么记？" else "小咪没太听明白，这条怎么记？",
+                    listOf(
+                        ParentingFollowUp.Option("intent." + ParentingIntentKind.Observation.rawValue, ParentingFollowUp.Label.Key("记下来"), null,
+                            ParentingNaturalAnswer.Intent(ParentingIntentKind.Observation), subtitle = "已经发生，只记录，不提醒"),
+                        ParentingFollowUp.Option("intent." + ParentingIntentKind.NewArrangement.rawValue, ParentingFollowUp.Label.Key("安排提醒"), null,
+                            ParentingNaturalAnswer.Intent(ParentingIntentKind.NewArrangement), subtitle = "还没发生，到点提醒我"),
+                    ),
                     allowsText = false, textHint = null,
                 )
             }

@@ -314,13 +314,17 @@ class ComposerJourneyTest {
 
     @Test fun missingTimeAsksThenReplyCompletesTheCard() {
         boot()
-        typeAndSend("明天游泳")
-        ui.await("question") { ui.exists("parenting.natural.question") }
-        ui.type("parenting.natural.reply", "下午3点")
+        typeAndSend("游泳课")
+        ui.await("intent ask") { ui.exists("parenting.natural.intent.newArrangement") }
+        assertTrue(ui.exists("parenting.natural.intent.observation"))
+        assertTrue(h.workspace.arrangements.isEmpty(), "追问阶段零写入")
+        ui.click("parenting.natural.intent.newArrangement")
+        ui.await("date question") { ui.exists("parenting.natural.reply") }
+        ui.type("parenting.natural.reply", "明天下午3点")
         ui.click("parenting.natural.replySend")
         ui.await("card") { ui.exists("parenting.confirmCard.newArrangement") }
         ui.click("parenting.natural.confirm")
-        ui.await("saved") { arrangementsOf("游泳").size == 1 }
+        ui.await("saved") { arrangementsOf("游泳课").size == 1 }
     }
 
     @Test fun rescheduleShowsBeforeAfterAndRevisesOnlyThatArrangement() {
@@ -394,6 +398,19 @@ class ComposerJourneyTest {
     private fun hint(): String =
         rule.onNodeWithTagCompat("parenting.composer.listening").fetchSemanticsNode().config
             .getOrNull(androidx.compose.ui.semantics.SemanticsProperties.StateDescription).orEmpty()
+
+    @Test fun theRealDeviceSentenceShowsARecordCardAndTheSwitchMakesItAPlan() {
+        boot()
+        typeAndSend("今天晚上睡得很早，看了一会儿电视。")
+        ui.await("record card") { ui.exists("parenting.confirmCard.observation") }
+        assertFalse(ui.exists("parenting.natural.question"), "never asks 几点开始？")
+        assertTrue(ui.exists("parenting.natural.typeSwitch"))
+        ui.click("parenting.natural.switch.newArrangement")
+        ui.await("plan card") { ui.exists("parenting.confirmCard.newArrangement") }
+        ui.click("parenting.natural.switch.observation")
+        ui.await("record again") { ui.exists("parenting.confirmCard.observation") }
+        assertTrue(h.workspace.arrangements.isEmpty())
+    }
 
     private fun holdOn(tag: String) {
         rule.onNodeWithTagCompat(tag).performTouchInput { down(center) }

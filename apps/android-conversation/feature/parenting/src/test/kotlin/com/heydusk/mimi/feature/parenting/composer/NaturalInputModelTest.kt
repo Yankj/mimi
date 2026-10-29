@@ -117,16 +117,18 @@ class NaturalInputModelTest {
     }
 
     @Test fun replyTextCompletesTheMissingTime() {
-        val m = model("明天游泳")
+        val m = model("游泳课")
         assertEquals(NaturalInputModel.Phase.Asking, m.phase)
-        m.reply = "下午3点"
+        m.answer(ParentingNaturalAnswer.Intent(ParentingIntentKind.NewArrangement), ctx(ws), now, calendar)
+        assertEquals(NaturalInputModel.Phase.Asking, m.phase)
+        m.reply = "明天下午3点"
         m.answerWithReply(ctx(ws), now, calendar)
         assertEquals(NaturalInputModel.Phase.Confirming, m.phase)
         assertEquals("", m.reply)
     }
 
     @Test fun blankReplyIsIgnored() {
-        val m = model("明天游泳")
+        val m = model("游泳课")
         m.reply = "   "
         m.answerWithReply(ctx(ws), now, calendar)
         assertEquals(NaturalInputModel.Phase.Asking, m.phase)
@@ -173,5 +175,29 @@ class NaturalInputModelTest {
         m.confirm(Ledger(failAt = setOf(1))) { ws }
         m.dismissFailure()
         assertEquals(NaturalInputModel.Phase.Confirming, m.phase)
+    }
+
+    @Test fun theRealDeviceSentenceConfirmsAsARecordAndCanSwitchToAPlanAndBack() {
+        val m = model("今天晚上睡得很早，看了一会儿电视。")
+        assertEquals(NaturalInputModel.Phase.Confirming, m.phase)
+        assertEquals(ParentingIntentKind.Observation, m.proposal?.kind)
+        assertTrue(m.canSwitchType)
+        m.reply = "x"
+        m.switchType(ParentingIntentKind.NewArrangement, ctx(ws), now, calendar)
+        assertEquals(ParentingIntentKind.NewArrangement, m.proposal?.kind)
+        assertEquals(NaturalInputModel.Phase.Confirming, m.phase)
+        assertEquals("", m.reply)
+        m.switchType(ParentingIntentKind.Observation, ctx(ws), now, calendar)
+        assertEquals(ParentingIntentKind.Observation, m.proposal?.kind)
+        m.switchType(ParentingIntentKind.ViewToday, ctx(ws), now, calendar)
+        assertEquals(ParentingIntentKind.Observation, m.proposal?.kind)
+    }
+
+    @Test fun switchIsLockedOnceSavedAndForViews() = blocking {
+        val ledger = Ledger()
+        val m = model("看了一会儿电视")
+        assertTrue(m.confirm(ledger) { ws })
+        assertFalse(m.canSwitchType)
+        assertFalse(model("今天有什么安排").canSwitchType)
     }
 }

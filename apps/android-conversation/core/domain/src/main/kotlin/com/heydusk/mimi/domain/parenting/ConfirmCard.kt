@@ -57,6 +57,18 @@ data class ParentingConfirmCard(
                     val conflicts = conflictItems(workspace, null, due)
                     if (conflicts.isNotEmpty()) blocks.add(Block.Conflicts("同一时间已有安排，请核对", conflicts))
                     if (due < now) blocks.add(Block.Note("这个时间已经过去，请确认。", Tone.Warning))
+                    when (p.assumedDay) {
+                        ParentingNaturalProposal.AssumedDay.Today -> blocks.add(Block.Note("没说日期，先定在今天；不对可以点“手动调整”。", Tone.Unknown))
+                        ParentingNaturalProposal.AssumedDay.Tomorrow -> blocks.add(Block.Note("没说日期，今天这个时间已过，先定在明天；不对可以点“手动调整”。", Tone.Unknown))
+                        ParentingNaturalProposal.AssumedDay.None -> Unit
+                    }
+                    when (p.assumedTime) {
+                        ParentingNaturalProposal.AssumedTime.None -> Unit
+                        ParentingNaturalProposal.AssumedTime.NineOClock -> blocks.add(Block.Note("没说几点，先定在 9:00；不对可以点“手动调整”。", Tone.Unknown))
+                        ParentingNaturalProposal.AssumedTime.DayPart -> blocks.add(Block.Note("没说几点，先按你说的时段定了常用时间；不对可以点“手动调整”。", Tone.Unknown))
+                        ParentingNaturalProposal.AssumedTime.LaterThisPart -> blocks.add(Block.Note("今天这个时段的常用时间已过，先排在最近的半点；不对可以点“手动调整”。", Tone.Unknown))
+                        ParentingNaturalProposal.AssumedTime.NextDay -> blocks.add(Block.Note("今天这个时间已过，先排在明天；要改回今天，点“手动调整”。", Tone.Unknown))
+                    }
                     blocks.add(Block.Quote("你说的原话", p.sourceText))
                     blocks.add(Block.Note("确认后才进入今天的安排。", Tone.Normal))
                     reminderNote(remindersEnabled)?.let { blocks.add(it) }
@@ -92,7 +104,7 @@ data class ParentingConfirmCard(
                             Block.Headline("成长观察", "leaf"),
                             Block.Fields(listOf(Field("孩子", Value.Text(childName), Tone.Normal))),
                             Block.Quote("记下的内容", text),
-                            Block.Note("只保存这条观察，不会写入长期记忆；之后可以修改或删除。", Tone.Normal),
+                            Block.Note("只记录这一笔，不会提醒你，也不会写入长期记忆；之后可以修改或删除。要提醒就点上面的“加安排”。", Tone.Normal),
                         ),
                         "保存观察", true,
                     )

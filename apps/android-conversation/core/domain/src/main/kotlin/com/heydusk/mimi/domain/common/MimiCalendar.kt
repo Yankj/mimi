@@ -23,6 +23,7 @@ class MimiCalendar(val zone: ZoneId) {
     fun month(date: Instant): Int = zdt(date).monthValue
     fun day(date: Instant): Int = zdt(date).dayOfMonth
     fun hour(date: Instant): Int = zdt(date).hour
+    fun minute(date: Instant): Int = zdt(date).minute
 
     /** Swift `.weekday`：周日 = 1 … 周六 = 7。 */
     fun weekday(date: Instant): Int = when (zdt(date).dayOfWeek) {

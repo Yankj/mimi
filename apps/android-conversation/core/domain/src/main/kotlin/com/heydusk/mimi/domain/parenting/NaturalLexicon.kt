@@ -172,6 +172,124 @@ internal object NaturalLexicon {
 
     fun date(day: Instant, hour: Int, minute: Int, calendar: MimiCalendar): Instant? = calendar.date(day, hour, minute, 0)
 
+    // MARK: 意图证据（iOS #143）。单独的「今天/今晚」两边都不算：安排要有未来锚点，记录看已经发生的痕迹。权重见 [intentEvidence]。
+    val needPattern = Regex("(?<![不想主重自])要(?![是求紧])|得(?=[带去交打做买准给])|需要|记得|别忘|不要忘|打算|准备|约好|约了")
+    val reminderWords = listOf("提醒", "预约", "报名", "缴费", "交费", "帮我安排")
+    val scheduleNouns = listOf("课", "班", "家长会", "考试", "体检", "疫苗", "活动", "比赛", "作业", "游泳", "钢琴", "画画", "舞蹈", "英语", "足球", "篮球", "接种", "面试")
+    val pastWords = listOf("刚才", "刚刚", "刚", "已经", "终于", "昨天", "昨晚", "昨夜", "前天", "上周", "上个月", "以前", "之前", "早就")
+    val milestoneWords = listOf("第一次", "学会", "会了", "自己", "居然", "主动", "开始会", "观察", "今天他", "今天她", "第一声")
+    val behaviorWords = listOf("睡", "吃", "喝", "玩", "哭", "笑", "走", "说", "叫", "拉", "烧", "咳", "看", "读", "夸", "视频", "乖", "不肯", "不愿", "一直", "摔", "醒", "尿", "吐")
+    val stateComplementPattern = Regex("[睡吃玩哭笑走说看跑跳写画唱喝]得")
+    val dayPartPattern = Regex("今晚|晚上|夜里|傍晚|下午|上午|中午|早上|早晨|凌晨")
+    val lateClockPattern = Regex("[点时]半?才|[点时]半?就(?!要)")
+    val negationPattern = Regex("没(?!有?问题|关系|事)")
+    val assistantNames = listOf("小咪")
+    val chitchatWords = listOf("谢谢", "感谢", "好的", "好吧", "你好", "您好", "嗯", "哦", "哈哈", "在吗", "拜拜", "再见", "晚安", "没事", "算了")
+    val softQuestionWords = listOf("会不会", "是不是", "怎么样", "为什么", "多少", "天气", "下雨", "下雪", "几点了", "什么时候", "能不能", "可不可以")
+
+    /** 只说了时段时的常用钟点；windowEnd = 仍算「这个时段」的最晚小时（不含）。 */
+    data class DayPart(val hour: Int, val windowEnd: Int)
+    private val dayParts: List<Pair<Regex, DayPart>> = listOf(
+        Regex("明早|今早|早上|早晨") to DayPart(8, 10), Regex("上午") to DayPart(9, 12), Regex("中午") to DayPart(12, 14),
+        Regex("下午") to DayPart(15, 18), Regex("傍晚") to DayPart(18, 19), Regex("晚上|今晚|明晚|夜里") to DayPart(19, 23),
+    )
+    fun dayPart(text: String): DayPart? = dayParts.firstOrNull { it.first.containsMatchIn(text) }?.second
+
+    /** 全角数字/字母转半角，全角/不换行空格转空格，中文与标点旁的空格去掉（语音转写会在「，」后加空格）。标点保留。 */
+    fun normalized(raw: String): String {
+        val sb = StringBuilder()
+        var i = 0
+        while (i < raw.length) {
+            val cp = raw.codePointAt(i); i += Character.charCount(cp)
+            when (cp) {
+                in 0xFF10..0xFF19, in 0xFF21..0xFF3A, in 0xFF41..0xFF5A -> sb.appendCodePoint(cp - 0xFEE0)
+                0x3000, 0x00A0 -> sb.append(' ')
+                else -> sb.appendCodePoint(cp)
+            }
+        }
+        var text = sb.toString().trimSwift()
+        val cjk = "[\\u4e00-\\u9fff，。、！？：；,.!?:;“”‘’「」（）()]"
+        text = text.replace(Regex("[ \t]+"), " ")
+        text = text.replace(Regex("(?<=$cjk)[ \t]+"), "")
+        text = text.replace(Regex("[ \t]+(?=$cjk)"), "")
+        return text
+    }
+
+    data class IntentEvidence(var arrangement: Int = 0, var record: Int = 0)
+
+    /** 有完成态「了」（排除 为了/了解/受不了… 这类固定词）。 */
+    fun hasCompletedParticle(text: String): Boolean {
+        var t = text
+        for (w in listOf("为了", "了解", "了不起", "了得", "受不了", "不了", "除了", "最后了")) t = t.replace(w, "")
+        return t.contains("了")
+    }
+
+    /** 今年已过去的「X月X日」是过去（read 会滚到明年，不能算未来）。 */
+    private fun isPastMonthDay(text: String, today: Instant, calendar: MimiCalendar): Boolean {
+        if (text.contains("明年")) return false
+        val m = first(monthDayPattern, text, 0) ?: return false
+        val mo = int(m, 1) ?: return false
+        val d = int(m, 2) ?: return false
+        val date = calendar.date(calendar.year(today), mo, d) ?: return false
+        return date < today
+    }
+
+    fun intentEvidence(text: String, reading: TimeReading, now: Instant, calendar: MimiCalendar): IntentEvidence {
+        fun has(words: List<String>) = words.any { text.contains(it) }
+        val today = calendar.startOfDay(now)
+        val pastMonthDay = isPastMonthDay(text, today, calendar)
+        val pastDay = reading.day?.let { it < today } ?: false
+        val future = ((reading.day?.let { it > today } ?: false) && !pastMonthDay) || has(futureDateWords)
+        val pastWord = has(pastWords) || pastMonthDay || pastDay
+        val completed = hasCompletedParticle(text)
+        val pastMark = completed || pastWord
+        val lateClock = lateClockPattern.containsMatchIn(text)
+        val lead = observationLeads.any { text.startsWith(it) }
+        val e = IntentEvidence()
+        if (future) e.arrangement += 3
+        if (reading.hasClock && !pastMark && !lateClock) e.arrangement += 2
+        if (needPattern.containsMatchIn(text)) e.arrangement += 2
+        if (has(reminderWords)) e.arrangement += if (text.contains("提醒")) 3 else 2
+        if (has(scheduleNouns)) e.arrangement += 1
+        if (dayPartPattern.containsMatchIn(text) && !pastMark && !reading.hasClock) e.arrangement += 1
+        if (pastWord) e.record += 3
+        if (completed) e.record += 3
+        if (has(milestoneWords)) e.record += 2
+        if (stateComplementPattern.containsMatchIn(text)) e.record += 2
+        if (negationPattern.containsMatchIn(text) || lateClock) e.record += 2
+        if (has(behaviorWords)) e.record += 1
+        if (lead && !future) e.record += 3
+        return e
+    }
+
+    private fun bodyChars(text: String): String {
+        val sb = StringBuilder(); var i = 0
+        while (i < text.length) {
+            val cp = text.codePointAt(i); i += Character.charCount(cp)
+            if (!isWhitespace(cp) && !isPunctuation(cp)) sb.appendCodePoint(cp)
+        }
+        return sb.toString()
+    }
+
+    /** 去掉空白、标点、「记一下」类引导语与助手名之后剩下的内容；为空 = 没有要记的东西。 */
+    fun contentWithoutLeads(text: String): String {
+        var stripped = bodyChars(text)
+        for (w in observationLeads + assistantNames) stripped = stripped.replace(w, "")
+        return stripped
+    }
+
+    /** 寒暄或与孩子无关的提问（「谢谢小咪」「明天会不会下雨」）：没有可记录或安排的。 */
+    fun isChitchatOrQuestion(text: String, evidence: IntentEvidence): Boolean {
+        fun has(words: List<String>) = words.any { text.contains(it) }
+        val body = bodyChars(text)
+        val stripped = contentWithoutLeads(text)
+        if (body.codePointCount(0, body.length) < 2) return true
+        if (chitchatWords.any { stripped.startsWith(it) } && stripped.codePointCount(0, stripped.length) <= 6 && evidence.arrangement == 0 && evidence.record == 0) return true
+        val asks = Regex("(吗|呢|[?？])[。.!！~～ ]*$").containsMatchIn(text)
+        val soft = has(softQuestionWords) && evidence.record == 0
+        return (asks || soft) && !needPattern.containsMatchIn(text) && !text.contains("提醒")
+    }
+
     // MARK: 文本工具
 
     fun removing(ranges: List<Span>, text: String): String {

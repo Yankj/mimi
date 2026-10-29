@@ -51,7 +51,9 @@ class NaturalInputTest {
     @Test fun futurePlansWithADateAreNotMistakenForObservations() {
         val p = classify("记一下周一要带水彩笔", ctx(listOf(tuan)))
         assertEquals(ParentingIntentKind.NewArrangement, p.kind)
-        assertEquals(listOf(ParentingMissingField.Time), p.missing, "a date without a clock asks only for the time")
+        assertTrue(p.missing.isEmpty(), "a date without a clock is filled with 9:00, not asked (iOS #143)")
+        assertEquals(at(2026, 10, 26, 9, 0), p.dueAt)
+        assertTrue(p.defaultedTime)
     }
 
     @Test fun queriesAreClassifiedAsPlanAndReviewAndNeverWrite() {
@@ -107,18 +109,27 @@ class NaturalInputTest {
         assertTrue(p.missing.isEmpty())
     }
 
-    @Test fun missingDateThenTimeAreAskedOneAtATime() {
+    @Test fun bareScheduleNounAsksRecordOrReminderThenDateThenDefaultsTheHour() {
         val c = ctx(listOf(tuan))
         var p = classify("游泳课", c)
-        assertEquals(ParentingIntentKind.NewArrangement, p.kind)
-        assertEquals(ParentingMissingField.Date, ParentingNaturalInput.followUp(p, c, calendar)?.field)
+        assertEquals(ParentingIntentKind.Unknown, p.kind)
+        assertTrue(p.ambiguousIntent)
+        var ask = ParentingNaturalInput.followUp(p, c, calendar)
+        assertEquals(ParentingMissingField.Intent, ask?.field)
+        assertEquals(listOf("intent.observation", "intent.newArrangement"), ask?.options?.map { it.id }, "记下来 on the left, 安排提醒 on the right")
+        assertEquals(listOf<Label>(Label.Key("记下来"), Label.Key("安排提醒")), ask?.options?.map { it.label })
+        p = apply(ParentingNaturalAnswer.Intent(ParentingIntentKind.NewArrangement), p, c)
+        ask = ParentingNaturalInput.followUp(p, c, calendar)
+        assertEquals(ParentingMissingField.Date, ask?.field, "never a question about the hour")
         p = apply(ParentingNaturalAnswer.Text("周五"), p, c)
-        assertEquals(listOf(ParentingMissingField.Time), p.missing)
-        assertEquals(ParentingMissingField.Time, ParentingNaturalInput.followUp(p, c, calendar)?.field)
-        p = apply(ParentingNaturalAnswer.Text("下午5点"), p, c)
+        assertEquals(ParentingIntentKind.NewArrangement, p.kind, "the choice stays locked")
         assertTrue(p.isReadyToConfirm)
         assertEquals("游泳课", p.title)
-        assertEquals(at(2026, 10, 30, 17, 0), p.dueAt)
+        assertEquals(at(2026, 10, 30, 9, 0), p.dueAt)
+        assertTrue(p.defaultedTime)
+        p = apply(ParentingNaturalAnswer.Text("下午5点"), p, c)
+        assertEquals(at(2026, 10, 30, 17, 0), p.dueAt, "a stated clock replaces the default")
+        assertFalse(p.defaultedTime)
     }
 
     @Test fun anUnclearHourOffersMorningAndAfternoonInsteadOfGuessing() {

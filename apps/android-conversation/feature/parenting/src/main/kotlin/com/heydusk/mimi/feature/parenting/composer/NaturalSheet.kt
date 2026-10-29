@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.TextStyle
@@ -162,6 +163,9 @@ fun ParentingNaturalSheet(
                 ) {
                     if (proposal != null) {
                         Understood(proposal)
+                        if (input.canSwitchType && (phase != NaturalInputModel.Phase.Asking || proposal.kind != ParentingIntentKind.Unknown)) {
+                            TypeSwitch(proposal.kind, enabled = !saving) { input.switchType(it, context, now, calendar) }
+                        }
                         when (phase) {
                             NaturalInputModel.Phase.Asking -> Asking(input, proposal, context, now, calendar, onAddChild = { onClose(); onAddChild() })
                             NaturalInputModel.Phase.Confirming, NaturalInputModel.Phase.Saving, is NaturalInputModel.Phase.Failed -> {
@@ -246,8 +250,41 @@ private fun Understood(p: ParentingNaturalProposal) {
                     modifier = Modifier.clip(CircleShape).background(colors.accent.copy(alpha = 0.15f)).padding(horizontal = 10.dp, vertical = 4.dp),
                 )
             }
-            Text(ui(if (p.kind == ParentingIntentKind.Unknown) "小咪还没听明白" else p.kind.title), color = colors.ink2, fontSize = 12.sp)
+            Text(ui(if (p.kind == ParentingIntentKind.Unknown) (if (p.ambiguousIntent) "这句话有两种理解" else "小咪还没听明白") else p.kind.title), color = colors.ink2, fontSize = 12.sp)
         }
+    }
+}
+
+/** 「记一笔 | 加安排」：同一句话按另一种意思重读。 */
+@Composable
+private fun TypeSwitch(kind: ParentingIntentKind, enabled: Boolean, onPick: (ParentingIntentKind) -> Unit) {
+    val colors = LocalMimiColors.current
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.semantics { testTag = "parenting.natural.typeSwitch" }) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.track).padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            listOf(ParentingIntentKind.Observation, ParentingIntentKind.NewArrangement).forEach { k ->
+                val selected = k == kind
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .defaultMinSize(minHeight = 40.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(if (selected) colors.card else Color.Transparent)
+                        .tapTarget { if (enabled && !selected) onPick(k) }
+                        .semantics(mergeDescendants = true) { role = Role.Tab; this.selected = selected; testTag = "parenting.natural.switch.${k.rawValue}" },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(ui(k.title), color = if (selected) colors.ink else colors.ink2, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, fontSize = 14.sp)
+                }
+            }
+        }
+        Text(
+            ui(if (kind == ParentingIntentKind.NewArrangement) "到点提醒你。只想记下来就点“记一笔”。" else "只记录，不提醒。要提醒就点“加安排”。"),
+            color = colors.ink2,
+            fontSize = 12.sp,
+        )
     }
 }
 
@@ -275,7 +312,28 @@ private fun Asking(
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.semantics(mergeDescendants = true) { testTag = "parenting.natural.question" },
         )
-        if (ask.options.isNotEmpty()) {
+        if (ask.field == ParentingMissingField.Intent && ask.options.size == 2) {
+            // 冲突才问：两个大按钮并排，选完即锁定，不在这里追问钟点。
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                ask.options.forEach { option ->
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .defaultMinSize(minHeight = 72.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(colors.surface)
+                            .border(0.5.dp, colors.hairline, RoundedCornerShape(16.dp))
+                            .tapTarget { input.answer(option.answer, context, now, calendar) }
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                            .semantics(mergeDescendants = true) { role = Role.Button; testTag = "parenting.natural.${option.id}" },
+                        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+                    ) {
+                        Text(optionLabel(option.label, zone), color = colors.ink, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                        option.subtitle?.let { Text(ui(it), color = colors.ink2, fontSize = 12.sp) }
+                    }
+                }
+            }
+        } else if (ask.options.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ask.options.forEach { option ->
                     Column(

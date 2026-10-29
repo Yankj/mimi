@@ -80,6 +80,23 @@ class NaturalInputModel : DictationDraftSink {
         answer(ParentingNaturalAnswer.Text(text), context, now, calendar)
     }
 
+    /** 卡片上「记一笔 | 加安排」切换：只在还没写入任何一步、且是记录/安排之一时可用。 */
+    val canSwitchType: Boolean get() {
+        val p = proposal ?: return false
+        val kindOk = p.kind == ParentingIntentKind.Observation || p.kind == ParentingIntentKind.NewArrangement
+        val phaseOk = phase == Phase.Asking || phase == Phase.Confirming || phase is Phase.Failed
+        return kindOk && phaseOk && completedSteps == 0
+    }
+
+    /** 同一句话按另一种意思重读（iOS #143）。 */
+    fun switchType(kind: ParentingIntentKind, context: ParentingNaturalContext, now: Instant, calendar: MimiCalendar) {
+        val current = proposal ?: return
+        if (!canSwitchType || current.kind == kind) return
+        if (kind != ParentingIntentKind.Observation && kind != ParentingIntentKind.NewArrangement) return
+        reply = ""
+        adopt(ParentingNaturalInput.applying(ParentingNaturalAnswer.Intent(kind), current, context, now, calendar))
+    }
+
     /** 回到家长上次看到的问题或卡片（例如保存失败之后）。 */
     fun dismissFailure() { if (phase is Phase.Failed) phase = Phase.Confirming }
 
