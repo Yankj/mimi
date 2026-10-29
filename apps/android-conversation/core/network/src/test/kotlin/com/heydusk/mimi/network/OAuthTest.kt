@@ -43,6 +43,6 @@ class OAuthTest {
         assertFailsWith<AuthException> { OAuthCallback.parse("https://evil.example/auth-callback?code=abcdefgh1234") }
         assertFailsWith<AuthException> { OAuthCallback.parse("catpawm://other?code=abcdefgh1234") }
         assertFailsWith<AuthException> { OAuthCallback.parse("catpawm://auth-callback?code=abcdefgh1234&code=zzzzzzzz9999") }
-        assertFailsWith<AuthException> { OAuthCallback.parse("catpawm://auth-callback?code=abcdefgh1234&access_token=t") }
+        assertFailsWith<AuthException> { OAuthCallback.parse("catpawm://auth-callback?code=abcdefgh1234&refresh_token=t") }
     }
 }
