@@ -15,9 +15,12 @@ import javax.crypto.SecretKey
 object AndroidKeystore {
     const val PROVIDER = "AndroidKeyStore"
 
-    fun ledgerKeyProvider(): KeystoreLedgerKeyProvider {
+    fun ledgerKeyProvider(): KeystoreLedgerKeyProvider = keyProvider(KeystoreLedgerKeyProvider.ALIAS_PREFIX)
+
+    /** 同一套 AES-GCM 密钥规格，独立别名命名空间（M5：登录令牌保管箱用 `mimi.auth.v1.`，与账本密钥互不影响）。 */
+    fun keyProvider(aliasPrefix: String): KeystoreLedgerKeyProvider {
         val keyStore = KeyStore.getInstance(PROVIDER).apply { load(null) }
-        return KeystoreLedgerKeyProvider(keyStore, generate = ::generate)
+        return KeystoreLedgerKeyProvider(keyStore, generate = ::generate, aliasPrefix = aliasPrefix)
     }
 
     private fun generate(alias: String): SecretKey {

@@ -165,6 +165,25 @@ class ParentingWorkspaceStore(
             return sha256Hex(CanonicalJson.stringify(element).toByteArray(Charsets.UTF_8))
         }
 
+        /**
+         * M5：把本机体验账号的账本带进第一次登录的云端账号（iOS「绑定后体验数据保留」的对等物）。
+         * 只在目标账号在这台手机上还没有账本时进行；解密旧主体 → 改写信封里的主体 → 用新主体密钥重新封存（AAD 也换成新主体）。
+         * 返回 true = 已带入。任何读/解密/校验失败都不写入（旧数据原样保留，由调用方决定是否清除）。
+         */
+        fun adoptLedger(blobs: LedgerBlobStore, cipher: LedgerCipher, scope: LedgerScope, from: UUID, to: UUID): Boolean {
+            if (from == to) return false
+            val targetKey = preferenceKey(scope, to)
+            if (blobs.read(targetKey) != null) return false
+            val blob = blobs.read(preferenceKey(scope, from)) ?: return false
+            val plain = try { cipher.open(blob.bytes, from) } catch (e: LedgerCryptoException) { return false }
+            val envelope = try { json.decodeFromString(Envelope.serializer(), plain.toString(Charsets.UTF_8)) } catch (e: Exception) { return false }
+            if (envelope.schemaVersion != 1 || envelope.scope != scope || envelope.subjectID != from) return false
+            runCatching { envelope.workspace.validate() }.getOrElse { return false }
+            val moved = json.encodeToString(Envelope.serializer(), envelope.copy(subjectID = to)).toByteArray(Charsets.UTF_8)
+            val sealed = try { cipher.seal(moved, to) } catch (e: LedgerCryptoException) { return false }
+            return runCatching { blobs.writeIfUnchanged(targetKey, null, sealed) }.isSuccess
+        }
+
         /** 与 iOS 同形："parenting_workspace:v1:" + 分区与主体的哈希。 */
         fun preferenceKey(scope: LedgerScope, subjectID: UUID): String =
             "parenting_workspace:v1:" + sha256Hex(
