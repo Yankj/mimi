@@ -28,7 +28,8 @@ final class ParentingNaturalInputModel: ObservableObject {
     func preview(context: ParentingNaturalContext, now: Date) -> ParentingNaturalProposal? {
         guard canSubmit else { return nil }
         let p = ParentingNaturalInput.classify(trimmedDraft, context: context, now: now)
-        return p.kind == .unknown ? nil : p
+        if p.kind == .unknown || (p.kind == .profileFact && !p.isReadyToConfirm) { return nil }
+        return p
     }
 
     func submit(context: ParentingNaturalContext, now: Date) {
@@ -85,7 +86,10 @@ final class ParentingNaturalInputModel: ObservableObject {
         for command in pending {
             let ok = await model.apply(command, operationID: operationIDs[min(index, operationIDs.count - 1)])
             guard ok else {
-                phase = .failed(index > 0 ? "已先存为待确认，还没有进入安排。请在今天页确认，或重试。" : (model.error ?? "没有保存成功。已填写的内容保留，可以重试。"))
+                let pendingNote = proposal.kind == .profileFact
+                    ? "已先存为待确认，还没有记成长期事实。请重试确认。"
+                    : "已先存为待确认，还没有进入安排。请在今天页确认，或重试。"
+                phase = .failed(index > 0 ? pendingNote : (model.error ?? "没有保存成功。已填写的内容保留，可以重试。"))
                 return
             }
             index += 1; completedSteps = index
@@ -95,6 +99,7 @@ final class ParentingNaturalInputModel: ObservableObject {
         case .reschedule: phase = .saved("已改期")
         case .cancel: phase = .saved("已取消这项安排")
         case .observation: phase = .saved("已保存这条观察")
+        case .profileFact: phase = .saved("已记入档案")
         default: break
         }
     }

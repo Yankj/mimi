@@ -9,17 +9,19 @@ public enum ParentingIntentMode: String, Sendable, CaseIterable {
 }
 
 public enum ParentingIntentKind: String, Sendable, CaseIterable {
-    case newArrangement, reschedule, cancel, observation, viewToday, viewPlan, reviewGrowth, unknown
+    case newArrangement, reschedule, cancel, observation, viewToday, viewPlan, reviewGrowth, profileFact, unknown
     public var mode: ParentingIntentMode? {
         switch self {
-        case .newArrangement, .reschedule, .cancel, .observation: .capture
+        case .newArrangement, .reschedule, .cancel, .observation, .profileFact: .capture
         case .viewToday, .viewPlan: .plan
         case .reviewGrowth: .review
         case .unknown: nil
         }
     }
     /// Only these kinds can ever produce a ledger command, and only after the parent confirms a card.
-    public var writes: Bool { self == .newArrangement || self == .reschedule || self == .cancel || self == .observation }
+    public var writes: Bool {
+        self == .newArrangement || self == .reschedule || self == .cancel || self == .observation || self == .profileFact
+    }
     public var title: String {
         switch self {
         case .newArrangement: "加安排"
@@ -29,6 +31,7 @@ public enum ParentingIntentKind: String, Sendable, CaseIterable {
         case .viewToday: "看今天"
         case .viewPlan: "看计划"
         case .reviewGrowth: "看成长回顾"
+        case .profileFact: "记入档案"
         case .unknown: "还不确定"
         }
     }
@@ -124,6 +127,8 @@ public struct ParentingNaturalProposal: Equatable, Sendable {
     var targetChoices: [UUID] = []
     var ambiguousHour: Int?
     var ambiguousDay: Date?
+    /// Set only when an explicit archive statement is certain enough for the confirm card. Never a ledger write by itself.
+    public var profileFact: ParentingProfileFactProposal? = nil
 
     public var mode: ParentingIntentMode? { kind.mode }
     public var isReadyToConfirm: Bool { missing.isEmpty && kind != .unknown }
@@ -154,6 +159,7 @@ public enum ParentingNaturalInput {
         case .observation: fillObservation(&proposal, text: text, context: context)
         case .reschedule: fillReschedule(&proposal, text: text, context: context, now: now, calendar: calendar)
         case .cancel: fillCancel(&proposal, text: text, context: context, now: now, calendar: calendar)
+        case .profileFact: fillProfile(&proposal, text: text, context: context, now: now)
         }
         proposal.missing = Array(Set(proposal.missing)).sorted()
         return proposal
@@ -176,6 +182,7 @@ public enum ParentingNaturalInput {
         if has(lexicon.planQueryMarkers) { return (.viewPlan, false) }
         if has(lexicon.rescheduleTriggers) { return (.reschedule, false) }
         if text.range(of: lexicon.cancelPattern, options: .regularExpression) != nil { return (.cancel, false) }
+        if lexicon.hasArchiveLead(text) { return (.profileFact, false) }
 
         let hasLetters = text.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) || ("0"..."9").contains(Character($0)) }
         guard hasLetters else { return (.unknown, false) }
@@ -315,6 +322,17 @@ public enum ParentingNaturalInput {
         return nil
     }
 
+    /// An explicit archive lead. Certain proposals wait on the confirm card; uncertain ones ask for a clearer sentence and write nothing.
+    /// Sibling labels are not resolved to a child.
+    private static func fillProfile(_ p: inout ParentingNaturalProposal, text: String, context: ParentingNaturalContext, now: Date) {
+        guard let read = ParentingProfileFactReader.read(text, context: context, now: now), read.canOfferConfirmCard else {
+            p.profileFact = nil
+            p.missing.append(.content)
+            return
+        }
+        p.profileFact = read
+    }
+
     private static func fillObservation(_ p: inout ParentingNaturalProposal, text: String, context: ParentingNaturalContext) {
         resolveChild(&p, text: text, context: context)
         let body = ParentingNaturalLexicon.stripLead(text)
@@ -399,6 +417,10 @@ public enum ParentingNaturalInput {
         case .title:
             return .init(field: field, question: "是什么事？", options: [], allowsText: true, textHint: "一句话就行，例如：游泳课")
         case .content:
+            if p.kind == .profileFact {
+                return .init(field: field, question: "这句话还不够确定，不会记成长期事实。补上孩子的昵称，或说明是我们家的事。",
+                             options: [], allowsText: true, textHint: "例如：团团对花生过敏，或我们家周三奶奶接")
+            }
             return .init(field: field, question: "想记下什么？", options: [], allowsText: true, textHint: "例如：今天他自己收好了书包")
         }
     }
@@ -448,6 +470,10 @@ public enum ParentingNaturalInput {
         case .cancel:
             guard let id = p.targetID, workspace.arrangements.contains(where: { $0.id == id && [.draft, .planned].contains($0.state) }) else { return [] }
             return [.cancelArrangement(id: id)]
+        case .profileFact:
+            guard var fact = p.profileFact else { return [] }
+            fact.id = ids.record
+            return fact.longTermCommands(userConfirmed: true)
         default: return []
         }
     }

@@ -13,6 +13,23 @@ enum ParentingNaturalLexicon {
     static let planQueryMarkers = ["怎么排", "这周安排", "本周安排", "这周有什么", "本周有什么", "下周安排", "下周有什么", "课表", "看看计划", "兴趣班怎么"]
     static let observationMarkers = ["观察", "学会", "第一次", "自己", "今天他", "今天她", "刚才", "刚刚", "开始会", "主动"]
     static let observationLeads = ["记一下", "记下", "记录一下", "记录"]
+    /// Explicit archive leads. A bare "记住" is not one of these: it must not steal an arrangement or a record.
+    /// Sibling labels (老大, 二宝, 哥哥…) are not leads and are never resolved to a child here.
+    static let archiveLeads = ["记入档案", "记到档案", "记在档案", "记进档案", "长期记住", "长期记着", "记在我们家", "记到我们家", "记入我们家"]
+    static let archiveSensitiveWords = ["过敏", "不能吃", "忌口", "害怕", "敏感"]
+    static let archivePickupWords = ["接园", "接娃", "放学", "谁接", "去接"]
+    static let archiveSleepWords = ["睡觉", "午睡", "几点睡", "作息", "夜醒"]
+    static let archiveInterestWords = ["喜欢", "爱看", "爱玩", "兴趣"]
+    static let archiveRoutineWords = ["习惯", "每天", "每周"]
+    static let archiveAgeWords = ["岁", "个月", "阶段"]
+    static let archiveTraitWords = ["性格", "内向", "外向", "慢热"]
+    static let archiveMemberWords = ["爸爸", "妈妈", "奶奶", "爷爷", "姥姥", "姥爷", "外婆", "外公"]
+    static let archiveFamilyWords = ["我们家", "家里"]
+    static func hasArchiveLead(_ text: String) -> Bool { archiveLeads.contains { text.contains($0) } }
+    /// True when the words use a sibling label. This does not pick a child.
+    static func mentionsSiblingLabel(_ text: String) -> Bool {
+        siblingReferences.contains { matches($0.pattern, in: text) }
+    }
     static let arrangementWords = ["课", "班", "要带", "带", "接", "送", "提醒", "家长会", "考试", "体检", "预约", "活动", "比赛", "疫苗", "作业", "缴费", "交费", "报名", "游泳", "钢琴", "画画", "舞蹈", "英语", "足球", "篮球"]
     static let futureDateWords = ["明天", "明早", "明晚", "后天", "大后天"]
 
