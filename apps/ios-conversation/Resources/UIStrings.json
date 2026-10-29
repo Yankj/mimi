@@ -9570,5 +9570,9 @@
   "今天这个时间已过，先排在明天；要改回今天，点“手动调整”。": {
     "en": "Today's time has passed, so it's set to tomorrow. Tap “Adjust manually” to go back to today.",
     "zh-Hans": "今天这个时间已过，先排在明天；要改回今天，点“手动调整”。"
+  },
+  "是谁的事": {
+    "en": "Who is this for",
+    "zh-Hans": "是谁的事"
   }
 }

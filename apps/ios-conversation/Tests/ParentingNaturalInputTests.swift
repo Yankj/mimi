@@ -498,6 +498,43 @@ final class ParentingNaturalInputTests: XCTestCase {
         XCTAssertEqual(classify("老二明天要带水杯", shuffled).childID, duo.id)
     }
 
+    func testRecordForASiblingWordAfterGiveDropsTheSubjectFromTheBody() {
+        let two = context(children: [tuan, duo])
+        let p = classify("给二宝记一笔长高了", two)
+        XCTAssertEqual(p.kind, .observation)
+        XCTAssertEqual(p.childID, duo.id)
+        XCTAssertEqual(p.observationText, "长高了", "给二宝 and 记一笔 are not part of the record")
+        XCTAssertTrue(p.isReadyToConfirm)
+        let named = classify("帮团团记一下今天自己穿鞋了", two)
+        XCTAssertEqual(named.kind, .observation)
+        XCTAssertEqual(named.childID, tuan.id)
+        XCTAssertEqual(named.observationText, "今天自己穿鞋了")
+        // Selected child does not override the sibling word in the sentence.
+        let selected = ParentingNaturalContext(children: [tuan, duo], arrangements: [], activeChildID: tuan.id)
+        XCTAssertEqual(classify("给二宝记一笔长高了", selected).childID, duo.id)
+        XCTAssertEqual(classify("老大2点上课", ParentingNaturalContext(children: [tuan, duo], arrangements: [], activeChildID: duo.id)).childID, tuan.id)
+    }
+
+    @MainActor func testChildCanBeChangedOnTheCardBeforeSaving() {
+        let two = context(children: [tuan, duo])
+        let input = ParentingNaturalInputModel()
+        input.draft = "老大2点上课"
+        input.submit(context: two, now: now)
+        XCTAssertEqual(input.proposal?.childID, tuan.id)
+        XCTAssertTrue(input.canChangeChild)
+        input.changeChild(to: duo.id, context: two, now: now)
+        XCTAssertEqual(input.proposal?.childID, duo.id)
+        XCTAssertEqual(input.proposal?.title, "上课")
+        XCTAssertEqual(input.phase, .confirming)
+    }
+
+    func testQuestionPickerPreselectsNobody() {
+        let ids = [tuan.id, duo.id]
+        XCTAssertEqual(ParentingChildSwitcherRules.resolve(selected: nil, childIDs: ids, allowsAll: false, fallsBackToFirst: false), .all,
+                       "no chip highlighted while asking")
+        XCTAssertEqual(ParentingChildSwitcherRules.resolve(selected: nil, childIDs: ids, allowsAll: false), .child(tuan.id))
+    }
+
     func testSiblingWordsOnlyWorkWhenTheFamilyHasEnoughChildren() {
         XCTAssertEqual(classify("老二今天睡得早", context(children: [tuan])).childID, tuan.id, "one child: bound without asking")
         let two = context(children: [tuan, duo])
