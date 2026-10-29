@@ -48,6 +48,10 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     /** 这台手机的语音识别档位（null = 没有语音输入卡，不显示这一行）。如实告知是否可能在线识别。 */
     voiceTier: DictationEngineTier? = null,
+    /** 云端账号（M5）；null 或未配置 = 只有本机体验账号（M2 行为）。 */
+    cloud: com.heydusk.mimi.feature.parenting.cloud.CloudUi? = null,
+    onOpenLogin: () -> Unit = {},
+    onOpenEnrollment: () -> Unit = {},
 ) {
     val colors = LocalMimiColors.current
     Column(
@@ -101,9 +105,37 @@ fun SettingsScreen(
         }
 
         Text(ui("账户"), style = MaterialTheme.typography.titleMedium, color = colors.ink2)
-        Text(ui("体验账号"), color = colors.ink, modifier = Modifier.semantics { testTag = "parenting.settings.account" })
-        TextButton(onClick = onSignOut, modifier = Modifier.semantics { testTag = "parenting.settings.signOut" }) {
-            Text(ui("退出登录"))
+        if (cloud == null || !cloud.configured) {
+            Text(ui("体验账号"), color = colors.ink, modifier = Modifier.semantics { testTag = "parenting.settings.account" })
+            Text(ui("仅保存在这台手机上"), style = MaterialTheme.typography.bodySmall, color = colors.ink2)
+            TextButton(onClick = onSignOut, modifier = Modifier.semantics { testTag = "parenting.settings.signOut" }) {
+                Text(ui("退出登录"))
+            }
+        } else if (!cloud.signedIn) {
+            Text(ui("未登录"), color = colors.ink, modifier = Modifier.semantics { testTag = "parenting.settings.account" })
+            Text(ui("登录后可使用「让小咪整理」。未登录时记录只保存在这台手机上。"), style = MaterialTheme.typography.bodySmall, color = colors.ink2)
+            TextButton(onClick = onOpenLogin, enabled = !cloud.busy, modifier = Modifier.semantics { testTag = "parenting.settings.login" }) {
+                Text(ui("登录或注册"))
+            }
+        } else {
+            Text(
+                if (cloud.anonymous) ui("体验账号") else (cloud.email ?: ui("已登录")),
+                color = colors.ink,
+                modifier = Modifier.semantics { testTag = "parenting.settings.account" },
+            )
+            if (cloud.enrolled == false && !cloud.anonymous) {
+                TextButton(onClick = onOpenEnrollment, modifier = Modifier.semantics { testTag = "parenting.settings.enroll" }) {
+                    Text(ui("输入邀请码"))
+                }
+            } else if (cloud.enrolled == true) {
+                Text(ui("已开通"), style = MaterialTheme.typography.bodySmall, color = colors.ink2, modifier = Modifier.semantics { testTag = "parenting.settings.enrolled" })
+            }
+            TextButton(onClick = onSignOut, enabled = !cloud.busy, modifier = Modifier.semantics { testTag = "parenting.settings.signOut" }) {
+                Text(ui("退出登录"))
+            }
+        }
+        cloud?.message?.let {
+            Text(ui(it), color = if (cloud.messageIsError) colors.danger else colors.ink2, modifier = Modifier.semantics { testTag = "parenting.settings.cloudMessage" })
         }
 
         if (voiceTier != null) {

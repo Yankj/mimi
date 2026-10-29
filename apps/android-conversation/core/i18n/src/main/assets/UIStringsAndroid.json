@@ -262,5 +262,137 @@
   "关闭提醒后，已排好的提醒会被取消。": {
     "en": "Turning reminders off cancels the ones already scheduled.",
     "zh-Hans": "关闭提醒后，已排好的提醒会被取消。"
+  },
+  "还没有配置云端服务，当前只在本机使用。": {
+    "en": "Cloud service isn't configured; Mimi works on this phone only.",
+    "zh-Hans": "还没有配置云端服务，当前只在本机使用。"
+  },
+  "登录配置无效。": {
+    "en": "Sign-in configuration is invalid.",
+    "zh-Hans": "登录配置无效。"
+  },
+  "邮箱或密码不正确。": {
+    "en": "Email or password is incorrect.",
+    "zh-Hans": "邮箱或密码不正确。"
+  },
+  "请先在邮箱里确认注册，再登录。": {
+    "en": "Confirm your sign-up from your email, then sign in.",
+    "zh-Hans": "请先在邮箱里确认注册，再登录。"
+  },
+  "暂时无法注册新账号。": {
+    "en": "Sign-ups are unavailable right now.",
+    "zh-Hans": "暂时无法注册新账号。"
+  },
+  "这个邮箱暂时不能注册。": {
+    "en": "This email can't be used to sign up right now.",
+    "zh-Hans": "这个邮箱暂时不能注册。"
+  },
+  "密码太简单，请换一个更长的密码。": {
+    "en": "Password is too weak. Please use a longer one.",
+    "zh-Hans": "密码太简单，请换一个更长的密码。"
+  },
+  "体验账号暂未开放，可以用邮箱登录。": {
+    "en": "Guest accounts aren't available yet. You can sign in with email.",
+    "zh-Hans": "体验账号暂未开放，可以用邮箱登录。"
+  },
+  "登录已过期，请重新登录。": {
+    "en": "Your session expired. Please sign in again.",
+    "zh-Hans": "登录已过期，请重新登录。"
+  },
+  "尝试太频繁，请稍后再试。": {
+    "en": "Too many attempts. Please try again later.",
+    "zh-Hans": "尝试太频繁，请稍后再试。"
+  },
+  "服务返回的内容未通过校验，已停止登录。": {
+    "en": "The server response failed validation; sign-in stopped.",
+    "zh-Hans": "服务返回的内容未通过校验，已停止登录。"
+  },
+  "登录信息无法安全保存在这台手机上。": {
+    "en": "Sign-in details can't be stored securely on this phone.",
+    "zh-Hans": "登录信息无法安全保存在这台手机上。"
+  },
+  "正在处理上一次登录，请稍候。": {
+    "en": "Still finishing the previous sign-in. Please wait.",
+    "zh-Hans": "正在处理上一次登录，请稍候。"
+  },
+  "已取消。": {
+    "en": "Cancelled.",
+    "zh-Hans": "已取消。"
+  },
+  "这个登录回调无法识别。": {
+    "en": "This sign-in callback wasn't recognised.",
+    "zh-Hans": "这个登录回调无法识别。"
+  },
+  "上一次登录续期结果未确认，请重新登录，不会自动换成新的体验账号。": {
+    "en": "The last session refresh wasn't confirmed. Please sign in again; Mimi won't switch you to a new guest account.",
+    "zh-Hans": "上一次登录续期结果未确认，请重新登录，不会自动换成新的体验账号。"
+  },
+  "已在此设备退出；服务端会话撤销未确认。": {
+    "en": "Signed out on this device; server session revocation wasn't confirmed.",
+    "zh-Hans": "已在此设备退出；服务端会话撤销未确认。"
+  },
+  "没有可用的浏览器，无法完成登录。": {
+    "en": "No browser is available to finish signing in.",
+    "zh-Hans": "没有可用的浏览器，无法完成登录。"
+  },
+  "正在登录…": {
+    "en": "Signing in…",
+    "zh-Hans": "正在登录…"
+  },
+  "注册": {
+    "en": "Sign up",
+    "zh-Hans": "注册"
+  },
+  "登录后，本机的体验记录会带进这个账号；换成另一个账号时，本机记录会被清除。": {
+    "en": "Records from guest use on this phone move into the first account you sign in to. Switching to another account clears this phone's records.",
+    "zh-Hans": "登录后，本机的体验记录会带进这个账号；换成另一个账号时，本机记录会被清除。"
+  },
+  "邀请码无效，请检查后重试。": {
+    "en": "Invalid invite code. Check it and try again.",
+    "zh-Hans": "邀请码无效，请检查后重试。"
+  },
+  "尝试次数过多，请稍后再试。": {
+    "en": "Too many attempts. Please try again later.",
+    "zh-Hans": "尝试次数过多，请稍后再试。"
+  },
+  "暂时无法连接，请稍后重试。": {
+    "en": "Can't connect right now. Please try again later.",
+    "zh-Hans": "暂时无法连接，请稍后重试。"
+  },
+  "正在提交…": {
+    "en": "Submitting…",
+    "zh-Hans": "正在提交…"
+  },
+  "开通": {
+    "en": "Activate",
+    "zh-Hans": "开通"
+  },
+  "今天的 AI 整理次数已用完。原话仍保留，可以手动填写。": {
+    "en": "Today's AI tidy-up limit is used up. Your words are kept; you can fill in the form yourself.",
+    "zh-Hans": "今天的 AI 整理次数已用完。原话仍保留，可以手动填写。"
+  },
+  "仅保存在这台手机上": {
+    "en": "Stored on this phone only",
+    "zh-Hans": "仅保存在这台手机上"
+  },
+  "登录后可使用「让小咪整理」。未登录时记录只保存在这台手机上。": {
+    "en": "Sign in to use “Let Mimi tidy up”. Without signing in, records stay on this phone only.",
+    "zh-Hans": "登录后可使用「让小咪整理」。未登录时记录只保存在这台手机上。"
+  },
+  "登录或注册": {
+    "en": "Sign in or sign up",
+    "zh-Hans": "登录或注册"
+  },
+  "已登录": {
+    "en": "Signed in",
+    "zh-Hans": "已登录"
+  },
+  "已开通": {
+    "en": "Activated",
+    "zh-Hans": "已开通"
+  },
+  "不允许": {
+    "en": "Don't allow",
+    "zh-Hans": "不允许"
   }
 }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import com.heydusk.mimi.device.reminders.NotificationAuthorization
@@ -133,7 +134,14 @@ fun ParentingHomeScreen(
     /** 点通知打开：回到「今天」。处理完调用 [onReminderOpenHandled]。 */
     reminderOpen: ReminderOpenRequest? = null,
     onReminderOpenHandled: () -> Unit = {},
+    /** 云端账号（M5）；null = 没有云端（预览、旧测试、未配置）。 */
+    cloud: com.heydusk.mimi.feature.parenting.cloud.CloudAccount? = null,
+    /** 用 Custom Tabs 打开 OAuth 授权页。 */
+    onOpenAuthUrl: (String) -> Unit = {},
 ) {
+    val cloudUi = cloud?.state?.collectAsState()?.value
+    var showLogin by remember { mutableStateOf(false) }
+    var showEnroll by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf(initialTab) }
     val stack = remember { mutableStateListOf<ParentingRoute>().apply { addAll(initialRoutes) } }
     var sheet by remember { mutableStateOf<ManualSheet?>(null) }
@@ -248,6 +256,9 @@ fun ParentingHomeScreen(
                     onSignOut = onSignOut,
                     onClose = { showSettings = false },
                     voiceTier = voiceState?.tier,
+                    cloud = cloudUi,
+                    onOpenLogin = { cloud?.dismissMessage(); showLogin = true },
+                    onOpenEnrollment = { showEnroll = true },
                 )
             }
             else -> {
@@ -367,14 +378,23 @@ fun ParentingHomeScreen(
                     onDismiss = { sheet = null },
                     status = status,
                 )
-                is ManualSheet.AddArrangement -> ArrangementEntryDialog(
-                    onConfirm = { draft, _ -> submit { actions.addArrangement(s.childID, draft) } },
-                    onDismiss = { sheet = null },
-                    goals = workspace.goals.filter { it.childID == s.childID },
-                    zone = zone,
-                    now = now,
-                    status = status,
-                )
+                is ManualSheet.AddArrangement -> {
+                    val intake = remember(s, cloudUi?.subjectID, cloudUi?.serverScopeID) {
+                        if (cloudUi?.intakeReady == true) cloud.intakeModel() else null
+                    }
+                    // 关表单 / 换账号：停止等待并清理临时副本（iOS 离开表单同样处理）。
+                    androidx.compose.runtime.DisposableEffect(intake) { onDispose { intake?.invalidate() } }
+                    ArrangementEntryDialog(
+                        onConfirm = { draft, _ -> submit { actions.addArrangement(s.childID, draft) } },
+                        onDismiss = { sheet = null },
+                        goals = workspace.goals.filter { it.childID == s.childID },
+                        zone = zone,
+                        now = now,
+                        status = status,
+                        intake = intake,
+                        childID = s.childID,
+                    )
+                }
                 is ManualSheet.AdjustArrangement -> ArrangementEntryDialog(
                     onConfirm = { draft, conflicts -> submit { actions.reviseArrangement(s.arrangement, draft, conflicts) } },
                     onDismiss = { sheet = null },
@@ -465,6 +485,12 @@ fun ParentingHomeScreen(
 
         if (!onboardingDone && loaded) {
             OnboardingOverlay(preferences, onPreferencesChange, onCompleteOnboarding)
+        }
+        if (cloud != null && showLogin) {
+            com.heydusk.mimi.feature.parenting.cloud.LoginOverlay(cloud, onOpenAuthUrl) { showLogin = false }
+        }
+        if (cloud != null && showEnroll) {
+            com.heydusk.mimi.feature.parenting.cloud.EnrollmentOverlay(cloud) { showEnroll = false }
         }
         PrivacyShield(privacyShield)
     }

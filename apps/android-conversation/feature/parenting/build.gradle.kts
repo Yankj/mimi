@@ -37,6 +37,7 @@ dependencies {
     api(project(":core:data"))
     api(project(":core:voice"))
     api(project(":core:device"))
+    api(project(":core:network"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)

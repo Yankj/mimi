@@ -1,7 +1,11 @@
 package com.heydusk.mimi
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
+import androidx.browser.customtabs.CustomTabsIntent
+import com.heydusk.mimi.feature.parenting.cloud.CloudAccount
 import android.os.Build
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
@@ -33,6 +37,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
     @Inject lateinit var voicePrefs: DataStoreVoicePrefs
     @Inject lateinit var notificationPermission: NotificationPermissionBridge
+    @Inject lateinit var cloud: CloudAccount
     private val theme: ThemeViewModel by viewModels()
     private val shell: ParentingShellViewModel by viewModels()
 
@@ -58,6 +63,23 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         // 不调用 setIntent：这里直接解析新 Intent，不需要把它换成 Activity 的启动 Intent（旋转重建也不应重复处理）。
         ReminderOpen.parse(intent)?.let(shell::openFromReminder)
+        authCallback(intent)?.let(cloud::handleCallback)
+    }
+
+    /** `catpawm://auth-callback?…`；其它 Intent 返回 null。 */
+    private fun authCallback(intent: Intent?): String? {
+        val data = intent?.data ?: return null
+        if (intent.action != Intent.ACTION_VIEW || data.scheme != "catpawm" || data.host != "auth-callback") return null
+        return data.toString()
+    }
+
+    /** OAuth 授权页用 Custom Tabs（系统浏览器内核，不在应用里嵌 WebView）；没有浏览器时给出提示。 */
+    private fun openAuthUrl(url: String) {
+        try {
+            CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(this, Uri.parse(url))
+        } catch (_: ActivityNotFoundException) {
+            cloud.reportBrowserMissing()
+        }
     }
 
     override fun onDestroy() {
@@ -75,7 +97,10 @@ class MainActivity : ComponentActivity() {
             notificationPermission.attach { notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
         }
         // 冷启动时点的通知；屏幕旋转等重建不重复处理同一个 Intent。
-        if (savedInstanceState == null) ReminderOpen.parse(intent)?.let(shell::openFromReminder)
+        if (savedInstanceState == null) {
+            ReminderOpen.parse(intent)?.let(shell::openFromReminder)
+            authCallback(intent)?.let(cloud::handleCallback)
+        }
         setContent {
             val themeState by theme.state.collectAsStateWithLifecycle()
             val shellState by shell.state.collectAsStateWithLifecycle()
@@ -110,13 +135,15 @@ class MainActivity : ComponentActivity() {
                         actions = shell.actions,
                         onCompleteOnboarding = shell::completeOnboarding,
                         onClearData = shell::clearData,
-                        onSignOut = shell::signOut,
+                        onSignOut = { if (cloud.state.value.signedIn) cloud.signOut() else shell.signOut() },
                         voice = voiceDeps,
                         busy = shellState.busy,
                         reminders = shellState.reminders,
                         reminderActions = shell.reminderActions,
                         reminderOpen = shellState.reminderOpen,
                         onReminderOpenHandled = shell::reminderOpenHandled,
+                        cloud = cloud.takeIf { it.state.value.configured },
+                        onOpenAuthUrl = ::openAuthUrl,
                     )
                 }
             }

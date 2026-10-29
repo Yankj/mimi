@@ -112,6 +112,8 @@ fun ArrangementEntryDialog(
     status: FormStatus = FormStatus(),
     adjusting: ParentingArrangement? = null,
     conflictsFor: (Instant) -> List<ParentingArrangement> = { emptyList() },
+    intake: com.heydusk.mimi.feature.parenting.intake.InlineIntakeModel? = null,
+    childID: UUID? = null,
 ) {
     val initial = remember(adjusting) {
         ArrangementDraft(adjusting?.title ?: "", "", adjusting?.dueAt, adjusting?.goalID)
@@ -151,10 +153,27 @@ fun ArrangementEntryDialog(
         LabeledField(
             label = if (adjusting == null) ui("你说的原话") else ui("调整说明（可选）"),
             value = draft.sourceText,
-            onValueChange = { if (it.length <= 8000) draft = draft.copy(sourceText = it) },
+            onValueChange = {
+                if (it.length <= 8000) {
+                    // 原话改了：正在进行/已有的整理结果不再对应这段原话，作废（iOS 同样处理）。
+                    if (it.trim() != draft.sourceText.trim()) intake?.invalidate()
+                    draft = draft.copy(sourceText = it)
+                }
+            },
             tag = "parenting.arrangement.source",
             singleLine = false,
         )
+        if (adjusting == null && intake != null && intake.available) {
+            com.heydusk.mimi.feature.parenting.intake.InlineIntakeSection(
+                model = intake,
+                sourceText = draft.sourceText,
+                childID = childID,
+                goalID = draft.goalID,
+                zone = zone,
+                saving = status.saving,
+                onAdopt = { c -> draft = draft.copy(title = c.title.take(160), dueAt = c.dueAt ?: draft.dueAt) },
+            )
+        }
         if (adjusting != null && changed) {
             val colors = LocalMimiColors.current
             Column(Modifier.semantics { testTag = "parenting.adjustment.review" }, verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -285,12 +304,13 @@ private fun CheckRow(label: String, checked: Boolean, tag: String, onChange: (Bo
 
 /** 静态光标的输入框：OutlinedTextField 的光标闪烁动画会让 Robolectric 永远等不到 idle。 */
 @Composable
-private fun LabeledField(
+internal fun LabeledField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
     tag: String,
     singleLine: Boolean,
+    secret: Boolean = false,
 ) {
     val colors = LocalMimiColors.current
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -301,6 +321,7 @@ private fun LabeledField(
             singleLine = singleLine,
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.ink),
             cursorBrush = SolidColor(colors.ink),
+            visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
             modifier = Modifier
                 .fillMaxWidth()
                 .border(1.dp, colors.ink2.copy(alpha = 0.3f), RoundedCornerShape(8.dp))

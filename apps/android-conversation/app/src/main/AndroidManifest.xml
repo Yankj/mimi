@@ -6,7 +6,7 @@
         权限只在家长按麦克风、并看过站内说明之后才向系统申请；拒绝后键盘照常可用。
         M4：通知（POST_NOTIFICATIONS）、闹钟、开机重排的权限与接收器由 :core:device 的清单合并进来。
         通知权限只在家长打开「到点提醒」之后才向系统申请；不使用 USE_EXACT_ALARM（只有闹钟/日历类应用才允许）。
-        网络等随各自里程碑引入。
+        M5：网络（INTERNET）由 :core:network 的清单合并进来；只在配置了云端地址时才会联网。
     -->
 
     <application
@@ -27,6 +27,13 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- M5：Supabase OAuth（PKCE）回调。只接受 catpawm://auth-callback；code 只换一次，verifier 只在内存。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="catpawm" android:host="auth-callback" />
             </intent-filter>
         </activity>
     </application>

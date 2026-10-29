@@ -138,6 +138,46 @@ class ParentingSession(
         _phase.value = Phase.Ready(subject, model, onboardingDone = true)
     }
 
+    /**
+     * M5：登录（或恢复）到云端账号 [subject]。同一主体什么都不做。
+     * - 当前是仅本机的体验主体：它的账本带进这个账号（目标账号在本机还没有账本时），然后清掉体验主体；
+     * - 当前是另一个云端账号：与退出相同——同步屏障、清提醒、删密文与密钥，不带数据。
+     * 之后 identity 记下新主体（cloudBound），激活代际并打开它的账本。
+     */
+    suspend fun bindCloudSubject(subject: UUID): Unit = mutex.withLock {
+        val snapshot = identity.snapshot.first()
+        val ready = _phase.value as? Phase.Ready
+        val leaving = ready?.subjectID ?: snapshot.subjectID
+        if (leaving == subject && snapshot.cloudBound) {
+            if (ready == null) bootstrapLocked()
+            return@withLock
+        }
+        val previous = epoch.currentAccount
+        val wiring = ready?.model?.reminders
+        epoch.signOut()
+        runCatching { wiring?.onSignOut?.invoke() }
+        if (leaving != null && leaving != subject) {
+            if (!snapshot.cloudBound) runCatching { ParentingWorkspaceStore.adoptLedger(blobs, cipher, ledgerScope, leaving, subject) }
+            wipeSubject(leaving)
+        }
+        identity.setSubject(subject, cloudBound = true)
+        observers.notify(previous, subject.toString())
+        epoch.activate(subject.toString())
+        val store = ParentingWorkspaceStore(blobs, ledgerScope, subject, epoch, cipher, clock)
+        val model = newModel(store, subject)
+        model.load()
+        _phase.value = Phase.Ready(subject, model, onboardingDone = true, isAnonymous = false)
+    }
+
+    private suspend fun bootstrapLocked() {
+        val subject = identity.ensureSubject()
+        epoch.activate(subject.toString())
+        val store = ParentingWorkspaceStore(blobs, ledgerScope, subject, epoch, cipher, clock)
+        val model = newModel(store, subject)
+        model.load()
+        _phase.value = Phase.Ready(subject, model, identity.snapshot.first().onboardingDone)
+    }
+
     /** 清除当前主体的账本数据但保持登录（设置 › 清除全部数据）。 */
     suspend fun clearCurrentLedger(): Unit = mutex.withLock {
         val ready = _phase.value as? Phase.Ready ?: return

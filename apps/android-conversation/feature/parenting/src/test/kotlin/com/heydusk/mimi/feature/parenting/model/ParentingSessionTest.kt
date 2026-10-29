@@ -89,4 +89,50 @@ class ParentingSessionTest {
             assertTrue(after.model.workspace.children.isEmpty())
         } finally { close() }
     }
+
+    @Test fun firstCloudLoginAdoptsLocalTrialLedger() = runBlocking {
+        val (session, identity, close) = harness()
+        try {
+            session.bootstrap()
+            val trial = assertIs<ParentingSession.Phase.Ready>(session.phase.value)
+            assertTrue(trial.model.apply(ParentingCommand.AddChild(UUID.randomUUID(), "小明")))
+            val cloud = UUID.randomUUID()
+            session.bindCloudSubject(cloud)
+            val bound = assertIs<ParentingSession.Phase.Ready>(session.phase.value)
+            assertEquals(cloud, bound.subjectID)
+            assertEquals(listOf("小明"), bound.model.workspace.children.map { it.name })
+            assertTrue(identity.snapshot.first().cloudBound)
+            // 同一账号再绑定一次（恢复会话）什么都不变。
+            session.bindCloudSubject(cloud)
+            assertEquals(1, assertIs<ParentingSession.Phase.Ready>(session.phase.value).model.workspace.children.size)
+        } finally { close() }
+    }
+
+    @Test fun switchingToAnotherCloudAccountWipesPreviousLedger() = runBlocking {
+        val (session, _, close) = harness()
+        try {
+            session.bootstrap()
+            val a = UUID.randomUUID()
+            session.bindCloudSubject(a)
+            assertTrue(assertIs<ParentingSession.Phase.Ready>(session.phase.value).model.apply(ParentingCommand.AddChild(UUID.randomUUID(), "甲")))
+            session.bindCloudSubject(UUID.randomUUID())
+            assertTrue(assertIs<ParentingSession.Phase.Ready>(session.phase.value).model.workspace.children.isEmpty())
+            // 切回 A：A 的密文与密钥已删，不会读回旧数据。
+            session.bindCloudSubject(a)
+            assertTrue(assertIs<ParentingSession.Phase.Ready>(session.phase.value).model.workspace.children.isEmpty())
+        } finally { close() }
+    }
+
+    @Test fun cloudSignOutStartsFreshLocalTrial() = runBlocking {
+        val (session, identity, close) = harness()
+        try {
+            session.bootstrap()
+            val cloud = UUID.randomUUID()
+            session.bindCloudSubject(cloud)
+            session.signOutAndStartFresh()
+            val fresh = assertIs<ParentingSession.Phase.Ready>(session.phase.value)
+            assertNotEquals(cloud, fresh.subjectID)
+            assertTrue(!identity.snapshot.first().cloudBound)
+        } finally { close() }
+    }
 }
