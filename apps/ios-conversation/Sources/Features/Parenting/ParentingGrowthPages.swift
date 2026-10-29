@@ -32,6 +32,9 @@ struct ParentingGrowthGoalsPage<Review: View>: View {
 
     var body: some View {
         let goals = ParentingGoalProgress.build(workspace: workspace, childID: child.id, now: now, calendar: calendar)
+        // Active / recent first, quiet second — same orange-rail header as 今天 so goals are not a flat list.
+        let active = goals.filter { $0.activity != .quiet }
+        let quiet = goals.filter { $0.activity == .quiet }
         ParentingGrowthPageScaffold {
             HStack(spacing: 12) {
                 ParentingChildAvatar(accent: accent, size: 40, childID: child.id)
@@ -51,7 +54,14 @@ struct ParentingGrowthGoalsPage<Review: View>: View {
                         .accessibilityIdentifier("parenting.addGoal")
                 }.parentingCard()
             } else {
-                ForEach(goals) { progress in goalCard(progress) }
+                if !active.isEmpty {
+                    ParentingSectionHeader(title: ui("成长目标"), count: active.count)
+                    ForEach(active) { progress in goalCard(progress) }
+                }
+                if !quiet.isEmpty {
+                    ParentingSectionHeader(title: ui("有一阵没记了"), count: quiet.count)
+                    ForEach(quiet) { progress in goalCard(progress) }
+                }
                 Button(action: onAdd) { Label(ui("添加目标"), systemImage: "plus").frame(maxWidth: .infinity) }
                     .parentingSecondaryButton().disabled(busy)
                     .accessibilityIdentifier("parenting.addGoal")
@@ -190,11 +200,8 @@ struct ParentingGrowthTimelinePage<Header: View, RecordCard: View>: View {
 
     private func daySection(_ day: ParentingGrowthDay) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(verbatim: dayTitle(day.day)).font(.subheadline.weight(.semibold)).accessibilityAddTraits(.isHeader)
-                Spacer(minLength: 8)
-                Text(verbatim: ui("{0} 条", [String(day.items.count)])).font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
-            }
+            // Same rail + count chip as 今天 sections, so day groups read as levels not a flat list.
+            ParentingSectionHeader(title: dayTitle(day.day), count: day.items.count)
             VStack(alignment: .leading, spacing: 14) {
                 ForEach(day.items) { item in
                     HStack(alignment: .top, spacing: 10) {
