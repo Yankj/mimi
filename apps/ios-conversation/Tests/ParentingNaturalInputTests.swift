@@ -518,7 +518,7 @@ final class ParentingNaturalInputTests: XCTestCase {
     @MainActor func testChildCanBeChangedOnTheCardBeforeSaving() {
         let two = context(children: [tuan, duo])
         let input = ParentingNaturalInputModel()
-        input.draft = "老大2点上课"
+        input.draft = "老大下午2点上课"
         input.submit(context: two, now: now)
         XCTAssertEqual(input.proposal?.childID, tuan.id)
         XCTAssertTrue(input.canChangeChild)
