@@ -317,7 +317,8 @@ public enum ParentingNaturalInput {
 
     private static func fillObservation(_ p: inout ParentingNaturalProposal, text: String, context: ParentingNaturalContext) {
         resolveChild(&p, text: text, context: context)
-        let body = ParentingNaturalLexicon.stripLead(text)
+        let subjectless = ParentingNaturalLexicon.removingLeadingChildSubject(text, names: context.children.map(\.name))
+        let body = ParentingNaturalLexicon.stripLead(subjectless)
         if body.isEmpty { p.missing.append(.content) } else { p.observationText = String(body.prefix(8000)) }
     }
 

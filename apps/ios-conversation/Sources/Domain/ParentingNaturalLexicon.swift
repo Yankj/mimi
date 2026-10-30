@@ -12,7 +12,7 @@ enum ParentingNaturalLexicon {
     static let queryCues = ["有什么", "有啥", "什么安排", "啥安排", "安排吗", "做什么", "干什么", "看看", "看一下", "吗", "？", "?"]
     static let planQueryMarkers = ["怎么排", "这周安排", "本周安排", "这周有什么", "本周有什么", "下周安排", "下周有什么", "课表", "看看计划", "兴趣班怎么"]
     static let observationMarkers = ["观察", "学会", "第一次", "自己", "今天他", "今天她", "刚才", "刚刚", "开始会", "主动"]
-    static let observationLeads = ["记一下", "记下", "记录一下", "记录"]
+    static let observationLeads = ["记一笔", "记一下", "记下", "记录一下", "记录"]
     static let arrangementWords = ["课", "班", "要带", "带", "接", "送", "提醒", "家长会", "考试", "体检", "预约", "活动", "比赛", "疫苗", "作业", "缴费", "交费", "报名", "游泳", "钢琴", "画画", "舞蹈", "英语", "足球", "篮球"]
     static let futureDateWords = ["明天", "明早", "明晚", "后天", "大后天"]
 
@@ -65,6 +65,22 @@ enum ParentingNaturalLexicon {
             if index < childCount, !found.contains(index) { found.append(index) }
         }
         return found.sorted()
+    }
+    /// "给二宝记一笔…", "帮老大记下…": a short "for whom" phrase before a record lead still counts as the lead.
+    static let leadForChildPattern = "^(?:给|帮|替|为)[^，,。.\\s]{1,6}?(?:记一笔|记一下|记下|记录)"
+    /// Drops a leading "给/帮/替/为 + child" ("给二宝记一笔长高了" → "记一笔长高了"), so the record body does not start with who it is for.
+    /// The child is a known nickname or a sibling word; anything else is left as said.
+    static func removingLeadingChildSubject(_ text: String, names: [String]) -> String {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = t.first, "给帮替为".contains(first) else { return t }
+        let rest = String(t.dropFirst())
+        for name in names.filter({ !$0.isEmpty }).sorted(by: { $0.count > $1.count }) where rest.hasPrefix(name) {
+            return String(rest.dropFirst(name.count))
+        }
+        for ref in siblingReferences {
+            if let r = rest.range(of: "^(?:" + ref.pattern + ")", options: .regularExpression) { return String(rest[r.upperBound...]) }
+        }
+        return t
     }
     /// The text without the sibling words, for deriving a title ("老大2点上课" → "上课").
     static func removingSiblingReferences(_ text: String) -> String {
@@ -245,7 +261,7 @@ enum ParentingNaturalLexicon {
         let completed = hasCompletedParticle(text)
         let pastMark = completed || pastWord
         let lateClock = matches(lateClockPattern, in: text)
-        let lead = observationLeads.contains { text.hasPrefix($0) }
+        let lead = observationLeads.contains { text.hasPrefix($0) } || matches(leadForChildPattern, in: text)
         var e = IntentEvidence()
         if future { e.arrangement += 3 }
         if reading.hasClock && !pastMark && !lateClock { e.arrangement += 2 }

@@ -11,6 +11,8 @@ struct ParentingChildSwitcher: View {
     let selectedID: UUID?
     /// Adds a 「全部」 chip (only shown when there is more than one child).
     var allowsAll = false
+    /// False on a question: with no selection, no chip is highlighted (never a silent guess).
+    var fallsBackToFirst = true
     let accent: (UUID) -> Color
     let onSelect: (UUID?) -> Void
     var identifier = "parenting.childSwitcher"
@@ -20,7 +22,7 @@ struct ParentingChildSwitcher: View {
     private func ui(_ key: String) -> String { AppLanguage(locale: locale).ui(key) }
 
     private var resolved: ParentingChildSwitcherSelection {
-        ParentingChildSwitcherRules.resolve(selected: selectedID, childIDs: children.map(\.id), allowsAll: allowsAll)
+        ParentingChildSwitcherRules.resolve(selected: selectedID, childIDs: children.map(\.id), allowsAll: allowsAll, fallsBackToFirst: fallsBackToFirst)
     }
 
     var body: some View {

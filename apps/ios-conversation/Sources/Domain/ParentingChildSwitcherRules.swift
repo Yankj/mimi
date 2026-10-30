@@ -13,10 +13,11 @@ enum ParentingChildSwitcherSelection: Equatable {
 enum ParentingChildSwitcherRules {
     static func showsAllChip(childCount: Int, allowsAll: Bool) -> Bool { allowsAll && childCount > 1 }
 
-    static func resolve(selected: UUID?, childIDs: [UUID], allowsAll: Bool) -> ParentingChildSwitcherSelection {
+    /// `fallsBackToFirst: false` is for a question ("这是哪位孩子的事？"): nothing is pre-selected, so no child is guessed.
+    static func resolve(selected: UUID?, childIDs: [UUID], allowsAll: Bool, fallsBackToFirst: Bool = true) -> ParentingChildSwitcherSelection {
         if let selected, childIDs.contains(selected) { return .child(selected) }
         if showsAllChip(childCount: childIDs.count, allowsAll: allowsAll) { return .all }
-        if let first = childIDs.first { return .child(first) }
+        if fallsBackToFirst, let first = childIDs.first { return .child(first) }
         return .all
     }
 
