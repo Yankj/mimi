@@ -300,6 +300,12 @@ extension View {
                     .accessibilityIdentifier("parenting.natural.question")
                 if ask.field == .intent {
                     intentChoice(ask.options)
+                } else if ask.field == .child && !ask.options.isEmpty {
+                    // The one child picker (same as 今天/成长), nothing pre-selected: the parent taps who it is about.
+                    ParentingChildSwitcher(children: p.childChoices.compactMap { id in context.children.first { $0.id == id } },
+                                           selectedID: nil, fallsBackToFirst: false, accent: childAccent,
+                                           onSelect: { id in if let id { input.answer(.child(id), context: context, now: now) } },
+                                           identifier: "parenting.natural.childPicker", chipIdentifierPrefix: "parenting.natural.child.")
                 } else if !ask.options.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], alignment: .leading, spacing: 8) {
                         ForEach(ask.options) { option in
@@ -391,6 +397,14 @@ extension View {
     @ViewBuilder private func confirming(_ p: ParentingNaturalProposal) -> some View {
         let card = input.card(workspace: workspaceModel.workspace, remindersEnabled: workspaceModel.remindersAvailable ? workspaceModel.reminderSettings.enabled : nil, now: now)
         if let card {
+            if input.canChangeChild && context.children.count > 1 {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(ui("是谁的事")).font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
+                    ParentingChildSwitcher(children: context.children, selectedID: p.childID, fallsBackToFirst: false, accent: childAccent,
+                                           onSelect: { id in if let id { input.changeChild(to: id, context: context, now: now) } },
+                                           identifier: "parenting.natural.cardChildPicker", chipIdentifierPrefix: "parenting.natural.cardChild.")
+                }
+            }
             ParentingConfirmCardView(card: card)
             if case .failed(let message) = input.phase {
                 Label(ui(message), systemImage: "exclamationmark.circle").font(.subheadline)
@@ -398,6 +412,10 @@ extension View {
                     .accessibilityIdentifier("parenting.natural.failure")
             }
         }
+    }
+
+    private func childAccent(_ id: UUID) -> Color {
+        ParentingChildAccent.color(slot: ParentingGrowthInsights.accentSlot(for: id, in: workspaceModel.workspace))
     }
 
     private var currentCard: ParentingConfirmCard? {

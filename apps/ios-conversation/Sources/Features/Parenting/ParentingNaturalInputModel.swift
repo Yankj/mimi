@@ -58,6 +58,18 @@ final class ParentingNaturalInputModel: ObservableObject {
         adopt(ParentingNaturalInput.applying(.intent(kind), to: current, context: context, now: now))
     }
 
+    /// The child on the card can still be changed before saving (same picker as the question). Never after a step was saved.
+    var canChangeChild: Bool {
+        guard let p = proposal, completedSteps == 0, p.childID != nil else { return false }
+        guard p.kind == .observation || p.kind == .newArrangement else { return false }
+        switch phase { case .confirming, .failed: return true; default: return false }
+    }
+
+    func changeChild(to id: UUID, context: ParentingNaturalContext, now: Date) {
+        guard canChangeChild, let current = proposal, current.childID != id, context.children.contains(where: { $0.id == id }) else { return }
+        adopt(ParentingNaturalInput.applying(.child(id), to: current, context: context, now: now))
+    }
+
     func answerWithReply(context: ParentingNaturalContext, now: Date) {
         let text = reply.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
