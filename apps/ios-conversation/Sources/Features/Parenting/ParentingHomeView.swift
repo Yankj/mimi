@@ -36,6 +36,8 @@ import Combine
     @State private var chromeMode: ParentingChromeMode = .input
     /// H4: ignore chip/tab/dismiss while a chrome transition is in flight.
     @State private var chromeAnimating = false
+    /// Bumped on every chrome transition enter/cancel so Task.sleep resumes ignore stale work.
+    @State private var chromeTransitionID: UInt = 0
     /// Bumped to force ParentingComposerBar to resign focus before pickTab morph (H5).
     @State private var resignComposerFocusToken = 0
     @Namespace private var chromeNamespace
@@ -105,7 +107,7 @@ import Combine
             if case .saved = natural.phase { natural.reset() }
             // detail ≡ naturalPresented; dismiss budget uses same chrome spring (三角口径).
             if chromeMode == .detail { chromeMode = .input }
-            chromeAnimating = false
+            cancelChromeAnimation()
             if let next = pendingSheet { pendingSheet = nil; sheet = next } else { openPendingRoute() }
         }) {
             ParentingNaturalSheet(input: natural, workspaceModel: model, context: naturalContext, now: now,
@@ -566,14 +568,18 @@ import Combine
         guard chromeMode != .detail, !naturalPresented else { return }
         guard showsComposer(on: tab) else { return }
         chromeAnimating = true
+        chromeTransitionID &+= 1
+        let transitionID = chromeTransitionID
         resignComposerFocusToken &+= 1
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 50_000_000)
+            guard transitionID == chromeTransitionID else { return }
             withAnimation(chromeMotion) {
                 chromeMode = .pickTab
             }
             let holdMs: UInt64 = reduceMotion ? 120 : 250
             try? await Task.sleep(nanoseconds: holdMs * 1_000_000)
+            guard transitionID == chromeTransitionID else { return }
             chromeAnimating = false
         }
     }
@@ -583,12 +589,15 @@ import Combine
         guard !chromeAnimating else { return }
         guard chromeMode == .pickTab else { return }
         chromeAnimating = true
+        chromeTransitionID &+= 1
+        let transitionID = chromeTransitionID
         withAnimation(chromeMotion) {
             chromeMode = .input
         }
         Task { @MainActor in
             let holdMs: UInt64 = reduceMotion ? 120 : 280
             try? await Task.sleep(nanoseconds: holdMs * 1_000_000)
+            guard transitionID == chromeTransitionID else { return }
             chromeAnimating = false
         }
     }
@@ -598,12 +607,15 @@ import Combine
         // H7: switching to 我们家 → tab-only one row, no composer morph.
         if item == .family {
             chromeAnimating = true
+            chromeTransitionID &+= 1
+            let transitionID = chromeTransitionID
             withAnimation(chromeCrossfade) {
                 tab = item
                 chromeMode = .input
             }
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 160_000_000)
+                guard transitionID == chromeTransitionID else { return }
                 chromeAnimating = false
             }
             return
@@ -613,6 +625,7 @@ import Combine
     }
 
     private func cancelChromeAnimation() {
+        chromeTransitionID &+= 1
         chromeAnimating = false
     }
 
