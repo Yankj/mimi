@@ -34,6 +34,12 @@ import Combine
     @State private var floatingBarHeight: CGFloat = 0
     /// One-row dual chrome: input | pickTab | detail (三角状态机；禁止 composer+tab 两排).
     @State private var chromeMode: ParentingChromeMode = .input
+    /// H4: ignore chip/tab/dismiss while a chrome transition is in flight.
+    @State private var chromeAnimating = false
+    /// Bumped to force ParentingComposerBar to resign focus before pickTab morph (H5).
+    @State private var resignComposerFocusToken = 0
+    @Namespace private var chromeNamespace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Corner peek plush on 今天 (≈48pt visible); decorative, non-interactive.
     private let cornerPlushSize: CGFloat = 48
 
@@ -97,7 +103,9 @@ import Combine
         }
         .sheet(isPresented: $naturalPresented, onDismiss: {
             if case .saved = natural.phase { natural.reset() }
+            // detail ≡ naturalPresented; dismiss budget uses same chrome spring (三角口径).
             if chromeMode == .detail { chromeMode = .input }
+            chromeAnimating = false
             if let next = pendingSheet { pendingSheet = nil; sheet = next } else { openPendingRoute() }
         }) {
             ParentingNaturalSheet(input: natural, workspaceModel: model, context: naturalContext, now: now,
@@ -108,6 +116,10 @@ import Combine
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+                // Sheet timing is a BUDGET — wrap with chrome spring, do not fight for exact 280/240ms frames.
+                .transaction { txn in
+                    txn.animation = chromeMotion
+                }
         }
         .sheet(isPresented: $chatPresented) {
             ConversationFirstView(model: conversationModel, accountLabel: accountLabel,
@@ -256,6 +268,8 @@ import Combine
         HStack(spacing: 4) {
             ForEach(ParentingTab.allCases) { item in
                 Button {
+                    // 我们家 / tab-only path: no composer morph (H7). Guard re-entry (H4).
+                    guard !chromeAnimating else { return }
                     tab = item
                     chromeMode = .input
                 } label: {
@@ -425,61 +439,116 @@ import Combine
             input: natural, context: naturalContext, now: now, busy: model.busy,
             onSubmit: {
                 guard natural.canSubmit, !model.busy else { return }
+                // If a pickTab morph is mid-flight, cancel then present detail (H6).
+                cancelChromeAnimation()
                 natural.submit(context: naturalContext, now: now)
-                chromeMode = .detail
-                naturalPresented = true
+                withAnimation(chromeMotion) {
+                    chromeMode = .detail
+                    naturalPresented = true
+                }
             },
             onManualArrangement: { sheet = .newArrangement(selectedChildID, nil) },
             onManualObservation: { sheet = .newObservation(selectedChildID, nil) },
             // detail 打开时藏叶标，禁止在模态底下偷换 chrome。
             typeChipSystemImage: (chromeMode == .detail || naturalPresented) ? nil : tab.icon,
             typeChipTitle: tab.title,
-            onTypeChipTap: {
-                guard chromeMode != .detail, !naturalPresented else { return }
-                chromeMode = .pickTab
-            },
-            onFocusChange: { focused in onComposerFocus(focused) }
+            onTypeChipTap: { enterPickTab() },
+            onFocusChange: { focused in onComposerFocus(focused) },
+            resignFocusToken: resignComposerFocusToken,
+            typeChipNamespace: reduceMotion ? nil : chromeNamespace,
+            typeChipGeometryID: reduceMotion ? nil : ParentingChromeGeometry.tabChip,
+            typeChipGeometryIsSource: showComposerSlot && chromeMode != .detail && !naturalPresented
         )
     }
 
-    /// 一行双态壳：input / pickTab；我们家无 composer 时只留一排 tab（不拆第二排）。
+    // MARK: - Chrome IX v2 (INTERACTION.md)
+
+    private var chromeSpring: Animation { .spring(response: 0.32, dampingFraction: 0.86) }
+    private var chromeCrossfade: Animation { .easeInOut(duration: 0.12) }
+    private var chromeMotion: Animation { reduceMotion ? chromeCrossfade : chromeSpring }
+
+    private var showComposerSlot: Bool {
+        // detail keeps input appearance (composer visible, chip hidden).
+        chromeMode == .input || chromeMode == .detail || naturalPresented
+    }
+    private var showPickTabSlot: Bool {
+        chromeMode == .pickTab && !naturalPresented
+    }
+
+    /// 一行双态壳：同槽 ZStack + matchedGeometry（叶标↔当前 tab）；我们家仅一排 tab，无 composer morph。
     @ViewBuilder private func dualChrome(for item: ParentingTab) -> some View {
         Group {
             if showsComposer(on: item) {
-                switch chromeMode {
-                case .input, .detail:
-                    // detail 用短 sheet；底栏回到输入态以免两排/叠层抢高。
+                ZStack {
                     composerBar
-                case .pickTab:
-                    if naturalPresented { composerBar } else { pickTabChrome }
+                        .opacity(showComposerSlot ? 1 : 0)
+                        .allowsHitTesting(showComposerSlot && !chromeAnimating)
+                        .accessibilityHidden(!showComposerSlot)
+                        .scaleEffect(x: showComposerSlot ? 1 : 0.96, y: 1, anchor: .trailing)
+
+                    pickTabChrome
+                        .opacity(showPickTabSlot ? 1 : 0)
+                        .allowsHitTesting(showPickTabSlot && !chromeAnimating)
+                        .accessibilityHidden(!showPickTabSlot)
+                        .scaleEffect(x: showPickTabSlot ? 1 : 0.96, y: 1, anchor: .leading)
                 }
+                // Same-height slot: pickTab bar targets composer single-row height (~56–64 content).
+                .frame(minHeight: 56)
             } else {
-                // 我们家：单排 tab，永不在上方再叠 composer。
+                // 我们家：单排 tab，永不在上方再叠 composer（H7）。
                 tabBar
             }
         }
-        .animation(.snappy(duration: 0.22), value: chromeMode)
-        .animation(.snappy(duration: 0.22), value: item)
     }
 
-    /// 选 type 态：同区展开三 tab；点选中项写回并回 input；点当前项也可收回。
+    /// 选 type 态：同区展开三 tab；当前 tab 芯片为 matchedGeometry 落点。
     private var pickTabChrome: some View {
-        tabBar
-            .overlay(alignment: .topTrailing) {
-                // 空白点按：点条外区域由上层 ScrollView 处理；这里加一枚收起以便测与无障碍。
+        HStack(spacing: 4) {
+            ForEach(ParentingTab.allCases) { item in
                 Button {
-                    chromeMode = .input
+                    selectTabFromPick(item)
                 } label: {
-                    Image(systemName: "chevron.down")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(catColors.ink.opacity(0.55))
-                        .frame(width: 32, height: 32)
+                    VStack(spacing: 3) {
+                        Image(systemName: item.icon).font(.title3.weight(tab == item ? .semibold : .regular))
+                        Text(ui(item.title)).font(catTypography.Role.caption.font.weight(tab == item ? .semibold : .regular))
+                    }
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                    .foregroundStyle(tab == item ? catColors.actionText : catColors.ink.opacity(0.72))
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(tab == item ? catColors.action.opacity(0.16) : .clear, in: Capsule())
+                    .contentShape(Capsule())
+                    .modifier(ParentingChromeTabChipMatch(
+                        enabled: !reduceMotion && tab == item,
+                        isSource: showPickTabSlot,
+                        namespace: chromeNamespace,
+                        id: ParentingChromeGeometry.tabChip
+                    ))
                 }
                 .buttonStyle(.plain)
-                .offset(x: -4, y: -28)
-                .accessibilityLabel(ui("回到输入"))
-                .accessibilityIdentifier("parenting.chrome.dismissPickTab")
+                .accessibilityAddTraits(tab == item ? [.isSelected] : [])
+                .accessibilityIdentifier("parenting.tab.\(item.rawValue)")
             }
+        }
+        .padding(5)
+        .parentingGlass(in: Capsule())
+        .frame(maxWidth: 520)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("parenting.tabBar")
+        .overlay(alignment: .topTrailing) {
+            Button {
+                dismissPickTab()
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(catColors.ink.opacity(0.55))
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .offset(x: -4, y: -28)
+            .accessibilityLabel(ui("回到输入"))
+            .accessibilityIdentifier("parenting.chrome.dismissPickTab")
+            .disabled(chromeAnimating)
+        }
     }
 
     private var cornerPlushPeek: some View {
@@ -491,16 +560,82 @@ import Combine
             .accessibilityIdentifier("parenting.chrome.cornerPlush")
     }
 
-    /// 输入聚焦时强制离开 detail（藏 sheet）并回到 input；pickTab 时聚焦也收回。
+    /// H5: resign focus first (≤50ms budget), then morph input→pickTab (total 300ms / RM 120ms).
+    private func enterPickTab() {
+        guard !chromeAnimating else { return }
+        guard chromeMode != .detail, !naturalPresented else { return }
+        guard showsComposer(on: tab) else { return }
+        chromeAnimating = true
+        resignComposerFocusToken &+= 1
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            withAnimation(chromeMotion) {
+                chromeMode = .pickTab
+            }
+            let holdMs: UInt64 = reduceMotion ? 120 : 250
+            try? await Task.sleep(nanoseconds: holdMs * 1_000_000)
+            chromeAnimating = false
+        }
+    }
+
+    /// pickTab→input reverse morph (280ms / RM 120ms).
+    private func dismissPickTab() {
+        guard !chromeAnimating else { return }
+        guard chromeMode == .pickTab else { return }
+        chromeAnimating = true
+        withAnimation(chromeMotion) {
+            chromeMode = .input
+        }
+        Task { @MainActor in
+            let holdMs: UInt64 = reduceMotion ? 120 : 280
+            try? await Task.sleep(nanoseconds: holdMs * 1_000_000)
+            chromeAnimating = false
+        }
+    }
+
+    private func selectTabFromPick(_ item: ParentingTab) {
+        guard !chromeAnimating else { return }
+        // H7: switching to 我们家 → tab-only one row, no composer morph.
+        if item == .family {
+            chromeAnimating = true
+            withAnimation(chromeCrossfade) {
+                tab = item
+                chromeMode = .input
+            }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 160_000_000)
+                chromeAnimating = false
+            }
+            return
+        }
+        tab = item
+        dismissPickTab()
+    }
+
+    private func cancelChromeAnimation() {
+        chromeAnimating = false
+    }
+
+    /// 输入聚焦时强制离开 detail（藏 sheet）并回到 input；pickTab 时聚焦也收回。Cancel anim first (H3/H6).
     private func onComposerFocus(_ focused: Bool) {
         guard focused else { return }
+        if chromeAnimating { cancelChromeAnimation() }
         if naturalPresented {
-            naturalPresented = false
+            withAnimation(chromeMotion) {
+                naturalPresented = false
+                chromeMode = .input
+            }
+            return
         }
-        if chromeMode != .input {
+        if chromeMode == .pickTab {
+            withAnimation(chromeMotion) {
+                chromeMode = .input
+            }
+        } else if chromeMode != .input {
             chromeMode = .input
         }
     }
+
     private func navigate(_ kind: ParentingIntentKind) {
         switch kind {
         case .reviewGrowth: growthMode = .timeline; tab = .growth
@@ -1152,6 +1287,26 @@ private enum ParentingChromeMode: Equatable {
     case input
     case pickTab
     case detail
+}
+
+private enum ParentingChromeGeometry {
+    /// 叶标 ↔ pickTab 当前选中 tab 芯片（INTERACTION.md §4.2）。
+    static let tabChip = "parenting.chrome.tabChip"
+}
+
+/// Optional matchedGeometry on the selected tab chip / typeChip (skipped under Reduce Motion).
+private struct ParentingChromeTabChipMatch: ViewModifier {
+    let enabled: Bool
+    let isSource: Bool
+    let namespace: Namespace.ID
+    let id: String
+    func body(content: Content) -> some View {
+        if enabled {
+            content.matchedGeometryEffect(id: id, in: namespace, properties: .frame, isSource: isSource)
+        } else {
+            content
+        }
+    }
 }
 
 private enum ParentingTab: String, CaseIterable, Identifiable, Hashable {

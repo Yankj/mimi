@@ -16,6 +16,20 @@ extension View {
     func parentingGlass<S: InsettableShape>(in shape: S) -> some View { modifier(ParentingGlassSurface(shape: shape)) }
 }
 
+/// matchedGeometry on the typeChip when home supplies a Namespace (skipped if nil / Reduce Motion).
+private struct ParentingComposerTypeChipMatch: ViewModifier {
+    let namespace: Namespace.ID?
+    let id: String?
+    var isSource: Bool = true
+    func body(content: Content) -> some View {
+        if let namespace, let id {
+            content.matchedGeometryEffect(id: id, in: namespace, properties: .frame, isSource: isSource)
+        } else {
+            content
+        }
+    }
+}
+
 // MARK: - Bottom composer (Today / Growth)
 
 /// One input box. The parent says what is on their mind; sorting it into 录入 / 规划 / 复盘 happens behind the scenes.
@@ -34,6 +48,12 @@ extension View {
     var onTypeChipTap: (() -> Void)? = nil
     /// Home chrome listens so detail can dismiss when the parent focuses input again.
     var onFocusChange: ((Bool) -> Void)? = nil
+    /// Home bumps this before pickTab morph so we resign focus first (H5).
+    var resignFocusToken: Int = 0
+    /// matchedGeometry: 叶标 ↔ pickTab 当前 tab（Reduce Motion 时传 nil）.
+    var typeChipNamespace: Namespace.ID? = nil
+    var typeChipGeometryID: String? = nil
+    var typeChipGeometryIsSource: Bool = true
     @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @FocusState private var focused: Bool
@@ -145,6 +165,11 @@ extension View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(typeChipTitle.map { ui($0) } ?? ui("切换页面"))
                     .accessibilityIdentifier("parenting.chrome.typeChip")
+                    .modifier(ParentingComposerTypeChipMatch(
+                        namespace: typeChipNamespace,
+                        id: typeChipGeometryID,
+                        isSource: typeChipGeometryIsSource
+                    ))
                 }
             }
         }
@@ -157,6 +182,11 @@ extension View {
         .onAppear { if dynamicTypeSize.isAccessibilitySize { voice.setMode(.keyboard) } }
         .onChange(of: dynamicTypeSize) { _, size in if size.isAccessibilitySize { voice.setMode(.keyboard) } }
         .onChange(of: focused) { _, value in onFocusChange?(value) }
+        .onChange(of: resignFocusToken) { _, _ in
+            // H5: home asks us to drop keyboard before pickTab morph.
+            voice.dictation.stopNow()
+            focused = false
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("parenting.natural.bar")
     }
