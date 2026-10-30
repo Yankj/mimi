@@ -30,6 +30,7 @@ class NaturalIntentP0Test {
             ParentingIntentKind.NewArrangement -> "A"
             ParentingIntentKind.Reschedule -> "M"
             ParentingIntentKind.ViewToday, ParentingIntentKind.ViewPlan, ParentingIntentKind.ReviewGrowth -> "Q"
+            ParentingIntentKind.ProfileFact -> "P"
             ParentingIntentKind.Unknown -> if (p.ambiguousIntent) "ASK" else "U"
         }
     }

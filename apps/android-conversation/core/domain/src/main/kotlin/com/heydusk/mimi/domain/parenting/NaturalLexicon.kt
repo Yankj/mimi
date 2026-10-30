@@ -24,7 +24,7 @@ internal object NaturalLexicon {
     val queryCues = listOf("有什么", "有啥", "什么安排", "啥安排", "安排吗", "做什么", "干什么", "看看", "看一下", "吗", "？", "?")
     val planQueryMarkers = listOf("怎么排", "这周安排", "本周安排", "这周有什么", "本周有什么", "下周安排", "下周有什么", "课表", "看看计划", "兴趣班怎么")
     val observationMarkers = listOf("观察", "学会", "第一次", "自己", "今天他", "今天她", "刚才", "刚刚", "开始会", "主动")
-    val observationLeads = listOf("记一下", "记下", "记录一下", "记录")
+    val observationLeads = listOf("记一笔", "记一下", "记下", "记录一下", "记录")
     val arrangementWords = listOf(
         "课", "班", "要带", "带", "接", "送", "提醒", "家长会", "考试", "体检", "预约", "活动", "比赛", "疫苗", "作业",
         "缴费", "交费", "报名", "游泳", "钢琴", "画画", "舞蹈", "英语", "足球", "篮球",
@@ -34,6 +34,66 @@ internal object NaturalLexicon {
     val trailingFillers = listOf("了", "吧", "哦", "啦", "呀", "呢", "。", "！", "!", ".", "，", ",", "、")
     val connectors = listOf("的", "要", "在", "去", "是", "有", "到", "于", "和", "，", ",", "。", "、", " ")
     val dayPartLabels: List<Pair<String, Int>> = listOf("上午" to 9, "下午" to 15, "晚上" to 19)
+
+    // MARK: 排行词与「给某某记一笔」（iOS #145/#147）
+    /** 排行词指向的位置：按创建顺序的第几个，或最小的那个。 */
+    sealed interface SiblingSlot { data class Position(val index: Int) : SiblingSlot; data object Youngest : SiblingSlot }
+    data class SiblingReference(val pattern: Regex, val slot: SiblingSlot, val minimumChildren: Int)
+    val siblingReferences: List<SiblingReference> = listOf(
+        SiblingReference(Regex("老大|大宝(?!贝)"), SiblingSlot.Position(0), 1),
+        SiblingReference(Regex("老二|二宝"), SiblingSlot.Position(1), 2),
+        SiblingReference(Regex("老三|三宝"), SiblingSlot.Position(2), 3),
+        SiblingReference(Regex("老四|四宝"), SiblingSlot.Position(3), 4),
+        SiblingReference(Regex("哥哥|姐姐"), SiblingSlot.Position(0), 2),
+        SiblingReference(Regex("弟弟|妹妹|小宝(?!宝|贝)"), SiblingSlot.Youngest, 2),
+    )
+    /** 文字指向的位置（按创建顺序，从 0 起），每个最多一次；指向不存在的孩子则忽略。 */
+    fun siblingPositions(text: String, childCount: Int): List<Int> {
+        val found = mutableListOf<Int>()
+        for (ref in siblingReferences) {
+            if (childCount < ref.minimumChildren || !ref.pattern.containsMatchIn(text)) continue
+            val index = when (val slot = ref.slot) { is SiblingSlot.Position -> slot.index; SiblingSlot.Youngest -> childCount - 1 }
+            if (index < childCount && index !in found) found.add(index)
+        }
+        return found.sorted()
+    }
+    /** 「给二宝记一笔…」「帮老大记下…」：引导语前面短短的「给谁」仍然算引导语。 */
+    val leadForChildPattern = Regex("^(?:给|帮|替|为)[^，,。.\\s]{1,6}?(?:记一笔|记一下|记下|记录)")
+    /** 去掉开头的「给/帮/替/为 + 孩子」（昵称或排行词），记录正文不以「给谁」开头；别的说法原样保留。 */
+    fun removingLeadingChildSubject(text: String, names: List<String>): String {
+        val t = text.trimSwift()
+        if (t.isEmpty() || "给帮替为".indexOf(t[0]) < 0) return t
+        val rest = t.substring(1)
+        for (name in names.filter { it.isNotEmpty() }.sortedByDescending { it.length }) {
+            if (rest.startsWith(name)) return rest.substring(name.length)
+        }
+        for (ref in siblingReferences) {
+            val m = Regex("^(?:" + ref.pattern.pattern + ")").find(rest)
+            if (m != null) return rest.substring(m.range.last + 1)
+        }
+        return t
+    }
+    /** 去掉排行词，用于推导标题（「老大2点上课」→「上课」）。 */
+    fun removingSiblingReferences(text: String): String {
+        var t = text
+        for (ref in siblingReferences) t = ref.pattern.replace(t, " ")
+        return t
+    }
+    /** 用了排行词。不选孩子。 */
+    fun mentionsSiblingLabel(text: String): Boolean = siblingReferences.any { it.pattern.containsMatchIn(text) }
+
+    // MARK: 档案（iOS #148）。裸「记住」不算：不能抢安排或记一笔。
+    val archiveLeads = listOf("记入档案", "记到档案", "记在档案", "记进档案", "长期记住", "长期记着", "记在我们家", "记到我们家", "记入我们家")
+    val archiveSensitiveWords = listOf("过敏", "不能吃", "忌口", "害怕", "敏感")
+    val archivePickupWords = listOf("接园", "接娃", "放学", "谁接", "去接")
+    val archiveSleepWords = listOf("睡觉", "午睡", "几点睡", "作息", "夜醒")
+    val archiveInterestWords = listOf("喜欢", "爱看", "爱玩", "兴趣")
+    val archiveRoutineWords = listOf("习惯", "每天", "每周")
+    val archiveAgeWords = listOf("岁", "个月", "阶段")
+    val archiveTraitWords = listOf("性格", "内向", "外向", "慢热")
+    val archiveMemberWords = listOf("爸爸", "妈妈", "奶奶", "爷爷", "姥姥", "姥爷", "外婆", "外公")
+    val archiveFamilyWords = listOf("我们家", "家里")
+    fun hasArchiveLead(text: String): Boolean = archiveLeads.any { text.contains(it) }
 
     data class TimeReading(
         /** 文字里写明的那一天的零点。 */
@@ -244,7 +304,7 @@ internal object NaturalLexicon {
         val completed = hasCompletedParticle(text)
         val pastMark = completed || pastWord
         val lateClock = lateClockPattern.containsMatchIn(text)
-        val lead = observationLeads.any { text.startsWith(it) }
+        val lead = observationLeads.any { text.startsWith(it) } || leadForChildPattern.containsMatchIn(text)
         val e = IntentEvidence()
         if (future) e.arrangement += 3
         if (reading.hasClock && !pastMark && !lateClock) e.arrangement += 2

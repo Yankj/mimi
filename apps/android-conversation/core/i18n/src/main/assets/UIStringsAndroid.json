@@ -430,5 +430,121 @@
   "小咪没太听明白，这条怎么记？": {
     "en": "Mimi isn't sure — how should I save this?",
     "zh-Hans": "小咪没太听明白，这条怎么记？"
+  },
+  "是谁的事": {
+    "en": "Who is this for",
+    "zh-Hans": "是谁的事"
+  },
+  "记入档案": {
+    "en": "Save to the archive",
+    "zh-Hans": "记入档案"
+  },
+  "确认记入档案": {
+    "en": "Confirm archive entry",
+    "zh-Hans": "确认记入档案"
+  },
+  "先不记": {
+    "en": "Not now",
+    "zh-Hans": "先不记"
+  },
+  "已记入档案": {
+    "en": "Saved to the archive",
+    "zh-Hans": "已记入档案"
+  },
+  "范围": {
+    "en": "Scope",
+    "zh-Hans": "范围"
+  },
+  "长期事实": {
+    "en": "Long-term facts",
+    "zh-Hans": "长期事实"
+  },
+  "确认后才记成这台设备上的长期事实。先不记就不会写入。": {
+    "en": "This becomes a long-term fact on this device only after you confirm. Choosing not now writes nothing.",
+    "zh-Hans": "确认后才记成这台设备上的长期事实。先不记就不会写入。"
+  },
+  "这句话还不够确定，不会记成长期事实。补上孩子的昵称，或说明是我们家的事。": {
+    "en": "This is not certain enough to save as a long-term fact. Add the child's nickname, or say it is about the whole family.",
+    "zh-Hans": "这句话还不够确定，不会记成长期事实。补上孩子的昵称，或说明是我们家的事。"
+  },
+  "例如：团团对花生过敏，或我们家周三奶奶接": {
+    "en": "For example: a nickname plus the fact, or a household routine.",
+    "zh-Hans": "例如：团团对花生过敏，或我们家周三奶奶接"
+  },
+  "已先存为待确认，还没有记成长期事实。请重试确认。": {
+    "en": "Saved as pending first, and not yet a long-term fact. Please confirm again.",
+    "zh-Hans": "已先存为待确认，还没有记成长期事实。请重试确认。"
+  },
+  "只显示你在确认卡上点过确认的事实。还没确认或还不确定的不会出现在这里。": {
+    "en": "Only facts you confirmed on the card are shown. Unconfirmed or uncertain facts are left out.",
+    "zh-Hans": "只显示你在确认卡上点过确认的事实。还没确认或还不确定的不会出现在这里。"
+  },
+  "还不确定的画像不能记成长期事实。": {
+    "en": "An uncertain profile item cannot be saved as a long-term fact.",
+    "zh-Hans": "还不确定的画像不能记成长期事实。"
+  },
+  "只能确认待确认或需再确认的画像。": {
+    "en": "Only a pending or stale profile entry can be confirmed.",
+    "zh-Hans": "只能确认待确认或需再确认的画像。"
+  },
+  "家庭画像条目过多。": {
+    "en": "There are too many family profile entries.",
+    "zh-Hans": "家庭画像条目过多。"
+  },
+  "孩子画像条目过多。": {
+    "en": "There are too many profile entries for one child.",
+    "zh-Hans": "孩子画像条目过多。"
+  },
+  "画像条目的孩子关联无效。": {
+    "en": "A profile entry points at a child that is not in this ledger.",
+    "zh-Hans": "画像条目的孩子关联无效。"
+  },
+  "画像证据次数无效。": {
+    "en": "The profile evidence count is invalid.",
+    "zh-Hans": "画像证据次数无效。"
+  },
+  "画像确认状态无效。": {
+    "en": "The profile confirmation state is invalid.",
+    "zh-Hans": "画像确认状态无效。"
+  },
+  "称呼": {
+    "en": "Name used",
+    "zh-Hans": "称呼"
+  },
+  "重复安排": {
+    "en": "Recurring plan",
+    "zh-Hans": "重复安排"
+  },
+  "习惯": {
+    "en": "Routine",
+    "zh-Hans": "习惯"
+  },
+  "接送": {
+    "en": "Pickup",
+    "zh-Hans": "接送"
+  },
+  "家人": {
+    "en": "Family member",
+    "zh-Hans": "家人"
+  },
+  "年龄阶段": {
+    "en": "Age stage",
+    "zh-Hans": "年龄阶段"
+  },
+  "睡眠": {
+    "en": "Sleep",
+    "zh-Hans": "睡眠"
+  },
+  "兴趣": {
+    "en": "Interest",
+    "zh-Hans": "兴趣"
+  },
+  "特点": {
+    "en": "Trait",
+    "zh-Hans": "特点"
+  },
+  "需留意": {
+    "en": "Needs care",
+    "zh-Hans": "需留意"
   }
 }

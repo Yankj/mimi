@@ -19,6 +19,8 @@ import com.heydusk.mimi.designsystem.LocalMimiColors
 import com.heydusk.mimi.designsystem.MimiTintedButton
 import com.heydusk.mimi.domain.parenting.FamilyLaunchChecklist
 import com.heydusk.mimi.domain.parenting.ParentingFamilyChildSummary
+import com.heydusk.mimi.domain.parenting.ParentingProfileFact
+import com.heydusk.mimi.domain.parenting.ParentingProfileScope
 import com.heydusk.mimi.domain.parenting.ParentingWorkspace
 import com.heydusk.mimi.feature.parenting.reminders.LocalReminders
 import com.heydusk.mimi.i18n.ui
@@ -27,6 +29,8 @@ import java.util.UUID
 data class FamilyUi(
     val children: List<ParentingFamilyChildSummary>,
     val checklist: FamilyLaunchChecklist,
+    /** 家庭范围、家长确认过的长期事实（#148）。没有就不显示这张卡。 */
+    val familyFacts: List<ParentingProfileFact> = emptyList(),
 )
 
 @Composable
@@ -66,6 +70,8 @@ fun FamilyTabContent(
                 }
             }
         }
+
+        if (uiState.familyFacts.isNotEmpty()) FactsCard(uiState.familyFacts, "parenting.family.facts")
 
         val reminders = LocalReminders.current
         Card(
@@ -141,11 +147,34 @@ fun ChildDetailPage(
             color = colors.ink2,
             modifier = Modifier.semantics { testTag = "parenting.child.counts" },
         )
+        val facts = workspace.profile.usableFacts(ParentingProfileScope.child(childID))
+        if (facts.isNotEmpty()) FactsCard(facts, "parenting.child.facts")
         MimiTintedButton(onClick = { handlers.onRenameChild(child) }, modifier = Modifier.semantics { testTag = "parenting.child.rename" }) {
             Text(ui("修改昵称"))
         }
         TextButton(onClick = { handlers.onDeleteChild(child) }, modifier = Modifier.semantics { testTag = "parenting.child.delete" }) {
             Text(ui("删除孩子及其全部内容"), color = colors.danger)
+        }
+    }
+}
+
+/** 长期事实：只显示在确认卡上点过确认的。 */
+@Composable
+private fun FactsCard(facts: List<ParentingProfileFact>, tag: String) {
+    val colors = LocalMimiColors.current
+    Card(
+        colors = CardDefaults.cardColors(containerColor = colors.card),
+        modifier = Modifier.fillMaxWidth().semantics { testTag = tag },
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(ui("长期事实"), style = MaterialTheme.typography.titleMedium, color = colors.ink)
+            facts.forEach { fact ->
+                Column(Modifier.semantics(mergeDescendants = true) { testTag = "$tag.${fact.id}" }) {
+                    Text(ui(fact.kind.archiveTitle), color = colors.ink2, style = MaterialTheme.typography.labelMedium)
+                    Text(fact.text, color = colors.ink)
+                }
+            }
+            Text(ui("只显示你在确认卡上点过确认的事实。还没确认或还不确定的不会出现在这里。"), color = colors.ink2, style = MaterialTheme.typography.labelMedium)
         }
     }
 }

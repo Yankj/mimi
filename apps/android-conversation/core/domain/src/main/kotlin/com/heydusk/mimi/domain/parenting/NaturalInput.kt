@@ -21,19 +21,20 @@ enum class ParentingIntentKind(val rawValue: String, val title: String) {
     ViewToday("viewToday", "看今天"),
     ViewPlan("viewPlan", "看计划"),
     ReviewGrowth("reviewGrowth", "看成长回顾"),
+    ProfileFact("profileFact", "记入档案"),
     Unknown("unknown", "还不确定"),
     ;
 
     val mode: ParentingIntentMode?
         get() = when (this) {
-            NewArrangement, Reschedule, Observation -> ParentingIntentMode.Capture
+            NewArrangement, Reschedule, Observation, ProfileFact -> ParentingIntentMode.Capture
             ViewToday, ViewPlan -> ParentingIntentMode.Plan
             ReviewGrowth -> ParentingIntentMode.Review
             Unknown -> null
         }
 
     /** 只有这几种才可能产生账本命令，而且只在家长确认卡片之后。 */
-    val writes: Boolean get() = this == NewArrangement || this == Reschedule || this == Observation
+    val writes: Boolean get() = this == NewArrangement || this == Reschedule || this == Observation || this == ProfileFact
 }
 
 /** 声明顺序就是向家长提问的顺序：一次只问一个，最关键的先问。 */
@@ -107,6 +108,8 @@ data class ParentingNaturalProposal(
     var assumedDay: AssumedDay = AssumedDay.None,
     /** 两边都有证据（或只有很弱的安排线索）：只问一次，两个大按钮。 */
     var ambiguousIntent: Boolean = false,
+    /** 只有显式的档案说法且足够确定时才有；它本身从不写账本（#148）。 */
+    var profileFact: ParentingProfileFactProposal? = null,
 ) {
     enum class AssumedTime { None, NineOClock, DayPart, LaterThisPart, NextDay }
     enum class AssumedDay { None, Today, Tomorrow }
@@ -146,6 +149,7 @@ object ParentingNaturalInput {
             ParentingIntentKind.NewArrangement -> fillArrangement(p, missing, text, reading, context, now, calendar)
             ParentingIntentKind.Observation -> fillObservation(p, missing, text, context)
             ParentingIntentKind.Reschedule -> fillReschedule(p, missing, text, context, now, calendar)
+            ParentingIntentKind.ProfileFact -> fillProfile(p, missing, text, context, now)
         }
         p.missing = missing.distinct().sorted()
         return p
@@ -165,6 +169,7 @@ object ParentingNaturalInput {
         ) return ParentingIntentKind.ViewToday to false
         if (has(lexicon.planQueryMarkers)) return ParentingIntentKind.ViewPlan to false
         if (has(lexicon.rescheduleTriggers)) return ParentingIntentKind.Reschedule to false
+        if (lexicon.hasArchiveLead(text)) return ParentingIntentKind.ProfileFact to false
         val hasLetters = text.any { it in '\u4e00'..'\u9fff' || it in '0'..'9' }
         if (!hasLetters) return ParentingIntentKind.Unknown to false
         // 只有引导语（「记一下」）：是记录，卡片会问记什么。
@@ -186,10 +191,19 @@ object ParentingNaturalInput {
     const val DEFAULT_HOUR = 9
 
     // MARK: 字段
+    /** 句中点到的孩子：昵称优先；没有昵称时按创建顺序解释排行词（老大/二宝/哥哥/妹妹…）。 */
+    private fun mentionedChildren(text: String, context: ParentingNaturalContext): List<ParentingChild> {
+        val named = context.children.filter { it.name.isNotEmpty() && text.contains(it.name) }
+        if (named.isNotEmpty()) return named
+        val ordered = context.children.withIndex().sortedWith(compareBy<IndexedValue<ParentingChild>> { it.value.createdAt }.thenBy { it.index }).map { it.value }
+        return lexicon.siblingPositions(text, ordered.size).map { ordered[it] }
+    }
+
+    /** 顺序：卡上答过的孩子 → 句中昵称或排行词 → 唯一的孩子 → 页面选中的孩子。点到多个或无从判断时从不猜：问一次。 */
     private fun resolveChild(p: ParentingNaturalProposal, missing: MutableList<ParentingMissingField>, text: String, context: ParentingNaturalContext) {
         val forced = p.overrides.childID
         if (forced != null && context.children.any { it.id == forced }) { p.childID = forced; return }
-        val named = context.children.filter { it.name.isNotEmpty() && text.contains(it.name) }
+        val named = mentionedChildren(text, context)
         if (named.size == 1) { p.childID = named[0].id; return }
         if (named.size > 1) { missing.add(ParentingMissingField.Child); p.childChoices = named.map { it.id }; return }
         if (context.children.size == 1) { p.childID = context.children[0].id; return }
@@ -209,7 +223,7 @@ object ParentingNaturalInput {
         reading: NaturalLexicon.TimeReading, context: ParentingNaturalContext, now: Instant, calendar: MimiCalendar,
     ) {
         resolveChild(p, missing, text, context)
-        val residual = stripChildNames(lexicon.removing(reading.consumed, text), context.children)
+        val residual = lexicon.removingSiblingReferences(stripChildNames(lexicon.removing(reading.consumed, text), context.children))
         val title = lexicon.cleanTitle(residual)
         if (title.isEmpty()) missing.add(ParentingMissingField.Title) else p.title = title.prefixGraphemes(160)
 
@@ -264,8 +278,17 @@ object ParentingNaturalInput {
 
     private fun fillObservation(p: ParentingNaturalProposal, missing: MutableList<ParentingMissingField>, text: String, context: ParentingNaturalContext) {
         resolveChild(p, missing, text, context)
-        val body = lexicon.stripLead(text)
+        val subjectless = lexicon.removingLeadingChildSubject(text, context.children.map { it.name })
+        val body = lexicon.stripLead(subjectless)
         if (body.isEmpty()) missing.add(ParentingMissingField.Content) else p.observationText = body.prefixGraphemes(8000)
+    }
+
+    /** 显式档案说法：确定的才上确认卡；不确定的请家长说清楚，什么都不写。排行词不映射成孩子。 */
+    private fun fillProfile(p: ParentingNaturalProposal, missing: MutableList<ParentingMissingField>, text: String, context: ParentingNaturalContext, now: Instant) {
+        val read = ParentingProfileFactReader.read(text, context, now)
+        if (read == null || !read.canOfferConfirmCard) { p.profileFact = null; missing.add(ParentingMissingField.Content); return }
+        p.profileFact = read
+        p.childID = read.scope.childID
     }
 
     private fun fillReschedule(
@@ -279,7 +302,7 @@ object ParentingNaturalInput {
         val post = trigger?.let { text.substring(it.second + it.first.length) } ?: ""
         val preReading = lexicon.read(pre, now, calendar)
         val postReading = lexicon.read(post, now, calendar)
-        val named = context.children.filter { it.name.isNotEmpty() && text.contains(it.name) }
+        val named = mentionedChildren(text, context)
         var pool = context.arrangements.filter { it.state.isOpen }
         val forcedChild = p.overrides.childID
         if (forcedChild != null) pool = pool.filter { it.childID == forcedChild }
@@ -288,7 +311,7 @@ object ParentingNaturalInput {
         var target: ParentingArrangement? = null
         p.overrides.targetID?.let { forced -> target = context.arrangements.firstOrNull { it.id == forced && it.state.isOpen } }
         if (target == null) {
-            val residual = stripChildNames(lexicon.removing(preReading.consumed, pre), context.children)
+            val residual = lexicon.removingSiblingReferences(stripChildNames(lexicon.removing(preReading.consumed, pre), context.children))
             val wanted = lexicon.bigrams(lexicon.cleanTitle(residual))
             val scored = pool.map { item ->
                 val name = stripChildNames(item.title, context.children)
@@ -386,7 +409,10 @@ object ParentingNaturalInput {
             }
             ParentingMissingField.Title ->
                 ParentingFollowUp(field, "是什么事？", emptyList(), allowsText = true, textHint = "一句话就行，例如：游泳课")
-            ParentingMissingField.Content ->
+            ParentingMissingField.Content -> if (p.kind == ParentingIntentKind.ProfileFact)
+                ParentingFollowUp(field, "这句话还不够确定，不会记成长期事实。补上孩子的昵称，或说明是我们家的事。", emptyList(),
+                    allowsText = true, textHint = "例如：团团对花生过敏，或我们家周三奶奶接")
+            else
                 ParentingFollowUp(field, "想记下什么？", emptyList(), allowsText = true, textHint = "例如：今天他自己收好了书包")
         }
     }
@@ -444,6 +470,10 @@ object ParentingNaturalInput {
                         p.sourceText, conflicts,
                     ),
                 )
+            }
+            ParentingIntentKind.ProfileFact -> {
+                val fact = p.profileFact ?: return emptyList()
+                fact.copy(id = ids.record).longTermCommands(userConfirmed = true)
             }
             else -> emptyList()
         }

@@ -30,11 +30,14 @@ data class ParentingWorkspace(
     /** 旧账本没有这个字段，缺省为空（与 iOS 的宽松解码一致）。 */
     val editHistory: List<ParentingArrangementEdit> = emptyList(),
     val suggestionsEnabled: Boolean = false,
+    /** 本机家庭档案（#148）。旧账本没有这个字段，缺省为空。 */
+    val profile: ParentingProfile = ParentingProfile(),
 ) {
     @Throws(DomainError::class)
     fun validate() {
         if (schemaVersion != 1 || revision < 0) throw DomainError.Corrupt("育儿账本版本不支持，已保留原数据。")
-        val allIDs = children.map { it.id } + goals.map { it.id } + arrangements.map { it.id } + records.map { it.id } + editHistory.map { it.id }
+        val allIDs = children.map { it.id } + goals.map { it.id } + arrangements.map { it.id } + records.map { it.id } + editHistory.map { it.id } +
+            profile.facts.map { it.id }
         if (allIDs.toSet().size != allIDs.size) throw DomainError.Corrupt("育儿账本标识重复，已停止写入。")
         val childIDs = children.map { it.id }.toSet()
         val goalsByID = goals.associateBy { it.id }
@@ -81,6 +84,7 @@ data class ParentingWorkspace(
             edit.revertedAt?.let { dates(edit.createdAt, it) }
             edit.supersededAt?.let { dates(edit.createdAt, it) }
         }
+        validateProfile(profile, childIDs)
     }
 
     /** 纯转移：先校验、再应用、再校验；任何一步失败都不产生新值。 */
@@ -103,6 +107,7 @@ data class ParentingWorkspace(
                 n.children.removeAll { it.id == command.id }; n.goals.removeAll { it.childID == command.id }
                 n.arrangements.removeAll { it.childID == command.id }; n.records.removeAll { it.childID == command.id }
                 n.editHistory.removeAll { it.before.childID == command.id }
+                n.facts.removeAll { it.scope.childID == command.id }
             }
             is ParentingCommand.AddGoal -> {
                 n.unused(command.id); n.childIndex(command.childID); text(command.title, 120)
@@ -244,6 +249,22 @@ data class ParentingWorkspace(
             ParentingCommand.DeleteAllRecords -> {
                 // 家长自己的"清空"：所有孩子以及挂在孩子下面的一切；复盘设置保留。
                 n.children.clear(); n.goals.clear(); n.arrangements.clear(); n.records.clear(); n.editHistory.clear()
+                n.facts.clear()
+            }
+            is ParentingCommand.AddProfileFact -> {
+                n.unused(command.fact.id)
+                // 进账本的永远是候选：只有 ConfirmProfileFact 才能让它成为长期事实。
+                n.facts.add(command.fact.copy(status = ParentingProfileFactStatus.Candidate, userConfirmed = false, lastConfirmedAt = null))
+            }
+            is ParentingCommand.ConfirmProfileFact -> {
+                val i = n.facts.indexOfFirst { it.id == command.id }
+                if (i < 0) throw DomainError.Missing
+                val f = n.facts[i]
+                if (f.status != ParentingProfileFactStatus.Candidate && f.status != ParentingProfileFactStatus.Stale) {
+                    throw DomainError.Invalid("只能确认待确认或需再确认的画像。")
+                }
+                if (f.confidence == ParentingProfileConfidence.Low) throw DomainError.Invalid("还不确定的画像不能记成长期事实。")
+                n.facts[i] = f.copy(status = ParentingProfileFactStatus.Confirmed, userConfirmed = true, lastConfirmedAt = now, updatedAt = now)
             }
         }
         val result = n.snapshot().copy(revision = revision + 1)
@@ -268,15 +289,17 @@ data class ParentingWorkspace(
         val records = w.records.toMutableList()
         val editHistory = w.editHistory.toMutableList()
         var suggestionsEnabled = w.suggestionsEnabled
+        val facts = w.profile.facts.toMutableList()
 
         fun snapshot() = base.copy(
             children = children.toList(), goals = goals.toList(), arrangements = arrangements.toList(),
             records = records.toList(), editHistory = editHistory.toList(), suggestionsEnabled = suggestionsEnabled,
+            profile = base.profile.copy(facts = facts.toList()),
         )
 
         fun unused(id: UUID) {
             if (children.any { it.id == id } || goals.any { it.id == id } || arrangements.any { it.id == id } ||
-                records.any { it.id == id } || editHistory.any { it.id == id }
+                records.any { it.id == id } || editHistory.any { it.id == id } || facts.any { it.id == id }
             ) throw DomainError.Conflict
         }
 
@@ -311,6 +334,26 @@ data class ParentingWorkspace(
         private fun text(value: String, limit: Int, allowEmpty: Boolean = false) {
             val ok = value.graphemeCount() <= limit && (allowEmpty || value.trimSwift().isNotEmpty()) && !value.containsNul()
             if (!ok) throw DomainError.Invalid("内容不能为空，且不能超过${limit}字。")
+        }
+
+        private fun validateProfile(profile: ParentingProfile, childIDs: Set<UUID>) {
+            var family = 0
+            val perChild = HashMap<UUID, Int>()
+            for (f in profile.facts) {
+                val child = f.scope.childID
+                if (child == null) family++ else {
+                    if (child !in childIDs) throw DomainError.Corrupt("画像条目的孩子关联无效。")
+                    perChild[child] = (perChild[child] ?: 0) + 1
+                }
+                text(f.text, ParentingProfile.MAX_TEXT_LENGTH)
+                text(f.payload, ParentingProfile.MAX_PAYLOAD_LENGTH, allowEmpty = true)
+                f.source.excerpt?.let { text(it, ParentingProfile.MAX_EXCERPT_LENGTH, allowEmpty = true) }
+                if (f.evidenceCount < 1) throw DomainError.Corrupt("画像证据次数无效。")
+                if (f.userConfirmed != (f.status == ParentingProfileFactStatus.Confirmed)) throw DomainError.Corrupt("画像确认状态无效。")
+                dates(f.createdAt, f.updatedAt)
+            }
+            if (family > ParentingProfile.MAX_FAMILY_FACTS) throw DomainError.Invalid("家庭画像条目过多。")
+            if (perChild.values.any { it > ParentingProfile.MAX_CHILD_FACTS }) throw DomainError.Invalid("孩子画像条目过多。")
         }
 
         private fun dates(created: Instant, updated: Instant) {
@@ -396,7 +439,7 @@ data class ParentingArrangementEdit(
     }
 }
 
-/** 19 条命令（iOS `ParentingCommand` 的逐条对应）。账本的 CAS + operationID 去重由数据层负责。 */
+/** 21 条命令（iOS `ParentingCommand` 的逐条对应）。账本的 CAS + operationID 去重由数据层负责。 */
 @Serializable
 sealed interface ParentingCommand {
     @Serializable @SerialName("addChild") data class AddChild(val id: UUID, val name: String) : ParentingCommand
@@ -427,4 +470,7 @@ sealed interface ParentingCommand {
     @Serializable @SerialName("deleteRecord") data class DeleteRecord(val id: UUID) : ParentingCommand
     @Serializable @SerialName("setSuggestionsEnabled") data class SetSuggestionsEnabled(val enabled: Boolean) : ParentingCommand
     @Serializable @SerialName("deleteAllRecords") data object DeleteAllRecords : ParentingCommand
+    /** 只存候选；ConfirmProfileFact 之前从不可用（#148）。 */
+    @Serializable @SerialName("addProfileFact") data class AddProfileFact(val fact: ParentingProfileFact) : ParentingCommand
+    @Serializable @SerialName("confirmProfileFact") data class ConfirmProfileFact(val id: UUID) : ParentingCommand
 }

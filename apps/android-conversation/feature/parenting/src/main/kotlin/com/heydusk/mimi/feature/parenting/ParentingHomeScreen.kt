@@ -299,6 +299,7 @@ fun ParentingHomeScreen(
                                 FamilyUi(
                                     ParentingFamilySummary.children(workspace),
                                     FamilyLaunchChecklist.current(workspace, remindersEnabled = reminders?.settings?.enabled == true && reminders.authorization == NotificationAuthorization.Authorized),
+                                    workspace.profile.usableFacts(com.heydusk.mimi.domain.parenting.ParentingProfileScope.FAMILY),
                                 ),
                                 handlers,
                                 page,

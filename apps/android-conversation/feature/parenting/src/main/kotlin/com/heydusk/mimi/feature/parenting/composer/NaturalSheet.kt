@@ -171,6 +171,9 @@ fun ParentingNaturalSheet(
                             NaturalInputModel.Phase.Confirming, NaturalInputModel.Phase.Saving, is NaturalInputModel.Phase.Failed -> {
                                 val card = input.card(workspace, remindersEnabled, now)
                                 if (card != null) {
+                                    if (input.canChangeChild && context.children.size > 1) {
+                                        CardChildPicker(context, proposal.childID, enabled = !saving) { input.changeChild(it, context, now, calendar) }
+                                    }
                                     ConfirmCardView(card, zone)
                                     if (phase is NaturalInputModel.Phase.Failed) {
                                         Text(
@@ -197,7 +200,19 @@ fun ParentingNaturalSheet(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             if (saving) Text(ui("正在保存…"), color = colors.ink2, modifier = Modifier.semantics(mergeDescendants = true) { testTag = "parenting.natural.saving" })
-                            PrimaryButton(
+                            if (proposal.kind == ParentingIntentKind.ProfileFact) {
+                                // 左「先不记」右「确认记入档案」：只有确认才写本机长期事实（#148）。
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.weight(1f)) {
+                                        SecondaryButton(ui("先不记"), "parenting.natural.decline", enabled = !saving) { input.decline(); onClose() }
+                                    }
+                                    Box(Modifier.weight(1f)) {
+                                        PrimaryButton(ui(card.confirmTitle), "parenting.natural.confirm", enabled = !saving && !busy) {
+                                            scope.launch { input.confirm(actions) { latestWorkspace } }
+                                        }
+                                    }
+                                }
+                            } else PrimaryButton(
                                 label = ui(card.confirmTitle),
                                 tag = "parenting.natural.confirm",
                                 enabled = !saving && !busy,
@@ -211,7 +226,7 @@ fun ParentingNaturalSheet(
                                     onNavigate(kind)
                                 }
                             }
-                            if (card.writes) {
+                            if (card.writes && proposal.kind != ParentingIntentKind.ProfileFact) {
                                 SecondaryButton(ui("手动调整"), "parenting.natural.manual", enabled = !saving) { onManual(proposal) }
                             }
                         }
@@ -388,6 +403,34 @@ private fun Asking(
             }
         }
         Text(ui("只问还缺的这一项；其余已经听明白的不会再问。"), color = colors.ink2, fontSize = 12.sp)
+    }
+}
+
+/** 卡上「是谁的事」：和提问时同一套孩子选择器，选中的是卡上当前的孩子（#147）。 */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CardChildPicker(context: ParentingNaturalContext, selectedID: java.util.UUID?, enabled: Boolean, onPick: (java.util.UUID) -> Unit) {
+    val colors = LocalMimiColors.current
+    val ids = context.children.map { it.id }
+    val selection = com.heydusk.mimi.domain.parenting.ParentingChildSwitcherRules.resolve(selectedID, ids, allowsAll = false, fallsBackToFirst = false)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.semantics { testTag = "parenting.natural.cardChildPicker" }) {
+        Text(ui("是谁的事"), color = colors.ink2, fontSize = 12.sp)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            context.children.forEach { child ->
+                val selected = selection == com.heydusk.mimi.domain.parenting.ParentingChildSwitcherSelection.Child(child.id)
+                Box(
+                    Modifier
+                        .defaultMinSize(minHeight = 40.dp, minWidth = 48.dp)
+                        .clip(CircleShape)
+                        .background(if (selected) colors.accent.copy(alpha = 0.18f) else colors.surface)
+                        .border(0.5.dp, colors.hairline, CircleShape)
+                        .tapTarget { if (enabled && !selected) onPick(child.id) }
+                        .padding(horizontal = 14.dp)
+                        .semantics(mergeDescendants = true) { role = Role.Tab; this.selected = selected; testTag = "parenting.natural.cardChild.${child.id}" },
+                    contentAlignment = Alignment.Center,
+                ) { Text(child.name, color = colors.ink, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, fontSize = 14.sp) }
+            }
+        }
     }
 }
 

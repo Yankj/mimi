@@ -97,6 +97,23 @@ class NaturalInputModel : DictationDraftSink {
         adopt(ParentingNaturalInput.applying(ParentingNaturalAnswer.Intent(kind), current, context, now, calendar))
     }
 
+    /** 卡上「是谁的事」：保存前（还没写入任何一步）可以改孩子，同一个选择器（#147）。 */
+    val canChangeChild: Boolean get() {
+        val p = proposal ?: return false
+        if (completedSteps != 0 || p.childID == null) return false
+        if (p.kind != ParentingIntentKind.Observation && p.kind != ParentingIntentKind.NewArrangement) return false
+        return phase == Phase.Confirming || phase is Phase.Failed
+    }
+
+    fun changeChild(id: UUID, context: ParentingNaturalContext, now: Instant, calendar: MimiCalendar) {
+        val current = proposal ?: return
+        if (!canChangeChild || current.childID == id || context.children.none { it.id == id }) return
+        adopt(ParentingNaturalInput.applying(ParentingNaturalAnswer.Child(id), current, context, now, calendar))
+    }
+
+    /** 档案卡上的「先不记」：什么都不写，丢掉提案。 */
+    fun decline() { if (completedSteps == 0) reset() }
+
     /** 回到家长上次看到的问题或卡片（例如保存失败之后）。 */
     fun dismissFailure() { if (phase is Phase.Failed) phase = Phase.Confirming }
 
@@ -129,7 +146,8 @@ class NaturalInputModel : DictationDraftSink {
             val ok = actions.applyCommand(command, operationIDs[minOf(index, operationIDs.size - 1)])
             if (!ok) {
                 phase = Phase.Failed(
-                    if (index > 0) "已先存为待确认，还没有进入安排。请在今天页确认，或重试。"
+                    if (index > 0 && p.kind == ParentingIntentKind.ProfileFact) "已先存为待确认，还没有记成长期事实。请重试确认。"
+                    else if (index > 0) "已先存为待确认，还没有进入安排。请在今天页确认，或重试。"
                     else actions.lastError() ?: "没有保存成功。已填写的内容保留，可以重试。",
                 )
                 return false
@@ -140,6 +158,7 @@ class NaturalInputModel : DictationDraftSink {
         phase = when (p.kind) {
             ParentingIntentKind.NewArrangement -> Phase.Saved("已安排好了")
             ParentingIntentKind.Reschedule -> Phase.Saved("已改期")
+            ParentingIntentKind.ProfileFact -> Phase.Saved("已记入档案")
             else -> Phase.Saved("已保存这条观察")
         }
         return true

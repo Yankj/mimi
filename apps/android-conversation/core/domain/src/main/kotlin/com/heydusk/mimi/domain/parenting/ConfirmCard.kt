@@ -109,6 +109,27 @@ data class ParentingConfirmCard(
                         "保存观察", true,
                     )
                 }
+                ParentingIntentKind.ProfileFact -> {
+                    val fact = p.profileFact ?: return null
+                    if (!fact.canOfferConfirmCard) return null
+                    val scopeLabel = when (val id = fact.scope.childID) {
+                        null -> "我们家"
+                        else -> workspace.children.firstOrNull { it.id == id }?.name ?: return null
+                    }
+                    return ParentingConfirmCard(
+                        p.kind,
+                        listOf(
+                            Block.Headline("记入档案", "person.text.rectangle"),
+                            Block.Fields(listOf(
+                                Field("范围", Value.Text(scopeLabel), Tone.Normal),
+                                Field("长期事实", Value.Text(fact.text), Tone.Normal),
+                            )),
+                            Block.Quote("你说的原话", p.sourceText),
+                            Block.Note("确认后才记成这台设备上的长期事实。先不记就不会写入。", Tone.Normal),
+                        ),
+                        "确认记入档案", true,
+                    )
+                }
                 ParentingIntentKind.ViewToday, ParentingIntentKind.ViewPlan, ParentingIntentKind.ReviewGrowth -> {
                     val title = when (p.kind) {
                         ParentingIntentKind.ReviewGrowth -> "看成长回顾"
@@ -136,5 +157,23 @@ data class ParentingConfirmCard(
             return if (enabled) Block.Note("提醒按你的设置发送：每天最多 2 条，21:00–08:00 不打扰。", Tone.Normal)
             else Block.Note("提醒没有开启；可以在“我们家”里打开。", Tone.Unknown)
         }
+    }
+}
+
+/** 共享孩子选择器的选中规则（iOS `ParentingChildSwitcherRules`，#147）。 */
+sealed interface ParentingChildSwitcherSelection {
+    data object All : ParentingChildSwitcherSelection
+    data class Child(val id: UUID) : ParentingChildSwitcherSelection
+}
+
+object ParentingChildSwitcherRules {
+    fun showsAllChip(childCount: Int, allowsAll: Boolean): Boolean = allowsAll && childCount > 1
+
+    /** fallsBackToFirst = false 用于提问（「这是哪位孩子的事？」）：什么都不预选，不猜孩子。 */
+    fun resolve(selected: UUID?, childIDs: List<UUID>, allowsAll: Boolean, fallsBackToFirst: Boolean = true): ParentingChildSwitcherSelection {
+        if (selected != null && selected in childIDs) return ParentingChildSwitcherSelection.Child(selected)
+        if (showsAllChip(childIDs.size, allowsAll)) return ParentingChildSwitcherSelection.All
+        if (fallsBackToFirst && childIDs.isNotEmpty()) return ParentingChildSwitcherSelection.Child(childIDs.first())
+        return ParentingChildSwitcherSelection.All
     }
 }
