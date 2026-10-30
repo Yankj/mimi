@@ -45,13 +45,13 @@ enum FirstRunAppearance {
     static func transition(reduceMotion: Bool) -> Transition { reduceMotion ? .crossfade(duration: 0.2) : .spring(response: 0.42, damping: 0.9) }
 
     enum Launch: Equatable { case skip, fade(duration: Double), full(total: Double) }
-    /// VoiceOver → no animation at all; Reduce Motion → the final mark shown still, then a 0.25 s fade; else ≤ 1.1 s.
+    /// VoiceOver → no animation at all; Reduce Motion → the final mark shown still, then a 0.25 s fade; else ≤ 0.85 s (composer-presence-layout: shorter gate).
     static func launch(reduceMotion: Bool, voiceOver: Bool) -> Launch {
         if voiceOver { return .skip }
         return reduceMotion ? .fade(duration: 0.25) : .full(total: launchKeyframes.last!)
     }
-    /// 0 mark springs in · 0.35 settle/breathe · 0.65 morph into the orb · 0.9 hand off (overlay fades, done at 1.1).
-    static let launchKeyframes: [Double] = [0.35, 0.65, 0.9, 1.1]
+    /// 0 mark springs in · 0.25 settle · 0.5 morph into the orb · 0.7 hand off (overlay fades, done at 0.85).
+    static let launchKeyframes: [Double] = [0.25, 0.5, 0.7, 0.85]
 
     // MARK: SPEC-E (/workspace/codex-review/onboarding-motion/SPEC-E.md): D plush leads + B CTA → composer + C chat rises.
     // Seconds; the SwiftUI side (FirstRunPlushHero / FirstRunTransitionOverlay / NativeLoginView) reads these.
