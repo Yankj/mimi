@@ -28,6 +28,12 @@ extension View {
     /// Escape hatches to the manual forms (the "+" menu lists them last).
     var onManualArrangement: (() -> Void)?
     var onManualObservation: (() -> Void)?
+    /// Collapsed current-tab chip on the same row (一行双态 · 输入态). Nil → no chip.
+    var typeChipSystemImage: String? = nil
+    var typeChipTitle: String? = nil
+    var onTypeChipTap: (() -> Void)? = nil
+    /// Home chrome listens so detail can dismiss when the parent focuses input again.
+    var onFocusChange: ((Bool) -> Void)? = nil
     @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @FocusState private var focused: Bool
@@ -128,6 +134,18 @@ extension View {
                     textField
                         .background(catColors.fillSelected.opacity(0.7), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }, sendButton: { sendButton })
+                if let image = typeChipSystemImage, onTypeChipTap != nil {
+                    Button(action: { onTypeChipTap?() }) {
+                        Image(systemName: image)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(catColors.actionText)
+                            .frame(width: 40, height: 40)
+                            .background(catColors.action.opacity(0.16), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(typeChipTitle.map { ui($0) } ?? ui("切换页面"))
+                    .accessibilityIdentifier("parenting.chrome.typeChip")
+                }
             }
         }
         .padding(.horizontal, 8).padding(.vertical, 8)
@@ -138,6 +156,7 @@ extension View {
         // At accessibility sizes the capsule is too small to hold: keyboard only.
         .onAppear { if dynamicTypeSize.isAccessibilitySize { voice.setMode(.keyboard) } }
         .onChange(of: dynamicTypeSize) { _, size in if size.isAccessibilitySize { voice.setMode(.keyboard) } }
+        .onChange(of: focused) { _, value in onFocusChange?(value) }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("parenting.natural.bar")
     }
