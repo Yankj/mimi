@@ -177,6 +177,7 @@ extension View {
         var parts = [ui("小咪理解为：{0}", [ui(p.kind.title)])]
         if let id = p.childID, let name = context.children.first(where: { $0.id == id })?.name { parts.append(name) }
         if let title = p.title, p.kind == .newArrangement { parts.append(title) }
+        if p.kind == .profileFact, let fact = p.profileFact { parts.append(fact.text) }
         if let due = p.dueAt { parts.append(due.formatted(.dateTime.month().day().weekday(.abbreviated).hour().minute())) }
         return parts.joined(separator: " · ")
     }
@@ -209,7 +210,7 @@ extension View {
                         switch input.phase {
                         case .asking: asking(proposal)
                         case .confirming, .saving, .failed: confirming(proposal)
-                        case .saved(let receipt): saved(receipt)
+                        case .saved(let receipt): saved(receipt, kind: proposal.kind)
                         case .idle: EmptyView()
                         }
                     }
@@ -426,6 +427,7 @@ extension View {
             switch input.phase {
             case .confirming, .saving, .failed:
                 let saving = input.phase == .saving
+                let isArchive = card.kind == .profileFact
                 let confirmAction: () -> Void = {
                     if card.writes {
                         Task { await input.confirm(model: workspaceModel) }
@@ -438,10 +440,15 @@ extension View {
                 Group {
                     if card.writes {
                         // 手动调整 on the left, the save on the right (ParentingActionPair: equal width, stacked at accessibility sizes).
-                        ParentingActionPair(secondaryAction: { onManual(p); dismiss() }, primaryAction: confirmAction,
-                                            secondaryDisabled: saving, primaryDisabled: saving || workspaceModel.busy,
-                                            secondaryID: "parenting.natural.manual", primaryID: "parenting.natural.confirm",
-                                            secondaryLabel: { Text(ui("手动调整")) }, primaryLabel: { confirmLabel })
+                        ParentingActionPair(
+                            secondaryAction: {
+                                if isArchive { input.reset(); dismiss() } else { onManual(p); dismiss() }
+                            },
+                            primaryAction: confirmAction,
+                            secondaryDisabled: saving, primaryDisabled: saving || workspaceModel.busy,
+                            secondaryID: isArchive ? "parenting.natural.declineFact" : "parenting.natural.manual",
+                            primaryID: "parenting.natural.confirm",
+                            secondaryLabel: { Text(ui(isArchive ? "先不记" : "手动调整")) }, primaryLabel: { confirmLabel })
                     } else {
                         Button(action: confirmAction) { confirmLabel.frame(maxWidth: .infinity, minHeight: 28) }
                             .parentingTodayPrimaryGlassButton()
@@ -457,7 +464,7 @@ extension View {
         }
     }
 
-    private func saved(_ receipt: String) -> some View {
+    private func saved(_ receipt: String, kind: ParentingIntentKind) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
                 // 记一笔: the plush cat with its notebook confirms a saved record. Decorative; hidden at accessibility sizes.
@@ -466,7 +473,9 @@ extension View {
                     .foregroundStyle(catColors.success)
                     .accessibilityIdentifier("parenting.natural.receipt")
             }
-            Text(ui("已保存在这台设备上；今天页和成长页会同步显示。")).font(.subheadline).foregroundStyle(catColors.calmSecondary)
+            Text(ui(kind == .profileFact
+                     ? "已记在这台设备的家庭档案里。没有发到云端，也没有记成今天的安排。"
+                     : "已保存在这台设备上；今天页和成长页会同步显示。")).font(.subheadline).foregroundStyle(catColors.calmSecondary)
             Button(ui("好的")) { input.reset(); dismiss() }
                 .parentingPrimaryButton()
                 .accessibilityIdentifier("parenting.natural.done")

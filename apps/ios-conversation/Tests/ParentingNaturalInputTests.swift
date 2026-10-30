@@ -102,6 +102,7 @@ final class ParentingNaturalInputTests: XCTestCase {
         case .reschedule: return "M"
         case .cancel: return "C"
         case .viewToday, .viewPlan, .reviewGrowth: return "Q"
+        case .profileFact: return "F"
         case .unknown: return p.ambiguousIntent ? "ASK" : "U"
         }
     }
@@ -765,6 +766,94 @@ final class ParentingNaturalInputTests: XCTestCase {
         XCTAssertEqual(next.arrangements.first { $0.id == existing.id }?.dueAt, at(2026, 10, 30, 18, 0))
         XCTAssertEqual(next.editHistory.count, 1, "the change is recorded and can be undone")
         XCTAssertEqual(next.arrangements.first { $0.id == other.id }?.dueAt, other.dueAt, "other arrangements are untouched")
+    }
+
+    func testExplicitArchiveStatementBecomesAConfirmCardAndALongTermFactOnlyAfterCommands() throws {
+        let ctx = context(children: [tuan, duo])
+        let ws = workspace(children: [tuan, duo])
+        let p = classify("记入档案团团对花生过敏", ctx)
+        XCTAssertEqual(p.kind, .profileFact)
+        XCTAssertTrue(p.isReadyToConfirm)
+        XCTAssertEqual(p.profileFact?.scope, .child(tuan.id))
+        XCTAssertEqual(p.profileFact?.kind, .sensitive)
+        XCTAssertEqual(p.profileFact?.confidence, .high)
+        XCTAssertNotEqual(p.profileFact?.kind, .alias)
+        let card = try XCTUnwrap(ParentingConfirmCard.make(p, workspace: ws, remindersEnabled: nil, now: now))
+        XCTAssertEqual(card.kind, .profileFact)
+        XCTAssertTrue(card.writes)
+        XCTAssertEqual(card.confirmTitle, "确认记入档案")
+        XCTAssertTrue(card.blocks.contains(.quote(label: "你说的原话", text: "记入档案团团对花生过敏")))
+        XCTAssertEqual(ws.profile.facts.count, 0, "building the card writes nothing")
+
+        let ids = ParentingNaturalInput.WriteIDs(record: UUID(uuidString: "00000000-0000-4000-8000-0000000000aa")!)
+        let commands = ParentingNaturalInput.commands(for: p, workspace: ws, ids: ids)
+        XCTAssertEqual(commands.count, 2)
+        var next = ws
+        next = try next.applying(commands[0], now: now)
+        XCTAssertTrue(next.profile.usableFacts.isEmpty)
+        XCTAssertTrue(next.arrangements.isEmpty)
+        XCTAssertTrue(next.records.isEmpty)
+        next = try next.applying(commands[1], now: now.addingTimeInterval(5))
+        XCTAssertEqual(next.profile.usableFacts(for: .child(tuan.id)).map(\.text), ["团团对花生过敏"])
+        XCTAssertTrue(next.profile.usableFacts(for: .child(duo.id)).isEmpty)
+        XCTAssertEqual(next.profile.facts[0].source.channel, .confirmCard)
+        XCTAssertLessThanOrEqual(next.profile.facts[0].source.excerpt?.count ?? 0, ParentingProfile.maxExcerptLength)
+    }
+
+    func testUncertainArchiveStatementsAndSiblingLabelsDoNotWrite() throws {
+        let both = context(children: [tuan, duo])
+        let ws = workspace(children: [tuan, duo])
+        let unnamed = classify("记入档案对花生过敏", both)
+        XCTAssertEqual(unnamed.kind, .profileFact)
+        XCTAssertFalse(unnamed.isReadyToConfirm)
+        XCTAssertNil(unnamed.profileFact)
+        XCTAssertNil(ParentingConfirmCard.make(unnamed, workspace: ws, remindersEnabled: nil, now: now))
+        XCTAssertTrue(ParentingNaturalInput.commands(for: unnamed, workspace: ws, ids: .init()).isEmpty)
+        let ask = ParentingNaturalInput.followUp(for: unnamed, context: both, calendar: calendar)
+        XCTAssertEqual(ask?.field, .content)
+        XCTAssertEqual(ask?.options.count, 0, "which-child picking is not this card")
+
+        for text in ["记入档案老大对花生过敏", "记在我们家二宝对花生过敏"] {
+            let p = classify(text, both)
+            XCTAssertFalse(p.isReadyToConfirm, text)
+            XCTAssertNil(p.profileFact, text)
+            XCTAssertTrue(ParentingNaturalInput.commands(for: p, workspace: ws, ids: .init()).isEmpty, text)
+            let read = try XCTUnwrap(ParentingProfileFactReader.read(text, context: both, now: now))
+            XCTAssertEqual(read.confidence, .low, text)
+            XCTAssertNotEqual(read.scope, .child(tuan.id), text)
+            XCTAssertNotEqual(read.scope, .child(duo.id), text)
+            XCTAssertTrue(read.longTermCommands(userConfirmed: true).isEmpty, text)
+        }
+
+        let only = context(children: [tuan])
+        let sibling = classify("记入档案老大对花生过敏", only)
+        XCTAssertFalse(sibling.isReadyToConfirm, "a sibling label is not resolved even when there is one child")
+        XCTAssertTrue(ParentingNaturalInput.commands(for: sibling, workspace: workspace(children: [tuan]), ids: .init()).isEmpty)
+    }
+
+    func testArchiveLeadDoesNotStealAnOrdinaryArrangementOrABareRemember() throws {
+        let ctx = context(children: [tuan])
+        XCTAssertEqual(classify("团团周五下午5点游泳", ctx).kind, .newArrangement)
+        XCTAssertNotEqual(classify("记住团团周五下午5点游泳", ctx).kind, .profileFact)
+        let household = classify("记在我们家周三奶奶接园", ctx)
+        XCTAssertEqual(household.kind, .profileFact)
+        XCTAssertEqual(household.profileFact?.scope, .family)
+        XCTAssertEqual(household.profileFact?.kind, .pickup)
+        XCTAssertTrue(household.isReadyToConfirm)
+    }
+
+    func testOneChildArchiveWithoutANameStillShowsThatChildOnTheCard() throws {
+        let ctx = context(children: [tuan])
+        let ws = workspace(children: [tuan])
+        let p = classify("记入档案对花生过敏", ctx)
+        XCTAssertEqual(p.profileFact?.scope, .child(tuan.id))
+        XCTAssertEqual(p.profileFact?.confidence, .medium)
+        let card = try XCTUnwrap(ParentingConfirmCard.make(p, workspace: ws, remindersEnabled: nil, now: now))
+        XCTAssertTrue(card.blocks.contains { block in
+            guard case .fields(let fields) = block else { return false }
+            return fields.contains { $0.label == "范围" && $0.value == .text("团团") }
+        })
+        XCTAssertEqual(ws.profile, .empty)
     }
 
     // MARK: Today timeline and reminder limits

@@ -438,6 +438,7 @@ import Combine
     /// "手动调整" hands the parent to the existing form; nothing is prefilled or saved on the way.
     private func manualSheet(for proposal: ParentingNaturalProposal) -> ParentingSheet? {
         switch proposal.kind {
+        case .profileFact: return nil
         case .observation: return .newObservation(proposal.childID, nil)
         case .reschedule, .cancel:
             if let id = proposal.targetID, let item = workspace.arrangements.first(where: { $0.id == id }) { return .editArrangement(item) }
@@ -732,6 +733,7 @@ import Combine
                 }
             }
         }
+        familyFactCard
         // Without a child the empty card above already asks for the nickname; the 启航 steps would say the same thing twice.
         if !workspace.children.isEmpty {
             ParentingFamilyLaunchCard(checklist: FamilyLaunchChecklist.current(workspace: workspace, remindersEnabled: model.remindersAvailable && model.reminderSettings.enabled))
@@ -746,6 +748,30 @@ import Combine
         }
         .buttonStyle(.plain).parentingCard()
         .accessibilityIdentifier("parenting.family.settings")
+    }
+
+    /// Family-scoped long-term facts. Hidden when none are confirmed, so the empty 我们家 page stays as it was.
+    @ViewBuilder private var familyFactCard: some View {
+        let facts = workspace.profile.usableFacts(for: .family)
+        if !facts.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(ui("长期事实")).font(.headline).accessibilityAddTraits(.isHeader)
+                ForEach(facts) { fact in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(ui(fact.kind.archiveTitle)).font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
+                        Text(verbatim: fact.text).font(.subheadline)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("parenting.family.fact." + fact.id.uuidString)
+                }
+                Text(ui("只显示你在确认卡上点过确认的事实。还没确认或还不确定的不会出现在这里。"))
+                    .font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
+            }
+            .parentingCard()
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("parenting.family.facts")
+        }
     }
 
     private var reminderRowSubtitle: String {

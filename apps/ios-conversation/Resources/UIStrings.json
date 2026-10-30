@@ -9571,6 +9571,146 @@
     "en": "Today's time has passed, so it's set to tomorrow. Tap “Adjust manually” to go back to today.",
     "zh-Hans": "今天这个时间已过，先排在明天；要改回今天，点“手动调整”。"
   },
+  "称呼": {
+    "en": "Name used",
+    "zh-Hans": "称呼"
+  },
+  "重复安排": {
+    "en": "Recurring plan",
+    "zh-Hans": "重复安排"
+  },
+  "习惯": {
+    "en": "Routine",
+    "zh-Hans": "习惯"
+  },
+  "接送": {
+    "en": "Pickup",
+    "zh-Hans": "接送"
+  },
+  "家人": {
+    "en": "Family member",
+    "zh-Hans": "家人"
+  },
+  "年龄阶段": {
+    "en": "Age stage",
+    "zh-Hans": "年龄阶段"
+  },
+  "睡眠": {
+    "en": "Sleep",
+    "zh-Hans": "睡眠"
+  },
+  "兴趣": {
+    "en": "Interest",
+    "zh-Hans": "兴趣"
+  },
+  "特点": {
+    "en": "Trait",
+    "zh-Hans": "特点"
+  },
+  "需留意": {
+    "en": "Needs care",
+    "zh-Hans": "需留意"
+  },
+  "这里显示已经记下的昵称、目标和观察。": {
+    "en": "Nicknames, goals, and observations already saved are shown here.",
+    "zh-Hans": "这里显示已经记下的昵称、目标和观察。"
+  },
+  "长期事实": {
+    "en": "Long-term facts",
+    "zh-Hans": "长期事实"
+  },
+  "只显示你在确认卡上点过确认的事实。还没确认或还不确定的不会出现在这里。": {
+    "en": "Only facts you confirmed on the card are shown. Unconfirmed or uncertain facts are left out.",
+    "zh-Hans": "只显示你在确认卡上点过确认的事实。还没确认或还不确定的不会出现在这里。"
+  },
+  "会一并删除这个孩子的目标、安排、记录、长期事实和头像，且无法恢复。移除前会再确认一次。": {
+    "en": "This also deletes this child's goals, arrangements, records, long-term facts, and photo. It cannot be undone. Removal asks once more.",
+    "zh-Hans": "会一并删除这个孩子的目标、安排、记录、长期事实和头像，且无法恢复。移除前会再确认一次。"
+  },
+  "先不记": {
+    "en": "Not now",
+    "zh-Hans": "先不记"
+  },
+  "已记在这台设备的家庭档案里。没有发到云端，也没有记成今天的安排。": {
+    "en": "Saved in the family archive on this device. Nothing was sent to the cloud, and today's list was not changed.",
+    "zh-Hans": "已记在这台设备的家庭档案里。没有发到云端，也没有记成今天的安排。"
+  },
+  "已先存为待确认，还没有记成长期事实。请重试确认。": {
+    "en": "Saved as pending first, and not yet a long-term fact. Please confirm again.",
+    "zh-Hans": "已先存为待确认，还没有记成长期事实。请重试确认。"
+  },
+  "已记入档案": {
+    "en": "Saved to the archive",
+    "zh-Hans": "已记入档案"
+  },
+  "记入档案": {
+    "en": "Save to the archive",
+    "zh-Hans": "记入档案"
+  },
+  "范围": {
+    "en": "Scope",
+    "zh-Hans": "范围"
+  },
+  "确认后才记成这台设备上的长期事实。先不记就不会写入。": {
+    "en": "This becomes a long-term fact on this device only after you confirm. Choosing not now writes nothing.",
+    "zh-Hans": "确认后才记成这台设备上的长期事实。先不记就不会写入。"
+  },
+  "确认记入档案": {
+    "en": "Confirm archive entry",
+    "zh-Hans": "确认记入档案"
+  },
+  "这句话还不够确定，不会记成长期事实。补上孩子的昵称，或说明是我们家的事。": {
+    "en": "This is not certain enough to save as a long-term fact. Add the child's nickname, or say it is about the whole family.",
+    "zh-Hans": "这句话还不够确定，不会记成长期事实。补上孩子的昵称，或说明是我们家的事。"
+  },
+  "例如：团团对花生过敏，或我们家周三奶奶接": {
+    "en": "For example: a nickname plus the fact, or a household routine.",
+    "zh-Hans": "例如：团团对花生过敏，或我们家周三奶奶接"
+  },
+  "还不确定的画像不能记成长期事实。": {
+    "en": "An uncertain profile item cannot be saved as a long-term fact.",
+    "zh-Hans": "还不确定的画像不能记成长期事实。"
+  },
+  "老大": {
+    "en": "Eldest",
+    "zh-Hans": "老大"
+  },
+  "老二": {
+    "en": "Second child",
+    "zh-Hans": "老二"
+  },
+  "老三": {
+    "en": "Third child",
+    "zh-Hans": "老三"
+  },
+  "孩子{0}": {
+    "en": "Child {0}",
+    "zh-Hans": "孩子{0}"
+  },
+  "家庭画像条目过多。": {
+    "en": "There are too many family profile entries.",
+    "zh-Hans": "家庭画像条目过多。"
+  },
+  "画像条目的孩子关联无效。": {
+    "en": "A profile entry points at a child that is not in this ledger.",
+    "zh-Hans": "画像条目的孩子关联无效。"
+  },
+  "画像证据次数无效。": {
+    "en": "The profile evidence count is invalid.",
+    "zh-Hans": "画像证据次数无效。"
+  },
+  "画像确认状态无效。": {
+    "en": "The profile confirmation state is invalid.",
+    "zh-Hans": "画像确认状态无效。"
+  },
+  "孩子画像条目过多。": {
+    "en": "There are too many profile entries for one child.",
+    "zh-Hans": "孩子画像条目过多。"
+  },
+  "只能确认待确认或需再确认的画像。": {
+    "en": "Only a pending or stale profile entry can be confirmed.",
+    "zh-Hans": "只能确认待确认或需再确认的画像。"
+  },
   "是谁的事": {
     "en": "Who is this for",
     "zh-Hans": "是谁的事"

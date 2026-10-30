@@ -1,5 +1,9 @@
 # 小咪重启 Goal 与交付计划
 
+## 2026-10-29 能力全景清单（未合入、未验收）
+
+三层对照见[能力全景清单](../product/capability-panorama.md)。档案确认后落长期事实在 draft，未合 main，不是产品验收。认娃不在该变更。本段只指向清单；既有交付记录仍以下面的日期条目为准。
+
 ## 2026-10-23 获批 GitHub 接续与逐步里程碑
 
 用户随后明确批准新分支推送及草稿PR，并要求检查差距、逐个继续里程碑。已将原本地候选 `973a8f2cdc468e60ed007c128194adcac334a2ae` 普通推送到 `feat/parenting-core`，创建 [draft PR #123](https://github.com/Yankj/mimi/pull/123)；main读回仍为 `4ec8118b796f7c983ae4436268441c3c9d3d33db`。没有合并、自动合并、部署、发布或附件上传。仓库内发布workflow仅匹配`release/**`或手动dispatch，本分支/草稿PR无已知生产部署触发。

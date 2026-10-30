@@ -1,5 +1,7 @@
 # 产品基线与实现范围
 
+2026-10-29 三层能力全景的可执行清单：[capability-panorama.md](capability-panorama.md)。它不替代[主计划](../status/master-plan.md)，也不是验收通过声明。
+
 FINAL-G1的对话必需细分：[CGUI-1](../design/conversation-generative-ui-spec.md)、[CG验收](../acceptance/conversation-generative-ui-acceptance.md)。完整开发输入由[启动合同](../planning/AF-1/development-start-contract.md)与[长任务prompt](../planning/AF-1/long-task-development-prompt.md)统一，实时状态仍只在主计划。
 
 重启产品权威为[AF-1底座](agent-foundation-spec.md)及[UX-1](../design/ios-codex-experience-spec.md)。用户指定Grok分支与本地设计的综合终版见[FINAL-1产品／视觉／技术设计](catpaw-final-product-spec.md)和[质量／具名对照验收](../acceptance/catpaw-final-product-acceptance.md)。当前运行Goal与实际进展仅见[主计划](../status/master-plan.md)；下列v1/r2/r3保留历史身份。
