@@ -431,9 +431,13 @@ import Combine
             },
             onManualArrangement: { sheet = .newArrangement(selectedChildID, nil) },
             onManualObservation: { sheet = .newObservation(selectedChildID, nil) },
-            typeChipSystemImage: tab.icon,
+            // detail 打开时藏叶标，禁止在模态底下偷换 chrome。
+            typeChipSystemImage: (chromeMode == .detail || naturalPresented) ? nil : tab.icon,
             typeChipTitle: tab.title,
-            onTypeChipTap: { chromeMode = .pickTab },
+            onTypeChipTap: {
+                guard chromeMode != .detail, !naturalPresented else { return }
+                chromeMode = .pickTab
+            },
             onFocusChange: { focused in onComposerFocus(focused) }
         )
     }
@@ -447,7 +451,7 @@ import Combine
                     // detail 用短 sheet；底栏回到输入态以免两排/叠层抢高。
                     composerBar
                 case .pickTab:
-                    pickTabChrome
+                    if naturalPresented { composerBar } else { pickTabChrome }
                 }
             } else {
                 // 我们家：单排 tab，永不在上方再叠 composer。
