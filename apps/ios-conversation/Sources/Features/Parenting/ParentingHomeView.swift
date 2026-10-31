@@ -230,13 +230,6 @@ import Combine
                                           onOpenChat: { chatPresented = true })
                 }
             }
-            .overlay(alignment: .bottom) {
-                if floatingBars {
-                    dualChrome(for: item)
-                        .padding(.horizontal, 12).padding(.bottom, 2)
-                        .background(GeometryReader { Color.clear.preference(key: ParentingFloatingBarHeightKey.self, value: $0.size.height) })
-                }
-            }
             .overlay(alignment: .bottomTrailing) {
                 if floatingBars && item == .today && model.loaded {
                     cornerPlushPeek
@@ -246,7 +239,6 @@ import Combine
                         .accessibilityHidden(true)
                 }
             }
-            .onPreferenceChange(ParentingFloatingBarHeightKey.self) { floatingBarHeight = $0 }
             // Legacy path unused while floatingBars is always true; kept for API stability of page(for:floatingBars:).
             .catBottomBar {
                 if !floatingBars && showsComposer(on: item) {
@@ -263,6 +255,16 @@ import Combine
             }
         
         }
+        // One-row chrome sits outside the NavigationStack so pushed pages (成长目标、全部安排、我们家子页) keep
+        // the tab entry, matching the system tab bar it replaced; inside the stack it vanished on every push.
+        .overlay(alignment: .bottom) {
+            if floatingBars {
+                dualChrome(for: item)
+                    .padding(.horizontal, 12).padding(.bottom, 2)
+                    .background(GeometryReader { Color.clear.preference(key: ParentingFloatingBarHeightKey.self, value: $0.size.height) })
+            }
+        }
+        .onPreferenceChange(ParentingFloatingBarHeightKey.self) { floatingBarHeight = $0 }
     }
 
     /// Floating 今天｜成长｜我们家: a glass capsule (Liquid Glass on iOS 26, ultra-thin material before) above the scrolling page.
