@@ -5,7 +5,8 @@ import XCTest
 ///
 /// Structure under test: three tabs (今天｜成长｜我们家) and one composer card (the "input card") above the tab bar on 今天 and 成长.
 /// Tab navigation goes through `ParentingUI` (Tests/ParentingUITestSupport.swift), which finds the iOS 26 system tab bar's
-/// buttons by position and falls back to the `parenting.tab.*` identifiers on the custom floating bar.
+/// buttons by position and falls back to the `parenting.tab.*` identifiers on the custom floating bar. On the single-row
+/// composer, those identifiers are not hittable until `ParentingUI` taps `parenting.chrome.typeChip`.
 /// Text entry and scrolling are written to survive a slow, loaded simulator; see `enter`, `input` and `reveal`.
 final class ParentingWorkspaceUITests: XCTestCase {
     private var currentApp: XCUIApplication?
