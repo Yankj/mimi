@@ -464,7 +464,7 @@ import Combine
     @ViewBuilder private func arrangementSection(_ title: String, count: Int? = nil, items: [ParentingArrangement],
                                                 empty: String? = nil, explanation: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(count.map { ui(title) + " · " + String($0) } ?? ui(title)).font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
+            ParentingSectionHeader(title: ui(title), count: count)
             if let explanation {
                 Text(ui(explanation)).font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
             }
@@ -1151,11 +1151,9 @@ extension View {
     func parentingCard() -> some View { modifier(ParentingCardModifier()) }
 }
 extension View {
-    /// Primary action: system `.glassProminent` on iOS 26+, the brand-gradient style before that.
-    @ViewBuilder func parentingPrimaryButton() -> some View {
-        if #available(iOS 26.0, *) { self.buttonStyle(.glassProminent).tint(catColors.calmCTATop).foregroundStyle(catColors.calmGlyph).controlSize(.large) }
-        else { self.buttonStyle(ParentingPrimaryButtonStyle()) }
-    }
+    /// Primary action: same translucent orange glass as the Today page (never a solid orange fill) on iOS 26+,
+    /// the brand-gradient style before that. One primary look across 今天 / 成长 / 我们家 and the input sheets.
+    func parentingPrimaryButton() -> some View { parentingTodayPrimaryGlassButton() }
     /// Secondary action: system `.glass` on iOS 26+.
     @ViewBuilder func parentingSecondaryButton() -> some View {
         if #available(iOS 26.0, *) { self.buttonStyle(.glass).controlSize(.large) }
@@ -2300,5 +2298,27 @@ private struct ParentingFormIssue: View {
         .foregroundStyle(catColors.ink)
         .navigationTitle(ui("设置")).navigationBarTitleDisplayMode(.large)
         .accessibilityIdentifier("parenting.settings.page")
+    }
+}
+
+/// Section header for the Today lists: a short orange rail + title + quiet count chip, so 待确认 / 今天 / 之后
+/// read as distinct levels instead of one flat list. Colours only from `catColors`.
+struct ParentingSectionHeader: View {
+    let title: String
+    let count: Int?
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Capsule().fill(catColors.action.opacity(0.65)).frame(width: 4, height: 18).accessibilityHidden(true)
+            Text(verbatim: title).font(.title3.weight(.semibold))
+            if let count {
+                Text(verbatim: String(count))
+                    .font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(catColors.calmSecondary)
+                    .padding(.horizontal, 8).padding(.vertical, 2)
+                    .background(catColors.fillSelected, in: Capsule())
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 }
