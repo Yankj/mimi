@@ -32,6 +32,10 @@ import Combine
     @State private var recordFilter: ParentingRecordFilter = .all
     @State private var now = Date()
     @State private var floatingBarHeight: CGFloat = 0
+    /// One-row dual chrome: input | pickTab | detail (三角状态机；禁止 composer+tab 两排).
+    @State private var chromeMode: ParentingChromeMode = .input
+    /// Corner peek plush on 今天 (≈48pt visible); decorative, non-interactive.
+    private let cornerPlushSize: CGFloat = 48
 
     init(model: ConversationFirstModel, workspaceModel: ParentingWorkspaceModel? = nil, accountLabel: String? = nil,
          onSignOut: (() -> Void)? = nil, isAnonymousAccount: Bool = false) {
@@ -93,14 +97,17 @@ import Combine
         }
         .sheet(isPresented: $naturalPresented, onDismiss: {
             if case .saved = natural.phase { natural.reset() }
+            if chromeMode == .detail { chromeMode = .input }
             if let next = pendingSheet { pendingSheet = nil; sheet = next } else { openPendingRoute() }
         }) {
             ParentingNaturalSheet(input: natural, workspaceModel: model, context: naturalContext, now: now,
                                   onNavigate: { kind in navigate(kind) },
                                   onManual: { proposal in pendingSheet = manualSheet(for: proposal) },
                                   onAddChild: { pendingSheet = .newChild })
+                // Short detent: detail lives as a compact panel; focusing input forces dismiss (see onComposerFocus).
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled(upThrough: .medium))
         }
         .sheet(isPresented: $chatPresented) {
             ConversationFirstView(model: conversationModel, accountLabel: accountLabel,
@@ -133,22 +140,8 @@ import Combine
     }
 
     @ViewBuilder private var rootContainer: some View {
-        if #available(iOS 26.0, *) { nativeTabs } else { page(for: tab, floatingBars: true) }
-    }
-
-    /// iOS 26+: the system `TabView` (floating Liquid Glass bar, collapses on scroll down). Earlier systems keep the custom floating bar.
-    @available(iOS 26.0, *)
-    private var nativeTabs: some View {
-        TabView(selection: $tab) {
-            ForEach(ParentingTab.allCases) { item in
-                Tab(ui(item.title), systemImage: item.icon, value: item) {
-                    page(for: item, floatingBars: false)
-                }
-                .accessibilityIdentifier("parenting.tab.\(item.rawValue)")
-            }
-        }
-        .tabBarMinimizeBehavior(.onScrollDown)
-        .accessibilityIdentifier("parenting.tabBar")
+        // Always custom one-row chrome. Native iOS 26 TabView + composer inset would recreate the forbidden two-row stack.
+        page(for: tab, floatingBars: true)
     }
 
     /// Tabs carry only a large title. 添加孩子 stays reachable on 我们家 only; settings has one entry, 我们家 › 设置.
@@ -225,16 +218,22 @@ import Combine
             }
             .overlay(alignment: .bottom) {
                 if floatingBars {
-                    VStack(spacing: 8) {
-                        if showsComposer(on: item) { composerBar }
-                        tabBar
-                    }
-                    .padding(.horizontal, 12).padding(.bottom, 2)
-                    .background(GeometryReader { Color.clear.preference(key: ParentingFloatingBarHeightKey.self, value: $0.size.height) })
+                    dualChrome(for: item)
+                        .padding(.horizontal, 12).padding(.bottom, 2)
+                        .background(GeometryReader { Color.clear.preference(key: ParentingFloatingBarHeightKey.self, value: $0.size.height) })
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if floatingBars && item == .today && model.loaded {
+                    cornerPlushPeek
+                        .padding(.trailing, 4)
+                        .padding(.bottom, floatingBarHeight + 4)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
             }
             .onPreferenceChange(ParentingFloatingBarHeightKey.self) { floatingBarHeight = $0 }
-            // iOS 26: the system tab bar floats and the composer is a bottom safe-area inset above it, so content scrolls under both.
+            // Legacy path unused while floatingBars is always true; kept for API stability of page(for:floatingBars:).
             .catBottomBar {
                 if !floatingBars && showsComposer(on: item) {
                     composerBar.padding(.horizontal, 12).padding(.bottom, 4)
@@ -258,6 +257,7 @@ import Combine
             ForEach(ParentingTab.allCases) { item in
                 Button {
                     tab = item
+                    chromeMode = .input
                 } label: {
                     VStack(spacing: 3) {
                         Image(systemName: item.icon).font(.title3.weight(tab == item ? .semibold : .regular))
@@ -421,12 +421,85 @@ import Combine
         ParentingNaturalContext(workspace: workspace, activeChildID: selectedChildID)
     }
     private var composerBar: some View {
-        ParentingComposerBar(input: natural, context: naturalContext, now: now, busy: model.busy, onSubmit: {
-            guard natural.canSubmit, !model.busy else { return }
-            natural.submit(context: naturalContext, now: now)
-            naturalPresented = true
-        }, onManualArrangement: { sheet = .newArrangement(selectedChildID, nil) },
-           onManualObservation: { sheet = .newObservation(selectedChildID, nil) })
+        ParentingComposerBar(
+            input: natural, context: naturalContext, now: now, busy: model.busy,
+            onSubmit: {
+                guard natural.canSubmit, !model.busy else { return }
+                natural.submit(context: naturalContext, now: now)
+                chromeMode = .detail
+                naturalPresented = true
+            },
+            onManualArrangement: { sheet = .newArrangement(selectedChildID, nil) },
+            onManualObservation: { sheet = .newObservation(selectedChildID, nil) },
+            // detail 打开时藏叶标，禁止在模态底下偷换 chrome。
+            typeChipSystemImage: (chromeMode == .detail || naturalPresented) ? nil : tab.icon,
+            typeChipTitle: tab.title,
+            onTypeChipTap: {
+                guard chromeMode != .detail, !naturalPresented else { return }
+                chromeMode = .pickTab
+            },
+            onFocusChange: { focused in onComposerFocus(focused) }
+        )
+    }
+
+    /// 一行双态壳：input / pickTab；我们家无 composer 时只留一排 tab（不拆第二排）。
+    @ViewBuilder private func dualChrome(for item: ParentingTab) -> some View {
+        Group {
+            if showsComposer(on: item) {
+                switch chromeMode {
+                case .input, .detail:
+                    // detail 用短 sheet；底栏回到输入态以免两排/叠层抢高。
+                    composerBar
+                case .pickTab:
+                    if naturalPresented { composerBar } else { pickTabChrome }
+                }
+            } else {
+                // 我们家：单排 tab，永不在上方再叠 composer。
+                tabBar
+            }
+        }
+        .animation(.snappy(duration: 0.22), value: chromeMode)
+        .animation(.snappy(duration: 0.22), value: item)
+    }
+
+    /// 选 type 态：同区展开三 tab；点选中项写回并回 input；点当前项也可收回。
+    private var pickTabChrome: some View {
+        tabBar
+            .overlay(alignment: .topTrailing) {
+                // 空白点按：点条外区域由上层 ScrollView 处理；这里加一枚收起以便测与无障碍。
+                Button {
+                    chromeMode = .input
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(catColors.ink.opacity(0.55))
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .offset(x: -4, y: -28)
+                .accessibilityLabel(ui("回到输入"))
+                .accessibilityIdentifier("parenting.chrome.dismissPickTab")
+            }
+    }
+
+    private var cornerPlushPeek: some View {
+        // Peek from the trailing edge: only ~half the body sits on-screen.
+        PlushMascot(pose: .idle, size: cornerPlushSize)
+            .frame(width: cornerPlushSize * 0.55, height: cornerPlushSize * 0.7, alignment: .leading)
+            .clipped()
+            .offset(x: cornerPlushSize * 0.2)
+            .accessibilityIdentifier("parenting.chrome.cornerPlush")
+    }
+
+    /// 输入聚焦时强制离开 detail（藏 sheet）并回到 input；pickTab 时聚焦也收回。
+    private func onComposerFocus(_ focused: Bool) {
+        guard focused else { return }
+        if naturalPresented {
+            naturalPresented = false
+        }
+        if chromeMode != .input {
+            chromeMode = .input
+        }
     }
     private func navigate(_ kind: ParentingIntentKind) {
         switch kind {
@@ -1074,6 +1147,13 @@ import Combine
 }
 
 /// 今天｜成长｜我们家. Records now live inside the growth timeline; the old office chat sits under 我们家 > 高级与历史.
+/// Bottom chrome state machine (一行双态 + detail). Shell only — does not touch 认娃/档案 models.
+private enum ParentingChromeMode: Equatable {
+    case input
+    case pickTab
+    case detail
+}
+
 private enum ParentingTab: String, CaseIterable, Identifiable, Hashable {
     case today, growth, family
     var id: String { rawValue }
