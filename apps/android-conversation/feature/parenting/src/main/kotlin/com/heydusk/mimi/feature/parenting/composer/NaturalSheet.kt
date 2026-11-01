@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.view.accessibility.AccessibilityManager
@@ -101,6 +102,8 @@ fun ParentingNaturalSheet(
     onNavigate: (ParentingIntentKind) -> Unit,
     onManual: (ParentingNaturalProposal) -> Unit,
     onAddChild: () -> Unit,
+    /** 底栏高度。大于 0 时面板停在底栏上方，输入行仍可点。 */
+    bottomReserve: Dp = 0.dp,
 ) {
     val colors = LocalMimiColors.current
     val scope = rememberCoroutineScope()
@@ -135,6 +138,7 @@ fun ParentingNaturalSheet(
             tonalElevation = 6.dp,
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(bottom = bottomReserve)
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .heightIn(max = 640.dp)
                 .imePadding()
@@ -195,7 +199,7 @@ fun ParentingNaturalSheet(
                         Column(
                             Modifier
                                 .fillMaxWidth()
-                                .windowInsetsPadding(WindowInsets.navigationBars)
+                                .then(if (bottomReserve > 0.dp) Modifier else Modifier.windowInsetsPadding(WindowInsets.navigationBars))
                                 .padding(horizontal = 20.dp, vertical = 10.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {

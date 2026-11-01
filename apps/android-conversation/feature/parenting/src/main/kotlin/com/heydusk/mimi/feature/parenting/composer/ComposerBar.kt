@@ -2,6 +2,7 @@ package com.heydusk.mimi.feature.parenting.composer
 
 import android.provider.Settings
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -72,6 +73,9 @@ import com.heydusk.mimi.designsystem.LocalMimiColors
 import com.heydusk.mimi.designsystem.LocalReduceTransparency
 import com.heydusk.mimi.designsystem.MimiIcons
 import com.heydusk.mimi.designsystem.mimiBarBlurStyle
+import com.heydusk.mimi.designsystem.toColor
+import com.heydusk.mimi.feature.parenting.ParentingTab
+import com.heydusk.mimi.feature.parenting.chrome.ParentingChromeTags
 import com.heydusk.mimi.domain.common.MimiCalendar
 import com.heydusk.mimi.domain.parenting.ParentingIntentKind
 import com.heydusk.mimi.domain.parenting.ParentingNaturalContext
@@ -112,6 +116,11 @@ fun ParentingComposerBar(
     onSubmit: () -> Unit,
     onManualArrangement: () -> Unit,
     onManualObservation: () -> Unit,
+    typeChip: ParentingTab? = null,
+    onTypeChipTap: () -> Unit = {},
+    onComposerFocus: (Boolean) -> Unit = {},
+    resignFocusToken: Int = 0,
+    typeChipEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalMimiColors.current
@@ -125,6 +134,13 @@ fun ParentingComposerBar(
     val keyboardActive = voice.mode == ParentingInputMode.Keyboard
     val expanded = keyboardActive && (focused || input.draft.isNotEmpty()) && !largeText
     val presentation = voice.presentation(input.draft.isEmpty(), dictating)
+    val onFocusUpdated by rememberUpdatedState(onComposerFocus)
+    LaunchedEffect(focused) { onFocusUpdated(focused) }
+    LaunchedEffect(resignFocusToken) {
+        if (resignFocusToken == 0) return@LaunchedEffect
+        controller.stopNow()
+        focusManager.clearFocus()
+    }
 
     fun handOver() {
         controller.stopNow()
@@ -177,8 +193,36 @@ fun ParentingComposerBar(
                 onManualArrangement = onManualArrangement,
                 onManualObservation = onManualObservation,
             )
-            VoiceInputRow(input, voice, busy, fieldFocus, presentation, dictating, onFocusChange = { focused = it }, onSend = ::handOver)
+            VoiceInputRow(
+                input, voice, busy, fieldFocus, presentation, dictating,
+                onFocusChange = { focused = it },
+                onSend = ::handOver,
+                modifier = Modifier.weight(1f),
+            )
+            if (typeChip != null) {
+                TypeChip(typeChip, enabled = typeChipEnabled, onTap = onTypeChipTap)
+            }
         }
+    }
+}
+
+@Composable
+private fun TypeChip(tab: ParentingTab, enabled: Boolean, onTap: () -> Unit) {
+    val colors = LocalMimiColors.current
+    val label = ui(tab.titleKey)
+    Box(
+        Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(colors.set.tabSelectedFill.toColor(), CircleShape)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onTap)
+            .semantics {
+                contentDescription = label
+                testTag = ParentingChromeTags.TYPE_CHIP
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(tab.icon, contentDescription = null, tint = colors.accentOn, modifier = Modifier.size(22.dp))
     }
 }
 
@@ -288,11 +332,12 @@ private fun VoiceInputRow(
     dictating: Boolean,
     onFocusChange: (Boolean) -> Unit,
     onSend: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalMimiColors.current
     val controller = voice.controller
     val notice by controller.notice.collectAsState()
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         VoiceNotice(voice, notice)
         if (voice.explaining) VoiceExplanation(voice)
         if (presentation == ParentingVoicePresentation.Listening || presentation == ParentingVoicePresentation.Preview) {

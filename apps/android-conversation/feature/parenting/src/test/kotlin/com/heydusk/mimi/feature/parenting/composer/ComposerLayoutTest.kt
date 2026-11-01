@@ -12,6 +12,7 @@ import com.heydusk.mimi.voice.ScriptedDictationEngine
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import org.junit.After
 import org.junit.Rule
@@ -21,7 +22,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** 输入卡的版式：浅色/深色/大字号下都停在底栏正上方、不出屏、不压住内容；大字号强制键盘；渲染不是空白。 */
+/** 输入卡的版式：浅色/深色/大字号下都是一行（叶标在同一行，没有第二排 tab）、不出屏；大字号强制键盘；渲染不是空白。 */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "zh-w411dp-h891dp-xxhdpi")
@@ -43,10 +44,12 @@ class ComposerLayoutTest {
 
     private fun checkSits() {
         val bar = rule.onNodeWithTag("parenting.natural.bar").fetchSemanticsNode().boundsInRoot
-        val tabs = rule.onNodeWithTag("parenting.tabBar").fetchSemanticsNode().boundsInRoot
+        val chip = rule.onNodeWithTag("parenting.chrome.typeChip").fetchSemanticsNode().boundsInRoot
         val root = rule.onRoot().fetchSemanticsNode().boundsInRoot
-        assertTrue(bar.bottom <= tabs.top + 1f, "输入卡在底栏之上: bar=$bar tabs=$tabs")
+        assertFalse(ui.exists("parenting.tabBar"), "输入态没有第二排 tab")
+        assertTrue(chip.top >= bar.top - 1f && chip.bottom <= bar.bottom + 1f, "叶标与输入卡同一行: bar=$bar chip=$chip")
         assertTrue(bar.left >= root.left && bar.right <= root.right + 1f, "输入卡不出屏: $bar")
+        assertTrue(chip.right <= root.right + 1f, "叶标不出屏: $chip")
         assertTrue(bar.height > 0f && bar.width > 0f)
         val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
         val pixels = IntArray(bitmap.width * bitmap.height).also { bitmap.getPixels(it, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height) }

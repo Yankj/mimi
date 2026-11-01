@@ -25,6 +25,7 @@ import com.heydusk.mimi.feature.parenting.reminders.RemindersUi
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -55,6 +56,9 @@ import com.heydusk.mimi.domain.parenting.ParentingIntentKind
 import com.heydusk.mimi.domain.parenting.ParentingNaturalContext
 import com.heydusk.mimi.domain.parenting.ParentingNaturalProposal
 import com.heydusk.mimi.feature.parenting.actions.ParentingActions
+import com.heydusk.mimi.feature.parenting.chrome.ParentingChromeController
+import com.heydusk.mimi.feature.parenting.chrome.ParentingChromeState
+import com.heydusk.mimi.feature.parenting.chrome.ParentingDualChrome
 import com.heydusk.mimi.feature.parenting.composer.NaturalInputModel
 import com.heydusk.mimi.feature.parenting.composer.ParentingComposerBar
 import com.heydusk.mimi.feature.parenting.composer.ParentingNaturalSheet
@@ -142,8 +146,20 @@ fun ParentingHomeScreen(
     val cloudUi = cloud?.state?.collectAsState()?.value
     var showLogin by remember { mutableStateOf(false) }
     var showEnroll by remember { mutableStateOf(false) }
-    var tab by rememberSaveable { mutableStateOf(initialTab) }
+    var savedTab by rememberSaveable { mutableStateOf(initialTab) }
+    val chromeController = remember { ParentingChromeController(ParentingChromeState(tab = savedTab)) }
+    SideEffect {
+        val tabNow = chromeController.state.tab
+        if (savedTab != tabNow) savedTab = tabNow
+    }
+    val tab = chromeController.state.tab
     val stack = remember { mutableStateListOf<ParentingRoute>().apply { addAll(initialRoutes) } }
+
+    fun pushChrome(next: ParentingChromeState<ParentingTab>) {
+        val prev = chromeController.state
+        if (next.tab != prev.tab || next.rootEpoch != prev.rootEpoch) stack.clear()
+        chromeController.replace(next)
+    }
     var sheet by remember { mutableStateOf<ManualSheet?>(null) }
     var pending by remember { mutableStateOf<PendingConfirm?>(null) }
     var selectedChild by remember { mutableStateOf<UUID?>(null) }
@@ -154,7 +170,6 @@ fun ParentingHomeScreen(
     val scope = rememberCoroutineScope()
     val natural = remember { NaturalInputModel() }
     val voiceState = if (voice != null) rememberVoiceState(voice) else null
-    var naturalOpen by remember { mutableStateOf(false) }
     var floatingHeight by remember { mutableStateOf<Dp?>(null) }
     val density = LocalDensity.current
 
@@ -193,7 +208,7 @@ fun ParentingHomeScreen(
 
     LaunchedEffect(reminderOpen?.nonce) {
         if (reminderOpen != null) {
-            tab = ParentingTab.Today
+            pushChrome(chromeController.state.reveal(ParentingTab.Today))
             stack.clear()
             showSettings = false
             sheet = null
@@ -215,7 +230,7 @@ fun ParentingHomeScreen(
             else pending = PendingConfirm.UndoAdjustment(edit.id, conflicts.map { it.id }, conflicts.map { it.title })
         },
         onOpenRecord = { recordID ->
-            tab = ParentingTab.Growth
+            pushChrome(chromeController.state.reveal(ParentingTab.Growth))
             stack.clear()
             stack.add(ParentingRoute.GrowthTimeline(recordID))
         },
@@ -265,7 +280,7 @@ fun ParentingHomeScreen(
                 val child = ParentingGrowthInsights.scopedChild(workspace, selectedChild)
                 val childID = child?.id
                 val showComposer = voiceState != null && workspace.children.isNotEmpty() &&
-                    (tab == ParentingTab.Today || tab == ParentingTab.Growth) && stack.isEmpty()
+                    (tab == ParentingTab.Today || tab == ParentingTab.Growth)
                 val bottomInset = if (showComposer) (floatingHeight ?: 120.dp) + 8.dp else 120.dp
                 CompositionLocalProvider(LocalFloatingBottomInset provides bottomInset) {
                 Box(Modifier.fillMaxSize().hazeSource(hazeState)) {
@@ -318,6 +333,48 @@ fun ParentingHomeScreen(
                     }
                 }
                 }
+                val voiceBar = voiceState
+                if (chromeController.state.naturalPresented && voiceBar != null) {
+                    val context = remember(workspace, selectedChild) { ParentingNaturalContext(workspace, selectedChild) }
+                    ParentingNaturalSheet(
+                        input = natural,
+                        workspace = workspace,
+                        actions = actions,
+                        context = context,
+                        now = now,
+                        calendar = calendar,
+                        zone = zone,
+                        busy = busy || saving,
+                        remindersEnabled = remindersEnabled ?: reminders?.settings?.enabled,
+                        receiptMillis = voiceBar.receiptMillis,
+                        onClose = {
+                            natural.reset()
+                            pushChrome(chromeController.state.dismissDetail())
+                        },
+                        onNavigate = { kind ->
+                            when (kind) {
+                                ParentingIntentKind.ReviewGrowth -> {
+                                    pushChrome(chromeController.state.reveal(ParentingTab.Growth))
+                                    stack.clear()
+                                }
+                                ParentingIntentKind.ViewToday, ParentingIntentKind.ViewPlan -> {
+                                    pushChrome(chromeController.state.reveal(ParentingTab.Today))
+                                    stack.clear()
+                                }
+                                else -> Unit
+                            }
+                        },
+                        onManual = { proposal ->
+                            pushChrome(chromeController.state.dismissDetail())
+                            openSheet(manualSheetFor(proposal))
+                        },
+                        onAddChild = {
+                            pushChrome(chromeController.state.dismissDetail())
+                            openSheet(ManualSheet.AddChild)
+                        },
+                        bottomReserve = floatingHeight ?: 96.dp,
+                    )
+                }
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -325,36 +382,42 @@ fun ParentingHomeScreen(
                         .padding(horizontal = 24.dp, vertical = 12.dp)
                         .fillMaxWidth()
                         .onSizeChanged { floatingHeight = with(density) { it.height.toDp() } },
-                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
                 ) {
-                    if (voiceState != null && showComposer) {
-                        val context = remember(workspace, selectedChild) { ParentingNaturalContext(workspace, selectedChild) }
-                        ParentingComposerBar(
-                            input = natural,
-                            voice = voiceState,
-                            context = context,
-                            now = now,
-                            calendar = calendar,
-                            zone = zone,
-                            busy = busy || saving,
-                            hazeState = hazeState,
-                            onSubmit = {
-                                if (natural.canSubmit && !busy && !saving) {
-                                    natural.submit(context, now, calendar)
-                                    naturalOpen = true
-                                }
-                            },
-                            onManualArrangement = { openSheet(childID?.let { ManualSheet.AddArrangement(it) } ?: ManualSheet.AddChild) },
-                            onManualObservation = { openSheet(childID?.let { ManualSheet.AddObservation(it) } ?: ManualSheet.AddChild) },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    ParentingTabBar(
-                        selected = tab,
-                        onSelect = { tab = it; stack.clear() },
+                    ParentingDualChrome(
+                        state = chromeController.state,
+                        showsComposer = showComposer,
                         hazeState = hazeState,
+                        onState = { pushChrome(it) },
                         modifier = Modifier.fillMaxWidth(),
-                    )
+                    ) { chip, chipEnabled, resignToken, onFocus ->
+                        if (voiceBar != null) {
+                            val context = remember(workspace, selectedChild) { ParentingNaturalContext(workspace, selectedChild) }
+                            ParentingComposerBar(
+                                input = natural,
+                                voice = voiceBar,
+                                context = context,
+                                now = now,
+                                calendar = calendar,
+                                zone = zone,
+                                busy = busy || saving,
+                                hazeState = hazeState,
+                                onSubmit = {
+                                    if (natural.canSubmit && !busy && !saving) {
+                                        natural.submit(context, now, calendar)
+                                        pushChrome(chromeController.state.enterDetail())
+                                    }
+                                },
+                                onManualArrangement = { openSheet(childID?.let { ManualSheet.AddArrangement(it) } ?: ManualSheet.AddChild) },
+                                onManualObservation = { openSheet(childID?.let { ManualSheet.AddObservation(it) } ?: ManualSheet.AddChild) },
+                                typeChip = chip,
+                                onTypeChipTap = { pushChrome(chromeController.state.tapTypeChip(true)) },
+                                onComposerFocus = onFocus,
+                                resignFocusToken = resignToken,
+                                typeChipEnabled = chipEnabled,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -426,32 +489,6 @@ fun ParentingHomeScreen(
                 )
                 null -> Unit
             }
-        }
-
-        if (naturalOpen && workspace != null && loaded && voiceState != null) {
-            val context = remember(workspace, selectedChild) { ParentingNaturalContext(workspace, selectedChild) }
-            ParentingNaturalSheet(
-                input = natural,
-                workspace = workspace,
-                actions = actions,
-                context = context,
-                now = now,
-                calendar = calendar,
-                zone = zone,
-                busy = busy || saving,
-                remindersEnabled = remindersEnabled ?: reminders?.settings?.enabled,
-                receiptMillis = voiceState.receiptMillis,
-                onClose = { natural.reset(); naturalOpen = false },
-                onNavigate = { kind ->
-                    when (kind) {
-                        ParentingIntentKind.ReviewGrowth -> { tab = ParentingTab.Growth; stack.clear() }
-                        ParentingIntentKind.ViewToday, ParentingIntentKind.ViewPlan -> { tab = ParentingTab.Today; stack.clear() }
-                        else -> Unit
-                    }
-                },
-                onManual = { p -> naturalOpen = false; openSheet(manualSheetFor(p)) },
-                onAddChild = { naturalOpen = false; openSheet(ManualSheet.AddChild) },
-            )
         }
 
         pending?.let { p ->

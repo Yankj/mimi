@@ -118,6 +118,8 @@ class MainActivityTest {
         rule.onNodeWithTag("parenting.name.save").performClick()
         await("child saved") { readyModel().workspace.children.size == 1 }
         assertEquals("Xiaoming", readyModel().workspace.children.single().name)
+        rule.onNodeWithTag("parenting.chrome.typeChip").performClick()
+        await("pick tab") { rule.onAllNodesWithTag("parenting.tab.family").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("parenting.tab.family").performClick()
         await("child on family") { rule.onAllNodesWithTag("parenting.family.child.${readyModel().workspace.children.single().id}").fetchSemanticsNodes().isNotEmpty() }
     }
