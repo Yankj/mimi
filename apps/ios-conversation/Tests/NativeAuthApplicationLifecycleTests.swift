@@ -542,12 +542,16 @@ final class NativeAuthApplicationLifecycleTests:XCTestCase {
         return NativeAuthApplicationModel(configuration:configuration,manager:manager,vault:storage,barrier:storage,root:root)
     }
 
+    /// Hosted in the launched app. A busy simulator has admitted the first chat at ~12s and
+    /// kept the next local read in flight at ~19s, after the same gates passed in ~5s.
+    /// Sample once more after the budget: a main-actor stall can pass the deadline before the predicate runs.
     @MainActor private func waitUntil(_ predicate:@escaping @MainActor () async -> Bool) async throws {
-        let deadline=ProcessInfo.processInfo.systemUptime+10
+        let deadline=ProcessInfo.processInfo.systemUptime+60
         while ProcessInfo.processInfo.systemUptime<deadline {
             if await predicate() {return}
             try await Task.sleep(nanoseconds:1_000_000)
         }
+        if await predicate() {return}
         throw LifecycleFailure(message:"Named offline lifecycle gate did not reach its expected state.")
     }
     /// Codex p89g-2: logout completes while the FIRST detached local read (receipt + vault) is suspended. The read returns
