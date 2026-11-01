@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
@@ -17,7 +18,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -28,6 +36,7 @@ import com.heydusk.mimi.designsystem.LocalMimiColors
 import com.heydusk.mimi.designsystem.LocalReduceTransparency
 import com.heydusk.mimi.designsystem.mimiBarBlurStyle
 import com.heydusk.mimi.designsystem.toColor
+import com.heydusk.mimi.feature.parenting.chrome.ParentingChromeTags
 import com.heydusk.mimi.i18n.ui
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
@@ -43,6 +52,8 @@ fun ParentingTabBar(
     onSelect: (ParentingTab) -> Unit,
     hazeState: HazeState,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    onDismiss: (() -> Unit)? = null,
 ) {
     val colors = LocalMimiColors.current
     val reduce = LocalReduceTransparency.current
@@ -61,6 +72,7 @@ fun ParentingTabBar(
             .padding(5.dp)
             .semantics { testTag = ParentingTab.TAB_BAR_TAG },
         horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         ParentingTab.entries.forEach { tab ->
             val isSelected = tab == selected
@@ -71,7 +83,7 @@ fun ParentingTabBar(
                     .defaultMinSize(minHeight = 52.dp)
                     .clip(CircleShape)
                     .background(if (isSelected) colors.set.tabSelectedFill.toColor() else androidx.compose.ui.graphics.Color.Transparent, CircleShape)
-                    .clickable(role = Role.Tab) { onSelect(tab) }
+                    .clickable(enabled = enabled, role = Role.Tab) { onSelect(tab) }
                     .semantics {
                         this.selected = isSelected
                         testTag = tab.tag
@@ -95,5 +107,42 @@ fun ParentingTabBar(
                 )
             }
         }
+        if (onDismiss != null) {
+            val dismissLabel = ui("回到输入")
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable(enabled = enabled, role = Role.Button, onClick = onDismiss)
+                    .semantics {
+                        contentDescription = dismissLabel
+                        testTag = ParentingChromeTags.DISMISS_PICK_TAB
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = ChevronDown,
+                    contentDescription = null,
+                    tint = colors.ink.copy(alpha = 0.55f),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
     }
+}
+
+private val ChevronDown: ImageVector by lazy {
+    ImageVector.Builder("ChevronDown", 24.dp, 24.dp, 24f, 24f).apply {
+        path(
+            fill = null,
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        ) {
+            moveTo(6f, 9.5f)
+            lineTo(12f, 15.5f)
+            lineTo(18f, 9.5f)
+        }
+    }.build()
 }

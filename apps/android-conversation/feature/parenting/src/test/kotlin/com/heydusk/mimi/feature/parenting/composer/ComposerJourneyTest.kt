@@ -348,7 +348,10 @@ class ComposerJourneyTest {
     @Test fun viewIntentsNavigateAndNeverWrite() {
         boot()
         val revision = h.workspace.revision
+        ui.click("parenting.chrome.typeChip")
+        ui.await("pick tab") { ui.exists("parenting.tab.growth") }
         ui.click("parenting.tab.growth")
+        ui.await("growth composer") { ui.exists("parenting.page.growth") && ui.exists("parenting.natural.bar") }
         showKeyboard()
         ui.click("parenting.natural.chip.today")
         ui.await("view card") { ui.exists("parenting.natural.confirm") }
@@ -389,8 +392,10 @@ class ComposerJourneyTest {
         assertFalse(ui.exists("parenting.natural.bar"))
         h.seed(ParentingCommand.AddChild(child, "团团"))
         ui.await("composer after child") { ui.exists("parenting.natural.bar") }
+        ui.click("parenting.chrome.typeChip")
+        ui.await("pick tab") { ui.exists("parenting.tab.family") }
         ui.click("parenting.tab.family")
-        ui.await("hidden on family") { !ui.exists("parenting.natural.bar") }
+        ui.await("hidden on family") { !ui.exists("parenting.natural.bar") && ui.exists("parenting.tabBar") }
     }
 
     // 工具

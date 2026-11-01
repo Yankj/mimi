@@ -546,5 +546,9 @@
   "需留意": {
     "en": "Needs care",
     "zh-Hans": "需留意"
+  },
+  "回到输入": {
+    "en": "Back to input",
+    "zh-Hans": "回到输入"
   }
 }
