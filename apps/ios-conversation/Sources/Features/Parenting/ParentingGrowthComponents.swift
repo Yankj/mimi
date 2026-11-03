@@ -92,6 +92,8 @@ struct ParentingProgressRing<Center: View>: View {
 struct ParentingWeekDensityView: View {
     let density: ParentingWeekDensity
     var calendar: Calendar = .autoupdatingCurrent
+    /// When false, the host supplies the section header (orange rail); the card only keeps the quiet summary + bars.
+    var showsTitle: Bool = true
     @Environment(\.locale) private var locale
     @ScaledMetric(relativeTo: .body) private var barHeight: CGFloat = 64
 
@@ -112,11 +114,10 @@ struct ParentingWeekDensityView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(ui("最近 7 天")).font(.subheadline.weight(.semibold)).accessibilityAddTraits(.isHeader)
-                Spacer(minLength: 8)
-                Text(verbatim: summary).font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
+            if showsTitle {
+                ParentingSectionHeader(title: ui("最近 7 天"), count: density.total == 0 ? nil : density.total)
             }
+            Text(verbatim: summary).font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
             HStack(alignment: .bottom, spacing: 8) {
                 ForEach(density.days) { day in
                     VStack(spacing: 6) {

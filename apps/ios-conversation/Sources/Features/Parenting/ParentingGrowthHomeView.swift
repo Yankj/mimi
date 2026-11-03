@@ -40,7 +40,9 @@ struct ParentingGrowthHomeView: View {
                 switcher(selected: child.id)
                 header(child)
                 startCard(start, child: child, goals: goals)
-                ParentingWeekDensityView(density: density, calendar: calendar)
+                ParentingSectionHeader(title: ui("最近 7 天"), count: density.total == 0 ? nil : density.total)
+                ParentingWeekDensityView(density: density, calendar: calendar, showsTitle: false)
+                ParentingSectionHeader(title: ui("继续看看"), count: nil)
                 doors(child: child, goalCount: goals.count, recordCount: recordCount)
             }
         }
