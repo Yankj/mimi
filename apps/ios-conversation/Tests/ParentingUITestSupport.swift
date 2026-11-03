@@ -7,6 +7,10 @@ import XCTest
 /// iOS 17-25 (and the current main) still use does expose them, so every helper here falls back to the identifiers when
 /// there is no system tab bar. Tests never talk to either bar directly; they call `ParentingUI`.
 ///
+/// Single-row dual-state chrome (一行双态, the leaf chip on the composer) keeps `parenting.tab.*` in the accessibility
+/// tree but not hittable while the composer occupies that slot. `selectTab` taps `parenting.chrome.typeChip` to open
+/// pickTab in the same slot, then taps the tab. It does not assume a second row of always-visible tabs.
+///
 /// Accessibility identifiers are only *referenced* here, never defined or renamed (they live in the app sources).
 enum ParentingUI {
     // MARK: Tabs
@@ -27,6 +31,12 @@ enum ParentingUI {
 
     /// Identifier prefix of the custom floating bar's buttons.
     static let customTabIdentifierPrefix = "parenting.tab."
+    /// Leaf chip on the composer row. Present only while that row is the input slot (a child exists, 今天 or 成长).
+    static let typeChipID = "parenting.chrome.typeChip"
+    /// Closes pickTab and returns the same slot to the composer. Not a second tab row.
+    static let dismissPickTabID = "parenting.chrome.dismissPickTab"
+    /// Container around `parenting.tab.*` in either the always-visible bar or the pickTab slot.
+    static let tabBarContainerID = "parenting.tabBar"
 
     /// True when the app shows the iOS 26 system tab bar rather than the custom floating bar.
     static func usesSystemTabBar(_ app: XCUIApplication) -> Bool { app.tabBars.firstMatch.exists }
@@ -38,9 +48,10 @@ enum ParentingUI {
 
     /// The tab button for `tab`: by position in the system tab bar, or by `parenting.tab.<id>` on the custom bar.
     /// A minimized system bar (it collapses on scroll) shows only the selected tab; tapping it expands the bar first.
+    /// When the same identifier is mounted twice during a slot crossfade, prefer the hittable one.
     static func tabButton(_ app: XCUIApplication, _ tab: Tab) -> XCUIElement {
         let bar = app.tabBars.firstMatch
-        guard bar.exists else { return app.buttons[customTabIdentifierPrefix + tab.rawValue] }
+        guard bar.exists else { return customTabButton(app, tab) }
         if bar.buttons.count < tabOrder.count, bar.buttons.firstMatch.exists, bar.buttons.firstMatch.isHittable {
             bar.buttons.firstMatch.tap()
             waitUntil(timeout: 3) { bar.buttons.count >= tabOrder.count }
@@ -48,8 +59,18 @@ enum ParentingUI {
         return bar.buttons.element(boundBy: position(of: tab))
     }
 
+    private static func customTabButton(_ app: XCUIApplication, _ tab: Tab) -> XCUIElement {
+        let query = app.buttons.matching(NSPredicate(format: "identifier == %@", customTabIdentifierPrefix + tab.rawValue))
+        if let hittable = query.allElementsBoundByIndex.first(where: \.isHittable) { return hittable }
+        return query.firstMatch
+    }
+
     /// Switches to `tab` and waits until it is selected. Fails with a message that names the tab, its position,
     /// the bar that was searched and the labels that were found.
+    ///
+    /// On the single-row composer the leaf chip is the visible tab control. The `parenting.tab.*` button for the
+    /// current page stays selected but is not hittable until the chip opens pickTab; requiring a hit in that state
+    /// fails every journey that merely confirms it is already on 今天.
     static func selectTab(_ app: XCUIApplication, _ tab: Tab, timeout: TimeInterval = 10,
                           file: StaticString = #filePath, line: UInt = #line) {
         let button = tabButton(app, tab)
@@ -57,8 +78,17 @@ enum ParentingUI {
             XCTFail(tabFailure("tab button does not exist", tab, app), file: file, line: line)
             return
         }
+        let current = tabButton(app, tab)
+        // Already on this tab. A non-hittable button plus the leaf chip means the composer owns the row
+        // and the page is already showing — do not require a tap. A covered button with no chip is still a failure.
+        if current.isSelected && (current.isHittable || app.buttons[typeChipID].exists) {
+            return
+        }
+        if !tabButton(app, tab).isHittable {
+            revealPickTab(app, tab)
+        }
         guard waitUntil(timeout: timeout, { tabButton(app, tab).isHittable }) else {
-            XCTFail(tabFailure("tab button exists but is not hittable (covered by a sheet, the keyboard or an alert?)", tab, app),
+            XCTFail(tabFailure("tab button exists but is not hittable (open pickTab with \(typeChipID) when the composer occupies the row; otherwise a sheet, the keyboard or an alert is covering it)", tab, app),
                     file: file, line: line)
             return
         }
@@ -68,6 +98,16 @@ enum ParentingUI {
         }
     }
 
+    /// Opens the same-slot tab picker when the composer is covering `parenting.tab.*`. No-op on the always-visible bar.
+    private static func revealPickTab(_ app: XCUIApplication, _ tab: Tab) {
+        if tabButton(app, tab).isHittable { return }
+        let chip = app.buttons[typeChipID]
+        guard chip.exists else { return }
+        _ = waitUntil(timeout: 3) { chip.isHittable || tabButton(app, tab).isHittable }
+        if tabButton(app, tab).isHittable || !chip.isHittable { return }
+        chip.tap()
+    }
+
     /// One line that says which bar was searched and what it contained; used in failure messages.
     static func tabBarSummary(_ app: XCUIApplication) -> String {
         let bar = app.tabBars.firstMatch
@@ -75,10 +115,14 @@ enum ParentingUI {
             let labels = bar.buttons.allElementsBoundByIndex.map { $0.label }
             return "system tab bar with \(labels.count) button(s) \(labels)"
         }
-        let ids = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", customTabIdentifierPrefix))
-            .allElementsBoundByIndex.map { $0.identifier }
-        return ids.isEmpty ? "no tab bar (neither a system bar nor parenting.tab.* buttons)"
-                           : "custom floating bar with identifiers \(ids)"
+        let tabs = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", customTabIdentifierPrefix))
+            .allElementsBoundByIndex
+        let ids = tabs.map { "\($0.identifier)\($0.isSelected ? " selected" : "")\($0.isHittable ? "" : " not-hittable")" }
+        let chip = app.buttons[typeChipID]
+        let chipNote = chip.exists ? "; \(typeChipID) '\(chip.label)' hittable=\(chip.isHittable)" : "; no \(typeChipID)"
+        return ids.isEmpty && !chip.exists
+            ? "no tab bar (neither a system bar nor parenting.tab.* buttons)"
+            : "custom chrome [\(ids.joined(separator: ", "))]\(chipNote)"
     }
 
     private static func tabFailure(_ reason: String, _ tab: Tab, _ app: XCUIApplication) -> String {
@@ -87,12 +131,25 @@ enum ParentingUI {
     }
 
     /// Top edge of whichever tab bar is on screen, or nil. Content below it is covered by the floating glass.
+    /// When the single-row composer is showing, the tab buttons are not hittable; the slot frame is the clip edge.
     static func tabBarTop(_ app: XCUIApplication) -> CGFloat? {
         let bar = app.tabBars.firstMatch
         if bar.exists, !bar.frame.isEmpty { return bar.frame.minY }
         let tops = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", customTabIdentifierPrefix))
-            .allElementsBoundByIndex.filter { $0.isHittable }.map { $0.frame.minY }
-        return tops.min()
+            .allElementsBoundByIndex.filter { $0.isHittable && !$0.frame.isEmpty }.map(\.frame.minY)
+        if let top = tops.min() { return top }
+        for id in [tabBarContainerID, composerBarID] {
+            if let top = floatingSlotTop(app.otherElements[id]) { return top }
+        }
+        return nil
+    }
+
+    /// A bar-sized frame. Ignores a full-screen container and the tiny pickTab dismiss glyph.
+    private static func floatingSlotTop(_ element: XCUIElement) -> CGFloat? {
+        guard element.exists else { return nil }
+        let frame = element.frame
+        guard frame.height > 20, frame.height < 220, frame.minY > 1 else { return nil }
+        return frame.minY
     }
 
     // MARK: Composer (the one input card on 今天 and 成长)
@@ -114,19 +171,57 @@ enum ParentingUI {
     /// The composer is voice-first on #131 (idle = + · hold-to-talk · keyboard) and always shows the text field on main.
     static func isVoiceFirstComposer(_ app: XCUIApplication) -> Bool { app.buttons[composerMicID].exists }
 
+    /// The composer text control, whether XCTest surfaces the vertical field as a text field or a text view.
+    static func composerTextInput(_ app: XCUIApplication) -> XCUIElement {
+        let field = app.textFields[composerFieldID]
+        if field.exists { return field }
+        let view = app.textViews[composerFieldID]
+        if view.exists { return view }
+        return field
+    }
+
+    /// True when the composer row is the interactive slot (voice capsule or keyboard), so typing does not have to
+    /// dismiss pickTab first.
+    private static func composerSlotIsInteractive(_ app: XCUIApplication) -> Bool {
+        [app.textFields[composerFieldID], app.textViews[composerFieldID],
+         app.buttons[composerKeyboardToggleID], app.buttons[composerMicID]]
+            .contains { $0.exists && $0.isHittable }
+    }
+
+    /// pickTab and the composer share one row. Typing is only possible after that row is the input slot again.
+    private static func leavePickTabIfComposerCovered(_ app: XCUIApplication) {
+        if composerSlotIsInteractive(app) { return }
+        let tabs = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", customTabIdentifierPrefix))
+            .allElementsBoundByIndex
+        guard tabs.contains(where: \.isHittable) else { return }
+        let dismiss = app.buttons[dismissPickTabID]
+        if dismiss.exists, dismiss.isHittable {
+            dismiss.tap()
+        } else if let selected = tabs.first(where: { $0.isSelected && $0.isHittable }),
+                  selected.identifier != customTabIdentifierPrefix + Tab.family.rawValue {
+            // Tapping the already selected 今天/成长 chip reverses pickTab → input.
+            selected.tap()
+        }
+        _ = waitUntil(timeout: 4) { composerSlotIsInteractive(app) }
+    }
+
     /// Makes the composer's text field available and returns it. Switches to the keyboard layout when the voice-first
-    /// idle layout is showing.
+    /// idle layout is showing, and leaves pickTab first when that picker is covering the composer.
     @discardableResult
     static func showKeyboardComposer(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
-        let field = app.textFields[composerFieldID]
-        if field.waitForExistence(timeout: 3) { return field }
+        leavePickTabIfComposerCovered(app)
+        if waitUntil(timeout: 3, { Self.composerTextInput(app).exists }) {
+            return composerTextInput(app)
+        }
+        var field = composerTextInput(app)
         let toggle = app.buttons[composerKeyboardToggleID]
-        guard toggle.waitForExistence(timeout: 10) else {
-            XCTFail("The composer shows neither \(composerFieldID) nor \(composerKeyboardToggleID).\n" + app.debugDescription,
+        guard waitUntil(timeout: 8, { toggle.exists && toggle.isHittable }) else {
+            XCTFail("The composer shows neither a hittable \(composerFieldID) nor \(composerKeyboardToggleID). Voice idle and pickTab hide the text field until the row is in keyboard mode.\n" + app.debugDescription,
                     file: file, line: line)
             return field
         }
         toggle.tap()
+        field = composerTextInput(app)
         if !field.waitForExistence(timeout: 5) {
             XCTFail("Switching the composer to the keyboard layout did not show \(composerFieldID).\n" + app.debugDescription,
                     file: file, line: line)

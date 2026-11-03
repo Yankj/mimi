@@ -97,6 +97,24 @@ public struct ParentingConfirmCard: Equatable, Sendable {
                 .quote(label: "你说的原话", text: p.sourceText),
                 .note("确认后这项安排会取消，不再提醒；取消后还能在“已取消的安排”里看到它。", .normal),
             ], confirmTitle: "确认取消", writes: true)
+        case .profileFact:
+            guard let fact = p.profileFact, fact.canOfferConfirmCard else { return nil }
+            let scopeLabel: String
+            switch fact.scope {
+            case .family: scopeLabel = "我们家"
+            case .child(let id):
+                guard let name = workspace.children.first(where: { $0.id == id })?.name else { return nil }
+                scopeLabel = name
+            }
+            return .init(kind: p.kind, blocks: [
+                .headline(title: "记入档案", symbol: "person.text.rectangle"),
+                .fields([
+                    .init(label: "范围", value: .text(scopeLabel), tone: .normal),
+                    .init(label: "长期事实", value: .text(fact.text), tone: .normal),
+                ]),
+                .quote(label: "你说的原话", text: p.sourceText),
+                .note("确认后才记成这台设备上的长期事实。先不记就不会写入。", .normal),
+            ], confirmTitle: "确认记入档案", writes: true)
         case .observation:
             guard let childName, let text = p.observationText else { return nil }
             return .init(kind: p.kind, blocks: [

@@ -25,6 +25,7 @@
 | 终版产品、视觉与技术设计 | [FINAL-1综合规格](product/catpaw-final-product-spec.md)、[日用质量／竞争优势验收](acceptance/catpaw-final-product-acceptance.md)、[可点按状态提案](design/prototypes/catpaw-final/index.html) |
 | 项目架构与开发规则 | [最新代码与分支复核](architecture/repository-review-2026-10-15.md)、[目录角色](development/repository-layout.json)、[分支规范](development/branch-management.md)、[2026-10-13基础审查](architecture/repository-review-2026-10-13.md) |
 | 当前产品与页面/状态/API | [AF-1底座](product/agent-foundation-spec.md)、[UX-1](design/ios-codex-experience-spec.md)、[产品索引](product/README.md) |
+| 2026-10-29 三层能力全景清单 | [已有 / 缺口 / 本小时](product/capability-panorama.md)；实时交付状态仍只在[主计划](status/master-plan.md) |
 | 设计、tokens、A1图标与历史截图 | [设计索引](design/README.md)、[design-tokens.json](design/design-tokens.json) |
 | 验收记录 | [验收索引](acceptance/README.md)、[连续多模态问题单](acceptance/r1-continuous-multimodal-issues.md) |
 | 主 iOS 来源与 P0 bridge 证据 | [来源清单](status/ios-p0-import-provenance.json)、[原生结果快照](acceptance/evidence/ios-p0-native-bridge/RESULT.json) |

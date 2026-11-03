@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// First-install launch mark (first-run-polish). ≤ 1.1 s, skippable (tap), VoiceOver → skipped, Reduce Motion → still
+/// First-install launch mark (first-run-polish). ≤ 0.85 s, skippable (tap), VoiceOver → skipped, Reduce Motion → still
 /// mark + 0.25 s fade (`FirstRunAppearance.launch`).
 ///
 /// Why 792587e stuttered: a full-frame-rate `TimelineView(.animation)` inside a `GeometryReader` rebuilt the whole tree

@@ -272,6 +272,9 @@ public struct ParentingWorkspace: Codable, Sendable, Equatable {
             guard next.profile.facts[i].status == .candidate || next.profile.facts[i].status == .stale else {
                 throw catError.invalid("只能确认待确认或需再确认的画像。")
             }
+            guard next.profile.facts[i].confidence != .low else {
+                throw catError.invalid("还不确定的画像不能记成长期事实。")
+            }
             next.profile.facts[i].status = .confirmed
             next.profile.facts[i].userConfirmed = true
             next.profile.facts[i].lastConfirmedAt = now

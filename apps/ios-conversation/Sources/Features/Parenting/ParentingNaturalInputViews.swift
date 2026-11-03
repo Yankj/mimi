@@ -16,6 +16,20 @@ extension View {
     func parentingGlass<S: InsettableShape>(in shape: S) -> some View { modifier(ParentingGlassSurface(shape: shape)) }
 }
 
+/// matchedGeometry on the typeChip when home supplies a Namespace (skipped if nil / Reduce Motion).
+private struct ParentingComposerTypeChipMatch: ViewModifier {
+    let namespace: Namespace.ID?
+    let id: String?
+    var isSource: Bool = true
+    func body(content: Content) -> some View {
+        if let namespace, let id {
+            content.matchedGeometryEffect(id: id, in: namespace, properties: .frame, isSource: isSource)
+        } else {
+            content
+        }
+    }
+}
+
 // MARK: - Bottom composer (Today / Growth)
 
 /// One input box. The parent says what is on their mind; sorting it into 录入 / 规划 / 复盘 happens behind the scenes.
@@ -28,6 +42,18 @@ extension View {
     /// Escape hatches to the manual forms (the "+" menu lists them last).
     var onManualArrangement: (() -> Void)?
     var onManualObservation: (() -> Void)?
+    /// Collapsed current-tab chip on the same row (一行双态 · 输入态). Nil → no chip.
+    var typeChipSystemImage: String? = nil
+    var typeChipTitle: String? = nil
+    var onTypeChipTap: (() -> Void)? = nil
+    /// Home chrome listens so detail can dismiss when the parent focuses input again.
+    var onFocusChange: ((Bool) -> Void)? = nil
+    /// Home bumps this before pickTab morph so we resign focus first (H5).
+    var resignFocusToken: Int = 0
+    /// matchedGeometry: 叶标 ↔ pickTab 当前 tab（Reduce Motion 时传 nil）.
+    var typeChipNamespace: Namespace.ID? = nil
+    var typeChipGeometryID: String? = nil
+    var typeChipGeometryIsSource: Bool = true
     @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @FocusState private var focused: Bool
@@ -129,6 +155,23 @@ extension View {
                     textField
                         .background(catColors.fillSelected.opacity(0.7), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }, sendButton: { sendButton })
+                if let image = typeChipSystemImage, onTypeChipTap != nil {
+                    Button(action: { onTypeChipTap?() }) {
+                        Image(systemName: image)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(catColors.actionText)
+                            .frame(width: 40, height: 40)
+                            .background(catColors.action.opacity(0.16), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(typeChipTitle.map { ui($0) } ?? ui("切换页面"))
+                    .accessibilityIdentifier("parenting.chrome.typeChip")
+                    .modifier(ParentingComposerTypeChipMatch(
+                        namespace: typeChipNamespace,
+                        id: typeChipGeometryID,
+                        isSource: typeChipGeometryIsSource
+                    ))
+                }
             }
         }
         .padding(.horizontal, 8).padding(.vertical, 8)
@@ -139,6 +182,12 @@ extension View {
         // At accessibility sizes the capsule is too small to hold: keyboard only.
         .onAppear { if dynamicTypeSize.isAccessibilitySize { voice.setMode(.keyboard) } }
         .onChange(of: dynamicTypeSize) { _, size in if size.isAccessibilitySize { voice.setMode(.keyboard) } }
+        .onChange(of: focused) { _, value in onFocusChange?(value) }
+        .onChange(of: resignFocusToken) { _, _ in
+            // H5: home asks us to drop keyboard before pickTab morph.
+            voice.dictation.stopNow()
+            focused = false
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("parenting.natural.bar")
     }
@@ -178,6 +227,7 @@ extension View {
         var parts = [ui("小咪理解为：{0}", [ui(p.kind.title)])]
         if let id = p.childID, let name = context.children.first(where: { $0.id == id })?.name { parts.append(name) }
         if let title = p.title, p.kind == .newArrangement { parts.append(title) }
+        if p.kind == .profileFact, let fact = p.profileFact { parts.append(fact.text) }
         if let due = p.dueAt { parts.append(due.formatted(.dateTime.month().day().weekday(.abbreviated).hour().minute())) }
         return parts.joined(separator: " · ")
     }
@@ -210,7 +260,7 @@ extension View {
                         switch input.phase {
                         case .asking: asking(proposal)
                         case .confirming, .saving, .failed: confirming(proposal)
-                        case .saved(let receipt): saved(receipt)
+                        case .saved(let receipt): saved(receipt, kind: proposal.kind)
                         case .idle: EmptyView()
                         }
                     }
@@ -300,6 +350,12 @@ extension View {
                     .accessibilityIdentifier("parenting.natural.question")
                 if ask.field == .intent {
                     intentChoice(ask.options)
+                } else if ask.field == .child && !ask.options.isEmpty {
+                    // The one child picker (same as 今天/成长), nothing pre-selected: the parent taps who it is about.
+                    ParentingChildSwitcher(children: p.childChoices.compactMap { id in context.children.first { $0.id == id } },
+                                           selectedID: nil, fallsBackToFirst: false, accent: childAccent,
+                                           onSelect: { id in if let id { input.answer(.child(id), context: context, now: now) } },
+                                           identifier: "parenting.natural.childPicker", chipIdentifierPrefix: "parenting.natural.child.")
                 } else if !ask.options.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], alignment: .leading, spacing: 8) {
                         ForEach(ask.options) { option in
@@ -391,6 +447,14 @@ extension View {
     @ViewBuilder private func confirming(_ p: ParentingNaturalProposal) -> some View {
         let card = input.card(workspace: workspaceModel.workspace, remindersEnabled: workspaceModel.remindersAvailable ? workspaceModel.reminderSettings.enabled : nil, now: now)
         if let card {
+            if input.canChangeChild && context.children.count > 1 {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(ui("是谁的事")).font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
+                    ParentingChildSwitcher(children: context.children, selectedID: p.childID, fallsBackToFirst: false, accent: childAccent,
+                                           onSelect: { id in if let id { input.changeChild(to: id, context: context, now: now) } },
+                                           identifier: "parenting.natural.cardChildPicker", chipIdentifierPrefix: "parenting.natural.cardChild.")
+                }
+            }
             ParentingConfirmCardView(card: card)
             if case .failed(let message) = input.phase {
                 Label(ui(message), systemImage: "exclamationmark.circle").font(.subheadline)
@@ -398,6 +462,10 @@ extension View {
                     .accessibilityIdentifier("parenting.natural.failure")
             }
         }
+    }
+
+    private func childAccent(_ id: UUID) -> Color {
+        ParentingChildAccent.color(slot: ParentingGrowthInsights.accentSlot(for: id, in: workspaceModel.workspace))
     }
 
     private var currentCard: ParentingConfirmCard? {
@@ -409,6 +477,7 @@ extension View {
             switch input.phase {
             case .confirming, .saving, .failed:
                 let saving = input.phase == .saving
+                let isArchive = card.kind == .profileFact
                 let confirmAction: () -> Void = {
                     if card.writes {
                         Task { await input.confirm(model: workspaceModel) }
@@ -421,10 +490,15 @@ extension View {
                 Group {
                     if card.writes {
                         // 手动调整 on the left, the save on the right (ParentingActionPair: equal width, stacked at accessibility sizes).
-                        ParentingActionPair(secondaryAction: { onManual(p); dismiss() }, primaryAction: confirmAction,
-                                            secondaryDisabled: saving, primaryDisabled: saving || workspaceModel.busy,
-                                            secondaryID: "parenting.natural.manual", primaryID: "parenting.natural.confirm",
-                                            secondaryLabel: { Text(ui("手动调整")) }, primaryLabel: { confirmLabel })
+                        ParentingActionPair(
+                            secondaryAction: {
+                                if isArchive { input.reset(); dismiss() } else { onManual(p); dismiss() }
+                            },
+                            primaryAction: confirmAction,
+                            secondaryDisabled: saving, primaryDisabled: saving || workspaceModel.busy,
+                            secondaryID: isArchive ? "parenting.natural.declineFact" : "parenting.natural.manual",
+                            primaryID: "parenting.natural.confirm",
+                            secondaryLabel: { Text(ui(isArchive ? "先不记" : "手动调整")) }, primaryLabel: { confirmLabel })
                     } else {
                         Button(action: confirmAction) { confirmLabel.frame(maxWidth: .infinity, minHeight: 28) }
                             .parentingTodayPrimaryGlassButton()
@@ -440,7 +514,7 @@ extension View {
         }
     }
 
-    private func saved(_ receipt: String) -> some View {
+    private func saved(_ receipt: String, kind: ParentingIntentKind) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
                 // 记一笔: the plush cat with its notebook confirms a saved record. Decorative; hidden at accessibility sizes.
@@ -449,7 +523,9 @@ extension View {
                     .foregroundStyle(catColors.success)
                     .accessibilityIdentifier("parenting.natural.receipt")
             }
-            Text(ui("已保存在这台设备上；今天页和成长页会同步显示。")).font(.subheadline).foregroundStyle(catColors.calmSecondary)
+            Text(ui(kind == .profileFact
+                     ? "已记在这台设备的家庭档案里。没有发到云端，也没有记成今天的安排。"
+                     : "已保存在这台设备上；今天页和成长页会同步显示。")).font(.subheadline).foregroundStyle(catColors.calmSecondary)
             Button(ui("好的")) { input.reset(); dismiss() }
                 .parentingPrimaryButton()
                 .accessibilityIdentifier("parenting.natural.done")

@@ -104,6 +104,7 @@ struct ParentingFamilyLaunchCard: View {
 
     private func detail(_ child: ParentingChild) -> some View {
         let summary = ParentingFamilySummary.summary(of: child, in: model.workspace)
+        let facts = model.workspace.profile.usableFacts(for: .child(child.id))
         return Form {
             Section {
                 HStack(spacing: 16) {
@@ -123,7 +124,20 @@ struct ParentingFamilyLaunchCard: View {
                 LabeledContent(ui("日常观察")) { Text(verbatim: String(summary.observationCount)) }
                     .accessibilityIdentifier("parenting.family.childDetail.observations")
             } header: { Text(ui("已有记录")) }
-            footer: { Text(ui("这里只显示已经记下的昵称、目标和观察。")) }
+            footer: { Text(ui("这里显示已经记下的昵称、目标和观察。")) }
+            if !facts.isEmpty {
+                Section {
+                    ForEach(facts) { fact in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(ui(fact.kind.archiveTitle)).font(catTypography.Role.caption.font).foregroundStyle(catColors.calmSecondary)
+                            Text(verbatim: fact.text).font(.body)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("parenting.family.childDetail.fact." + fact.id.uuidString)
+                    }
+                } header: { Text(ui("长期事实")) }
+                footer: { Text(ui("只显示你在确认卡上点过确认的事实。还没确认或还不确定的不会出现在这里。")) }
+            }
             Section {
                 Button(ui("修改昵称")) { onRename(child) }
                     .disabled(model.busy)
@@ -136,7 +150,7 @@ struct ParentingFamilyLaunchCard: View {
                 Button(ui("移除孩子资料"), role: .destructive) { onDelete(child.id) }
                     .disabled(model.busy)
                     .accessibilityIdentifier("parenting.family.childDetail.delete")
-            } footer: { Text(ui("会一并删除这个孩子的目标、安排、记录和头像，且无法恢复。移除前会再确认一次。")) }
+            } footer: { Text(ui("会一并删除这个孩子的目标、安排、记录、长期事实和头像，且无法恢复。移除前会再确认一次。")) }
         }
         .scrollContentBackground(.hidden)
         .foregroundStyle(catColors.ink)

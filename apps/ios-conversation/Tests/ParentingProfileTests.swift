@@ -104,4 +104,56 @@ final class ParentingProfileTests: XCTestCase {
         ws = try ws.applying(.clearProfile(.all), now: now)
         XCTAssertTrue(ws.profile.facts.isEmpty)
     }
+
+    func testClaimedConfirmationIsStoredAsACandidateUntilTheConfirmCommand() throws {
+        var ws = try workspaceWithChild()
+        var forged = candidateAlias(child: childA)
+        forged.status = .confirmed
+        forged.userConfirmed = true
+        forged.lastConfirmedAt = now
+        ws = try ws.applying(.addProfileFact(forged), now: now)
+        XCTAssertEqual(ws.profile.facts[0].status, .candidate)
+        XCTAssertFalse(ws.profile.facts[0].userConfirmed)
+        XCTAssertNil(ws.profile.facts[0].lastConfirmedAt)
+        XCTAssertTrue(ws.profile.usableFacts.isEmpty)
+    }
+
+    func testLowConfidenceFactCannotBecomeLongTerm() throws {
+        var ws = try workspaceWithChild()
+        var uncertain = candidateAlias(child: childA)
+        uncertain.confidence = .low
+        ws = try ws.applying(.addProfileFact(uncertain), now: now)
+        XCTAssertTrue(ws.profile.usableFacts.isEmpty)
+        XCTAssertThrowsError(try ws.applying(.confirmProfileFact(id: factID), now: now.addingTimeInterval(60)))
+        XCTAssertEqual(ws.profile.facts[0].status, .candidate)
+        XCTAssertTrue(ws.profile.usableFacts(for: .child(childA)).isEmpty)
+    }
+
+    func testLongTermCommandsStayEmptyUntilTheParentConfirmsACertainFact() throws {
+        let seen = now
+        let certain = ParentingProfileFactProposal(
+            id: factID, scope: .child(childA), kind: .sensitive, payload: "对花生过敏", text: "对花生过敏",
+            confidence: .high, excerpt: "记入档案团团对花生过敏", seenAt: seen)
+        XCTAssertTrue(certain.longTermCommands(userConfirmed: false).isEmpty)
+        let uncertain = ParentingProfileFactProposal(
+            id: factID, scope: .child(childA), kind: .sensitive, payload: "对花生过敏", text: "对花生过敏",
+            confidence: .low, seenAt: seen)
+        XCTAssertTrue(uncertain.longTermCommands(userConfirmed: true).isEmpty)
+        let alias = ParentingProfileFactProposal(
+            id: factID, scope: .child(childA), kind: .alias, payload: "老大", text: "老大",
+            confidence: .high, seenAt: seen)
+        XCTAssertTrue(alias.longTermCommands(userConfirmed: true).isEmpty, "alias binding is not this confirm path")
+
+        var ws = try workspaceWithChild()
+        let commands = certain.longTermCommands(userConfirmed: true)
+        XCTAssertEqual(commands.count, 2)
+        ws = try ws.applying(commands[0], now: seen)
+        XCTAssertTrue(ws.profile.usableFacts.isEmpty, "the candidate write is not yet a long-term fact")
+        ws = try ws.applying(commands[1], now: seen.addingTimeInterval(30))
+        XCTAssertEqual(ws.profile.usableFacts.map(\.text), ["对花生过敏"])
+        XCTAssertEqual(ws.profile.facts[0].source.channel, .confirmCard)
+        XCTAssertEqual(ws.profile.facts[0].status, .confirmed)
+        XCTAssertTrue(ws.profile.facts[0].userConfirmed)
+        XCTAssertLessThanOrEqual(ws.profile.facts[0].source.excerpt?.count ?? 0, ParentingProfile.maxExcerptLength)
+    }
 }
