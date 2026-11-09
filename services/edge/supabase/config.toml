@@ -8,3 +8,7 @@ verify_jwt = false
 [functions.catpaw-proactive]
 # User routes verify the Supabase JWT (incl. anonymous) inside the function; /scheduler/tick uses CATPAW_SCHEDULER_SECRET.
 verify_jwt = false
+
+[functions.cartoon-ecopy]
+# User routes verify the Supabase JWT inside the function. The gateway flag does not grant access.
+verify_jwt = false
