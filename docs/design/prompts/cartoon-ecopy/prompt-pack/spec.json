@@ -1,0 +1,148 @@
+{
+  "version": "0.2.2",
+  "defaults": {
+    "preset": "storybook",
+    "style_preset": "storybook_handdrawn",
+    "decoration_level": "off"
+  },
+  "task": "child_drawing_to_storybook",
+  "input": {
+    "type": "photo_of_child_drawing",
+    "preprocess": [
+      "detect_paper",
+      "perspective_correct",
+      "crop_to_paper",
+      "remove_fingers_and_table",
+      "remove_shadow_and_fold_creases",
+      "white_balance"
+    ]
+  },
+  "preserve": [
+    "all objects and characters, same count",
+    "positions, sizes, proportions, poses",
+    "the child's wobbly naive line shapes and imperfections",
+    "the child's own color choices (may brighten slightly)",
+    "composition and empty space",
+    "any words the child wrote (e.g. 「妈妈 我爱你」): same characters, position, handwriting feel; never correct or retype"
+  ],
+  "style": {
+    "name": "handdrawn_storybook",
+    "keywords": [
+      "cute warm picture-book illustration",
+      "colored pencil and crayon strokes",
+      "soft watercolor wash fills",
+      "visible paper grain",
+      "slightly wobbly hand-drawn outlines",
+      "warm off-white paper"
+    ],
+    "detail_allowed": [
+      "stroke texture",
+      "soft shading",
+      "gentle light",
+      "paper texture"
+    ]
+  },
+  "forbid": [
+    "new objects, characters, animals, plants, flowers",
+    "new patterns, scales, spots, stripes",
+    "NEW text, letters, signatures, watermarks (keep the child's own existing writing exactly as written)",
+    "redrawing into smooth vector / geometric / 3D / anime style",
+    "changing faces or expressions",
+    "photorealism",
+    "completing or extending parts cut off by the photo edge (leave cropped areas as they are)",
+    "keeping non-drawing items like fingers, crayons, toys, table"
+  ],
+  "presets": {
+    "light": {
+      "label": "轻度润色",
+      "intent": "clean up and add texture, stay very close to original",
+      "diffusion_denoise": 0.35
+    },
+    "storybook": {
+      "label": "绘本精修",
+      "intent": "richer storybook finish, same content",
+      "diffusion_denoise": 0.55
+    }
+  },
+  "privacy": {
+    "never_send": [
+      "child name",
+      "age",
+      "location",
+      "family names"
+    ],
+    "storage": "per-user private bucket, RLS, no public URL",
+    "delete": "original and outputs deleted together"
+  },
+  "animation": {
+    "duration_s": [
+      3,
+      5
+    ],
+    "loop": true,
+    "camera": "static or very slow push-in",
+    "motion": "gentle motion only on elements that naturally move (sun rays shimmer, tree sway, smoke/flame flicker, wave/hand wave, twinkle on existing stars)",
+    "forbid": [
+      "morphing shapes",
+      "new objects",
+      "changing faces",
+      "new text (child's own words stay unchanged)",
+      "fast motion",
+      "flashing/strobing"
+    ],
+    "motion_examples": [
+      "blink on existing eyes",
+      "hair sway",
+      "existing stars twinkle",
+      "sun rays shimmer",
+      "tree sway",
+      "flame flicker"
+    ]
+  },
+  "style_presets": {
+    "storybook_handdrawn": {
+      "label": "绘本手绘",
+      "keywords": [
+        "cute warm picture-book illustration",
+        "colored pencil and crayon strokes",
+        "soft watercolor wash fills",
+        "visible paper grain",
+        "slightly wobbly hand-drawn outlines",
+        "warm off-white paper"
+      ]
+    },
+    "cartoon": {
+      "label": "更卡通",
+      "keywords": [
+        "cute cartoon illustration",
+        "bolder clean but still hand-wobbly outlines",
+        "rounder softer shapes",
+        "brighter saturated flat-ish colors with light crayon texture",
+        "warm paper"
+      ],
+      "note": "rounder/brighter only; same objects, count, positions, faces"
+    }
+  },
+  "decoration_levels": {
+    "off": {
+      "label": "关（默认）",
+      "add": []
+    },
+    "light": {
+      "label": "轻",
+      "add": [
+        "cheek blush on existing faces",
+        "eye highlights on existing eyes"
+      ]
+    },
+    "sparkle": {
+      "label": "闪",
+      "add": [
+        "cheek blush",
+        "eye highlights",
+        "soft glow/twinkle on existing stars, hearts, sun"
+      ]
+    }
+  },
+  "decoration_levels_rule": "decorations only on existing elements; never new objects"
+}
