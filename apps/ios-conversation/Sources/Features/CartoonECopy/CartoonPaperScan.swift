@@ -32,6 +32,7 @@ enum CartoonPaperScanner {
         correction.setValue(vector(paper.bottomLeft, width: width, height: height), forKey: "inputBottomLeft")
         correction.setValue(vector(paper.bottomRight, width: width, height: height), forKey: "inputBottomRight")
         guard var output = correction.outputImage else { return nil }
+        output = flattened(output)
         output = balanced(output)
         let longEdge = max(output.extent.width, output.extent.height)
         if longEdge > 1536 {
@@ -56,24 +57,41 @@ enum CartoonPaperScanner {
         }
     }
 
+    /// Large-blur division lifts a lamp shadow. Highlight-shadow then lifts broad creases.
+    /// Thin ink stays darker than the blur, so the lines are not painted out.
+    private static func flattened(_ image: CIImage) -> CIImage {
+        let extent = image.extent
+        let longEdge = max(extent.width, extent.height)
+        guard longEdge > 1, let blur = CIFilter(name: "CIGaussianBlur") else { return image }
+        blur.setValue(image.clampedToExtent(), forKey: kCIInputImageKey)
+        blur.setValue(max(18, longEdge / 18), forKey: kCIInputRadiusKey)
+        guard let background = blur.outputImage?.cropped(to: extent) else { return image }
+        guard let floor = CIFilter(name: "CIColorClamp") else { return image }
+        floor.setValue(background, forKey: kCIInputImageKey)
+        floor.setValue(CIVector(x: 0.12, y: 0.12, z: 0.12, w: 0), forKey: "inputMinComponents")
+        floor.setValue(CIVector(x: 1, y: 1, z: 1, w: 1), forKey: "inputMaxComponents")
+        guard let safeBackground = floor.outputImage else { return image }
+        // CIDivideBlendMode computes background / source. Swap the inputs so the photo is divided by the blur.
+        guard let divide = CIFilter(name: "CIDivideBlendMode") else { return image }
+        divide.setValue(safeBackground, forKey: kCIInputImageKey)
+        divide.setValue(image, forKey: kCIInputBackgroundImageKey)
+        guard let flat = divide.outputImage?.cropped(to: extent) else { return image }
+        guard let shadow = CIFilter(name: "CIHighlightShadowAdjust") else { return flat }
+        shadow.setValue(flat, forKey: kCIInputImageKey)
+        shadow.setValue(0.3, forKey: "inputShadowAmount")
+        shadow.setValue(1, forKey: "inputHighlightAmount")
+        shadow.setValue(max(8, longEdge / 48), forKey: kCIInputRadiusKey)
+        return shadow.outputImage?.cropped(to: extent) ?? flat
+    }
+
     private static func balanced(_ image: CIImage) -> CIImage {
         let context = CIContext(options: nil)
         let sampleWidth = min(32, image.extent.width)
         let sampleHeight = min(32, image.extent.height)
         guard sampleWidth > 1, sampleHeight > 1 else { return image }
         let thumb = image.transformed(by: CGAffineTransform(scaleX: sampleWidth / image.extent.width, y: sampleHeight / image.extent.height))
-        guard let cgImage = context.createCGImage(thumb, from: thumb.extent),
-              let data = cgImage.dataProvider?.data,
-              let bytes = CFDataGetBytePtr(data) else { return image }
-        let bytesPerPixel = cgImage.bitsPerPixel / 8
-        guard bytesPerPixel >= 4 else { return image }
-        var samples: [(r: UInt8, g: UInt8, b: UInt8)] = []
-        for y in stride(from: 0, to: cgImage.height, by: 2) {
-            for x in stride(from: 0, to: cgImage.width, by: 2) {
-                let offset = y * cgImage.bytesPerRow + x * bytesPerPixel
-                samples.append((bytes[offset], bytes[offset + 1], bytes[offset + 2]))
-            }
-        }
+        guard let cgImage = context.createCGImage(thumb, from: thumb.extent) else { return image }
+        guard let samples = rgbaSamples(cgImage), !samples.isEmpty else { return image }
         let gains = CartoonWhiteBalance.grayWorld(samples)
         guard let matrix = CIFilter(name: "CIColorMatrix") else { return image }
         matrix.setValue(image, forKey: kCIInputImageKey)
@@ -83,5 +101,50 @@ enum CartoonPaperScanner {
         matrix.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
         matrix.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputBiasVector")
         return matrix.outputImage ?? image
+    }
+
+    /// Draw into RGBA8 (byteOrder32Big + premultipliedLast) and read with CartoonPixelOrder,
+    /// so a BGRA photo buffer does not swap red and blue.
+    private static func rgbaSamples(_ image: CGImage) -> [(r: UInt8, g: UInt8, b: UInt8)]? {
+        let width = image.width
+        let height = image.height
+        guard width > 0, height > 0 else { return nil }
+        let rowBytes = width * 4
+        var pixels = [UInt8](repeating: 0, count: rowBytes * height)
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+        let layout = CartoonPixelOrder.layout(bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo))
+        let drawn: [(r: UInt8, g: UInt8, b: UInt8)]? = pixels.withUnsafeMutableBytes { raw in
+            guard let base = raw.baseAddress,
+                  let context = CGContext(
+                    data: base, width: width, height: height, bitsPerComponent: 8, bytesPerRow: rowBytes,
+                    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: bitmapInfo) else { return nil }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            let bytes = base.assumingMemoryBound(to: UInt8.self)
+            var samples: [(r: UInt8, g: UInt8, b: UInt8)] = []
+            for y in stride(from: 0, to: height, by: 2) {
+                for x in stride(from: 0, to: width, by: 2) {
+                    samples.append(CartoonPixelOrder.rgb(bytes + y * rowBytes + x * 4, layout: layout))
+                }
+            }
+            return samples
+        }
+        if let drawn, !drawn.isEmpty { return drawn }
+        return samplesFromProvider(image)
+    }
+
+    private static func samplesFromProvider(_ image: CGImage) -> [(r: UInt8, g: UInt8, b: UInt8)]? {
+        guard let data = image.dataProvider?.data, let bytes = CFDataGetBytePtr(data) else { return nil }
+        let bytesPerPixel = image.bitsPerPixel / 8
+        guard bytesPerPixel >= 4 else { return nil }
+        let info = CGBitmapInfo(rawValue: image.bitmapInfo.rawValue | image.alphaInfo.rawValue)
+        let layout = CartoonPixelOrder.layout(bitmapInfo: info)
+        var samples: [(r: UInt8, g: UInt8, b: UInt8)] = []
+        for y in stride(from: 0, to: image.height, by: 2) {
+            for x in stride(from: 0, to: image.width, by: 2) {
+                let offset = y * image.bytesPerRow + x * bytesPerPixel
+                samples.append(CartoonPixelOrder.rgb(bytes + offset, layout: layout))
+            }
+        }
+        return samples
     }
 }

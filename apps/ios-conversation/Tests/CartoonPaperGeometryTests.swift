@@ -45,6 +45,47 @@ final class CartoonPaperGeometryTests: XCTestCase {
         XCTAssertGreaterThan(gains.blue, gains.red)
         XCTAssertLessThan(gains.red, 1)
     }
+
+    func testBGRABytesAreNotReadAsRGB() {
+        let bgra = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+        XCTAssertEqual(CartoonPixelOrder.layout(bitmapInfo: bgra), .bgra)
+        let rgba = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue)
+        XCTAssertEqual(CartoonPixelOrder.layout(bitmapInfo: rgba), .rgba)
+        let pixel = CartoonPixelOrder.rgb((40, 80, 200, 255), layout: .bgra)
+        XCTAssertEqual(pixel.r, 200)
+        XCTAssertEqual(pixel.g, 80)
+        XCTAssertEqual(pixel.b, 40)
+        let gains = CartoonWhiteBalance.grayWorld([pixel, pixel])
+        XCTAssertGreaterThan(gains.blue, gains.red)
+    }
+
+    func testShadowFlattenLiftsABroadShadowAndKeepsTheLine() {
+        let width = 12
+        let height = 12
+        var pixels = [Double](repeating: 0.9, count: width * height)
+        for y in 0..<height {
+            for x in 0..<5 { pixels[y * width + x] = 0.3 }
+        }
+        let line = 6 * width + 9
+        pixels[line] = 0.02
+        let flat = CartoonIllumination.flatten(pixels: pixels, width: width, height: height, blurRadius: 1, creaseRadius: 1, creaseLift: 0.6)
+        var shadow = 0.0
+        var shadowCount = 0
+        var paper = 0.0
+        var paperCount = 0
+        for y in 0..<height {
+            for x in 0..<width {
+                let value = flat[y * width + x]
+                if x <= 2 { shadow += value; shadowCount += 1 }
+                if x >= 7 && !(y == 6 && x == 9) { paper += value; paperCount += 1 }
+            }
+        }
+        shadow /= Double(shadowCount)
+        paper /= Double(paperCount)
+        XCTAssertGreaterThan(shadow, 0.55)
+        XCTAssertLessThan(flat[line], 0.2)
+        XCTAssertLessThan(abs(paper - shadow), 0.15)
+    }
 }
 
 final class CartoonECopyRequestTests: XCTestCase {
@@ -68,5 +109,12 @@ final class CartoonECopyRequestTests: XCTestCase {
         let project = CartoonECopyEndpoint.baseURL(info: ["CatpawSupabaseProjectURL": "https://abcdefghijklmnopqrst.supabase.co"])
         XCTAssertEqual(project?.absoluteString, "https://abcdefghijklmnopqrst.supabase.co/functions/v1/cartoon-ecopy")
         XCTAssertNil(CartoonECopyEndpoint.baseURL(info: ["CatpawSupabaseProjectURL": "http://abcdefghijklmnopqrst.supabase.co"]))
+    }
+
+    func testGenerateWaitsLongEnoughForTheLightRetry() {
+        XCTAssertGreaterThanOrEqual(CartoonECopyTimeouts.generate, 120)
+        XCTAssertLessThan(CartoonECopyTimeouts.generate, 150)
+        XCTAssertGreaterThanOrEqual(CartoonECopyTimeouts.signedURLRefresh, 8 * 60)
+        XCTAssertLessThan(CartoonECopyTimeouts.signedURLRefresh, 10 * 60)
     }
 }

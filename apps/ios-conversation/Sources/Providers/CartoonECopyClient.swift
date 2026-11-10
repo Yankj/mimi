@@ -53,37 +53,44 @@ enum CartoonECopyEndpoint {
     }
 }
 
-public enum CartoonECopyClientError: Error, Equatable {
+enum CartoonECopyClientError: Error, Equatable {
     case notConfigured(String)
     case unauthorized
     case privacy
     case http(Int, String)
 }
 
-public actor CartoonECopyClient {
-    public static let shared = CartoonECopyClient()
+enum CartoonECopyTimeouts {
+    /// Two provider attempts, about 50s each, plus storage. Stays inside a 150s edge wall clock.
+    static let generate: TimeInterval = 140
+    /// Signed URLs last 10 minutes. Refresh while they are still valid.
+    static let signedURLRefresh: TimeInterval = 8 * 60
+}
+
+actor CartoonECopyClient {
+    static let shared = CartoonECopyClient()
     private let session: URLSession
     private let base: URL?
     private let authorization: (@Sendable () async throws -> String)?
 
-    public init(session: URLSession = .shared, info: [String: Any]? = Bundle.main.infoDictionary, authorization: (@Sendable () async throws -> String)? = nil) {
+    init(session: URLSession = .shared, info: [String: Any]? = Bundle.main.infoDictionary, authorization: (@Sendable () async throws -> String)? = nil) {
         self.session = session
         self.base = CartoonECopyEndpoint.baseURL(info: info ?? [:])
         self.authorization = authorization
     }
 
-    public func list() async throws -> [CartoonArtwork] {
+    func list() async throws -> [CartoonArtwork] {
         struct Response: Decodable { var artworks: [CartoonArtwork] }
         return try await send("GET", "artworks", body: nil, as: Response.self).artworks
     }
 
-    public func generate(_ body: CartoonECopyGenerateBody) async throws -> CartoonArtwork {
+    func generate(_ body: CartoonECopyGenerateBody) async throws -> CartoonArtwork {
         struct Response: Decodable { var artwork: CartoonArtwork }
         let data = try JSONEncoder().encode(body)
-        return try await send("POST", "artworks", body: data, timeout: 70, as: Response.self).artwork
+        return try await send("POST", "artworks", body: data, timeout: CartoonECopyTimeouts.generate, as: Response.self).artwork
     }
 
-    public func delete(id: String) async throws {
+    func delete(id: String) async throws {
         struct Response: Decodable { var deleted: Bool }
         _ = try await send("DELETE", "artworks/" + id, body: nil, as: Response.self)
     }

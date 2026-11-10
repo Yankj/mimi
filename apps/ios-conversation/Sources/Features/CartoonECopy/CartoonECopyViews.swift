@@ -5,6 +5,7 @@ import UIKit
 /// 拍照或从相册选一张孩子的画，把纸边裁正后再生成电子稿。上传的只有裁正后的 JPEG。
 @MainActor struct CartoonECopyFlowView: View {
     @Environment(\.locale) private var locale
+    @Environment(\.scenePhase) private var scenePhase
     @State private var step: Step = .capture
     @State private var source: UIImage?
     @State private var quad = PaperQuad.insetDefault
@@ -17,6 +18,9 @@ import UIKit
     @State private var busy = false
     @State private var showCamera = false
     @State private var libraryItem: PhotosPickerItem?
+    @State private var signedAt = Date.distantPast
+    @State private var refreshingURLs = false
+    @State private var refreshedURLs: Set<URL> = []
 
     private enum Step { case capture, crop, options }
 
@@ -37,6 +41,20 @@ import UIKit
         .navigationTitle(ui("画作电子稿"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await reload() }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            refreshedURLs.removeAll()
+            Task { await reload() }
+        }
+        .task(id: signedAt) {
+            guard signedAt != .distantPast else { return }
+            let remaining = CartoonECopyTimeouts.signedURLRefresh - Date().timeIntervalSince(signedAt)
+            if remaining > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+            }
+            guard !Task.isCancelled else { return }
+            await reload()
+        }
         .sheet(isPresented: $showCamera) {
             NativeMediaPicker(camera: true) { data in
                 showCamera = false
@@ -138,8 +156,17 @@ import UIKit
     private func artworkImage(_ url: URL?, label: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(verbatim: label).font(.caption2).foregroundStyle(catColors.calmSecondary)
-            AsyncImage(url: url) { image in image.resizable().scaledToFit() } placeholder: { Color.clear.frame(height: 80) }
-                .frame(maxWidth: .infinity, minHeight: 80, maxHeight: 140)
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFit()
+                case .failure:
+                    Color.clear.frame(height: 80).task { await refreshFailed(url) }
+                default:
+                    Color.clear.frame(height: 80)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 80, maxHeight: 140)
         }
     }
 
@@ -203,7 +230,18 @@ import UIKit
     }
 
     private func reload() async {
-        artworks = (try? await CartoonECopyClient.shared.list()) ?? artworks
+        if refreshingURLs { return }
+        refreshingURLs = true
+        defer { refreshingURLs = false }
+        if let fresh = try? await CartoonECopyClient.shared.list() {
+            artworks = fresh
+            signedAt = Date()
+        }
+    }
+
+    private func refreshFailed(_ url: URL?) async {
+        guard let url, refreshedURLs.insert(url).inserted else { return }
+        await reload()
     }
 
     private func remove(_ artwork: CartoonArtwork) async {

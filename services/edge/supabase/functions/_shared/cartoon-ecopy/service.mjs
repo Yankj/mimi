@@ -1,8 +1,13 @@
 import {Buffer} from 'node:buffer';
 import {ApiError,check,UUID} from '../core/facade-r2/src/common.mjs';
+import {cartoonStructureAccepts} from './image-decode.mjs';
 import {assertCartoonRequest,cartoonChoices,renderInstructEditPrompt} from './prompt.mjs';
 
 export const CARTOON_BUCKET = 'cartoon-ecopies';
+// Two provider attempts have to finish inside the common 150s edge wall clock.
+export const CARTOON_CHAIN_BUDGET_MS = 110_000;
+export const CARTOON_ATTEMPT_TIMEOUT_MS = 50_000;
+const SIGNED_URL_SECONDS = 600;
 const MAX_IMAGE = 5 * 1024 * 1024;
 const MESSAGES = {
   not_configured: '卡通电子稿图像模型未配置。请设置 CARTOON_ECOPY_PROVIDER、CARTOON_ECOPY_API_KEY 和 CARTOON_ECOPY_MODEL。',
@@ -32,11 +37,7 @@ export function readCartoonProviderConfig(env) {
   return {configured: true, provider, apiKey, model, baseURL};
 }
 
-// acceptance.md items 1–6 and 8–9 (counts, new objects, SSIM, line quality, expression,
-// animation, handwriting, cropped edges) are not computed here.
-// TODO: when CARTOON_ECOPY_JUDGE_URL is unset, a passing provider image is accepted on
-// magic bytes only. The retry-light-then-crop chain still runs for provider errors and
-// for a judge that returns pass:false.
+// Magic bytes only. The acceptance decision is judgeCartoonOutput.
 export function defaultCartoonJudge(image) {
   const bytes = image?.bytes;
   if (!bytes || bytes.length < 8 || bytes.length > 8 * 1024 * 1024) return false;
@@ -45,13 +46,79 @@ export function defaultCartoonJudge(image) {
   return png || jpg;
 }
 
-export async function runCartoonFallback({requestedPreset, original, edit, judge}) {
+export function readCartoonJudgeConfig(env = () => undefined) {
+  const url = String(env('CARTOON_ECOPY_JUDGE_URL') ?? '').trim();
+  const apiKey = String(env('CARTOON_ECOPY_JUDGE_API_KEY') ?? '').trim();
+  if (!url.startsWith('https://')) return {configured: false};
+  return {configured: true, url, apiKey};
+}
+
+// Remote judge when CARTOON_ECOPY_JUDGE_URL is set. Otherwise the line-layer check
+// compares the output with the cropped source, so an added object fails the attempt.
+export async function judgeCartoonOutput({source, output, env = () => undefined, fetchImpl = globalThis.fetch}) {
+  if (!defaultCartoonJudge(output) || !source?.bytes) return false;
+  const cfg = readCartoonJudgeConfig(env);
+  if (cfg.configured) {
+    try {
+      const headers = {'Content-Type': 'application/json'};
+      if (cfg.apiKey) headers.Authorization = `Bearer ${cfg.apiKey}`;
+      const response = await fetchImpl(cfg.url, {
+        method: 'POST',
+        headers,
+        signal: AbortSignal.timeout(8_000),
+        body: JSON.stringify({
+          image_base64: Buffer.from(output.bytes).toString('base64'),
+          source_base64: Buffer.from(source.bytes).toString('base64'),
+          mime_type: output.mime,
+        }),
+      });
+      if (response.ok) {
+        const payload = await response.json();
+        return payload?.pass === true;
+      }
+    } catch { /* a dead judge falls through to the line check */ }
+  }
+  return cartoonStructureAccepts(source.bytes, output.bytes);
+}
+
+function withDeadline(promise, ms, controller) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error('attempt_timeout'));
+    }, ms);
+    promise.then(value => {
+      clearTimeout(timer);
+      resolve(value);
+    }, error => {
+      clearTimeout(timer);
+      reject(error);
+    });
+  });
+}
+
+export async function runCartoonFallback({
+  requestedPreset, original, edit, judge,
+  budgetMs = CARTOON_CHAIN_BUDGET_MS,
+  attemptMs = CARTOON_ATTEMPT_TIMEOUT_MS,
+  now = () => Date.now(),
+}) {
+  const started = now();
   const attempts = requestedPreset === 'light' ? ['light', 'light'] : [requestedPreset, 'light'];
   for (const preset of attempts) {
+    const remaining = budgetMs - (now() - started);
+    if (remaining < Math.min(attemptMs, 1000)) break;
+    const limit = Math.min(attemptMs, remaining);
+    const controller = new AbortController();
     try {
-      const image = await edit(preset);
-      if (await judge(image)) return {status: 'ready', preset, image};
-    } catch { /* try the next step of the chain */ }
+      const image = await withDeadline(edit(preset, controller.signal), limit, controller);
+      const judgeLimit = Math.min(8_000, budgetMs - (now() - started));
+      if (judgeLimit < 50) break;
+      const judgeController = new AbortController();
+      if (await withDeadline(Promise.resolve(judge(image, original)), judgeLimit, judgeController)) {
+        return {status: 'ready', preset, image};
+      }
+    } catch { /* the next attempt, or the cropped original when time runs out */ }
   }
   return {status: 'fallback_crop', preset: requestedPreset, image: original};
 }
@@ -61,11 +128,11 @@ export function createCartoonImageProvider({env, fetchImpl = globalThis.fetch}) 
   return {
     configured: cfg.configured,
     model: cfg.model ?? null,
-    async edit({prompt, image, mime}) {
+    async edit({prompt, image, mime, signal}) {
       if (!cfg.configured) throw new ApiError(503, 'not_configured');
-      if (cfg.provider === 'openai') return editOpenAI(cfg, prompt, image, mime, fetchImpl);
-      if (cfg.provider === 'gemini') return editGemini(cfg, prompt, image, mime, fetchImpl);
-      return editGeneric(cfg, prompt, image, mime, fetchImpl);
+      if (cfg.provider === 'openai') return editOpenAI(cfg, prompt, image, mime, fetchImpl, signal);
+      if (cfg.provider === 'gemini') return editGemini(cfg, prompt, image, mime, fetchImpl, signal);
+      return editGeneric(cfg, prompt, image, mime, fetchImpl, signal);
     },
   };
 }
@@ -93,30 +160,32 @@ async function readImageResponse(response) {
   return {bytes, mime};
 }
 
-async function editGeneric(cfg, prompt, image, mime, fetchImpl) {
+async function editGeneric(cfg, prompt, image, mime, fetchImpl, signal) {
   const response = await fetchImpl(cfg.baseURL, {
     method: 'POST',
+    signal,
     headers: {Authorization: `Bearer ${cfg.apiKey}`, 'Content-Type': 'application/json'},
     body: JSON.stringify({prompt, image_base64: Buffer.from(image).toString('base64'), mime_type: mime, model: cfg.model}),
   });
   return readImageResponse(response);
 }
 
-async function editOpenAI(cfg, prompt, image, mime, fetchImpl) {
+async function editOpenAI(cfg, prompt, image, mime, fetchImpl, signal) {
   const endpoint = cfg.baseURL || 'https://api.openai.com/v1/images/edits';
   const boundary = `cartoon-${crypto.randomUUID()}`;
   const filename = mime === 'image/png' ? 'drawing.png' : 'drawing.jpg';
   const head = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\n${cfg.model}\r\n--${boundary}\r\nContent-Disposition: form-data; name="prompt"\r\n\r\n${prompt}\r\n--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="${filename}"\r\nContent-Type: ${mime}\r\n\r\n`);
   const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
   const body = Buffer.concat([head, Buffer.from(image), tail]);
-  const response = await fetchImpl(endpoint, {method: 'POST', headers: {Authorization: `Bearer ${cfg.apiKey}`, 'Content-Type': `multipart/form-data; boundary=${boundary}`}, body});
+  const response = await fetchImpl(endpoint, {method: 'POST', signal, headers: {Authorization: `Bearer ${cfg.apiKey}`, 'Content-Type': `multipart/form-data; boundary=${boundary}`}, body});
   return readImageResponse(response);
 }
 
-async function editGemini(cfg, prompt, image, mime, fetchImpl) {
+async function editGemini(cfg, prompt, image, mime, fetchImpl, signal) {
   const endpoint = cfg.baseURL || `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.model)}:generateContent`;
   const response = await fetchImpl(endpoint, {
     method: 'POST',
+    signal,
     headers: {'Content-Type': 'application/json', 'x-goog-api-key': cfg.apiKey},
     body: JSON.stringify({
       contents: [{role: 'user', parts: [{text: prompt}, {inline_data: {mime_type: mime, data: Buffer.from(image).toString('base64')}}]}],
@@ -144,7 +213,7 @@ export function createCartoonStorage({url, serviceKey, fetchImpl = globalThis.fe
       check(response.ok || response.status === 404, 503, 'storage_unavailable');
     },
     async sign(path) {
-      const response = await fetchImpl(`${base}/object/sign/${bucket}/${enc(path)}`, {method: 'POST', headers: headers({'Content-Type': 'application/json'}), body: JSON.stringify({expiresIn: 600})});
+      const response = await fetchImpl(`${base}/object/sign/${bucket}/${enc(path)}`, {method: 'POST', headers: headers({'Content-Type': 'application/json'}), body: JSON.stringify({expiresIn: SIGNED_URL_SECONDS})});
       check(response.ok, 503, 'storage_unavailable');
       const payload = await response.json();
       const signed = payload.signedURL || payload.signedUrl;
@@ -162,6 +231,7 @@ export function memoryCartoonStore() {
     rows,
     async insert(row) { rows.set(row.id, {...row}); return rows.get(row.id); },
     async list(userId) { return [...rows.values()].filter(row => row.user_id === userId && row.status !== 'deleting' && row.status !== 'pending').sort((a, b) => b.created_at.localeCompare(a.created_at)); },
+    async deleting(userId) { return [...rows.values()].filter(row => row.user_id === userId && row.status === 'deleting'); },
     async get(userId, id) { const row = rows.get(id); return row && row.user_id === userId ? row : null; },
     async update(userId, id, patch) {
       const row = rows.get(id);
@@ -191,7 +261,7 @@ export function createCartoonECopyService(opts) {
   const env = opts.env ?? (() => undefined);
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
   const provider = opts.provider ?? createCartoonImageProvider({env, fetchImpl});
-  const judge = opts.judge ?? (async image => defaultCartoonJudge(image));
+  const judge = opts.judge ?? ((output, source) => judgeCartoonOutput({source, output, env, fetchImpl}));
   let store = opts.store ?? null;
   let storage = opts.storage ?? null;
   const now = opts.now ?? (() => new Date().toISOString());
@@ -225,7 +295,13 @@ export function createCartoonECopyService(opts) {
     provider,
     async list(authorization) {
       const id = await userId(authorization);
-      const {store: rows} = backend();
+      const {store: rows, storage: files} = backend();
+      for (const row of await rows.deleting(id)) {
+        try {
+          await purgePair(files, row);
+          await rows.remove(id, row.id);
+        } catch { /* the row stays deleting and the next list retries */ }
+      }
       const artworks = [];
       for (const row of await rows.list(id)) artworks.push(await present(row));
       return {artworks};
@@ -245,8 +321,7 @@ export function createCartoonECopyService(opts) {
       const row = await rows.get(owner, id);
       check(row, 404, 'not_found');
       await rows.update(owner, id, {status: 'deleting'});
-      await files.remove(row.original_path);
-      if (row.output_path) await files.remove(row.output_path);
+      await purgePair(files, row);
       await rows.remove(owner, id);
       return {deleted: true, id};
     },
@@ -271,8 +346,10 @@ export function createCartoonECopyService(opts) {
         const outcome = await runCartoonFallback({
           requestedPreset: choice.preset,
           original: image,
-          edit: async preset => provider.edit({prompt: renderInstructEditPrompt(opts.spec, {...choice, preset}), image: image.bytes, mime: image.mime}),
+          edit: async (preset, signal) => provider.edit({prompt: renderInstructEditPrompt(opts.spec, {...choice, preset}), image: image.bytes, mime: image.mime, signal}),
           judge,
+          budgetMs: opts.budgetMs,
+          attemptMs: opts.attemptMs,
         });
         const outputPath = `${owner}/${id}/output.${ext(outcome.image.mime)}`;
         await files.put(outputPath, outcome.image.bytes, outcome.image.mime);
@@ -308,6 +385,7 @@ export function createPostgrestCartoonStore({url, serviceKey, fetchImpl = global
   return {
     async insert(row) { return (await send('POST', '', row, 'return=representation'))[0]; },
     async list(userId) { return send('GET', `?user_id=eq.${eq(userId)}&status=not.in.(pending,deleting)&order=created_at.desc`); },
+    async deleting(userId) { return send('GET', `?user_id=eq.${eq(userId)}&status=eq.deleting`); },
     async get(userId, id) { return (await send('GET', `?id=eq.${eq(id)}&user_id=eq.${eq(userId)}&select=*`))[0] ?? null; },
     async update(userId, id, patch) { return (await send('PATCH', `?id=eq.${eq(id)}&user_id=eq.${eq(userId)}`, {...patch, updated_at: new Date().toISOString()}, 'return=representation'))[0] ?? null; },
     async remove(userId, id) { await send('DELETE', `?id=eq.${eq(id)}&user_id=eq.${eq(userId)}`); return true; },
@@ -345,6 +423,17 @@ async function readBody(request) {
   const text = await request.text();
   check(text.length <= 8 * 1024 * 1024, 413, 'image_too_large');
   try { return JSON.parse(text); } catch { throw new ApiError(422, 'schema_invalid'); }
+}
+
+async function purgePair(files, row) {
+  await files.remove(row.original_path);
+  if (row.output_path) {
+    await files.remove(row.output_path);
+    return;
+  }
+  const folder = row.original_path.split('/').slice(0, -1).join('/');
+  await files.remove(`${folder}/output.jpg`);
+  await files.remove(`${folder}/output.png`);
 }
 
 function json(status, body) {
