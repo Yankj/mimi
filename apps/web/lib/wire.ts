@@ -45,6 +45,27 @@ const SUPABASE_HOST = /^[a-z0-9]{20}\.supabase\.co$/;
 const PUBLISHABLE = /^sb_publishable_[A-Za-z0-9_-]{10,2000}$/;
 const EDGE_PATH = /^\/functions\/v1\/[A-Za-z0-9_-]{1,64}\/?$/;
 
+export function uploadHostsFromConfig(config: PublicConfig) {
+  return [...new Set([new URL(config.supabaseUrl).hostname, new URL(config.edgeOrigin).hostname])];
+}
+
+export function uploadUrlAllowed(url: string, hosts: string[]) {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || hosts.length === 0) return false;
+  return hosts.some((host) => host.toLowerCase() === parsed.hostname.toLowerCase());
+}
+
+export function flushSseBuffer(buffer: string) {
+  if (!buffer) return { lines: [] as string[], rest: "" };
+  const terminated = buffer.endsWith("\n") || buffer.endsWith("\r") ? buffer : `${buffer}\n`;
+  return takeSseLines(terminated);
+}
+
 export function readPublicConfig(env: Record<string, string | undefined>): PublicConfig | null {
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
   const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";

@@ -13,6 +13,7 @@ jobs:
     outputs:
       ios: ${{ steps.filter.outputs.ios }}
       edge: ${{ steps.filter.outputs.edge }}
+      web: ${{ steps.filter.outputs.web }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -24,6 +25,9 @@ jobs:
               - '.github/workflows/**'
             edge:
               - 'services/edge/**'
+              - '.github/workflows/**'
+            web:
+              - 'apps/web/**'
               - '.github/workflows/**'
   edge-node-tests:
     needs: changes
@@ -68,3 +72,25 @@ jobs:
         timeout-minutes: 60
         working-directory: apps/ios-conversation
         run: bash Scripts/test-parenting-core-simulator.sh
+  web:
+    needs: changes
+    if: ${{ needs.changes.outputs.web == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - name: production build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"

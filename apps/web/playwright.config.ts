@@ -7,16 +7,17 @@ export default defineConfig({
   reporter: "line",
   use: { baseURL: "http://127.0.0.1:3111", trace: "off" },
   webServer: {
-    command: "npm run dev -- --port 3111",
+    command: "npm run build && npm run start -- --hostname 127.0.0.1 --port 3111",
     url: "http://127.0.0.1:3111",
     reuseExistingServer: false,
-    timeout: 120_000,
+    timeout: 300_000,
     env: {
       ...process.env,
       NEXT_PUBLIC_SUPABASE_URL: "",
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "",
       NEXT_PUBLIC_CATPAW_EDGE_ORIGIN: "",
       NEXT_TELEMETRY_DISABLED: "1",
+      MIMI_WEB_E2E: "1",
     },
   },
   projects: [

@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { accountPreferenceKey, chatIndexKey, legacyChatKey, parseChatIndex, serializeChatIndex } from "@/lib/chat-index";
 import { copy, orderedStarters } from "@/lib/copy";
-import type { StoredSession } from "@/lib/browser-session";
+import { edgeFetch, pathConfig } from "@/lib/edge-client";
+import type { WebProfile } from "@/lib/profile";
 import {
   MAX_ATTACHMENT_BYTES,
   acceptedWorkTurnsUrl,
@@ -35,6 +37,7 @@ import {
   nextVisibleCount,
   numberField,
   PAGE_SIZE,
+  flushSseBuffer,
   parseSseData,
   approvalDecisionUrl,
   plainTurnRequest,
@@ -49,8 +52,8 @@ import {
   takeSseLines,
   textDelta,
   textPreview,
+  uploadUrlAllowed,
   turnBody,
-  type PublicConfig,
   type RouteChoice,
 } from "@/lib/wire";
 
@@ -78,24 +81,30 @@ type Chat = {
 type Card = { id: string; kind: string; title: string; body: string; raw: Record<string, unknown> };
 type RouteInfo = { id: string; display_name: string; models: { id: string }[]; status?: string };
 
-const chatKey = (subject: string) => `mimi.web.chats.v1.${subject}`;
 const variantKey = (subject: string, conversation: string) => `mimi.web.variants.v1.${subject}.${conversation}`;
-const feedbackKey = "mimi.web.feedback.v1";
-const reactionKey = "mimi.web.reactions.v1";
+const feedbackKey = (subject: string) => accountPreferenceKey("feedback", subject);
+const reactionKey = (subject: string) => accountPreferenceKey("reactions", subject);
 const consentKey = (subject: string) => `mimi.web.consent.v1.${subject}`;
-const routeKey = "mimi.web.route.v1";
+const routeKey = (subject: string) => accountPreferenceKey("route", subject);
 
 function loadChats(subject: string): Chat[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(chatKey(subject)) || "[]") as Chat[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  localStorage.removeItem(legacyChatKey(subject));
+  localStorage.removeItem("mimi.web.feedback.v1");
+  localStorage.removeItem("mimi.web.reactions.v1");
+  localStorage.removeItem("mimi.web.route.v1");
+  return parseChatIndex(localStorage.getItem(chatIndexKey(subject))).map((row) => ({
+    id: row.id,
+    title: "",
+    preview: "",
+    updatedAt: row.updatedAt,
+    revision: 0,
+    grantEpoch: 0,
+    messages: [],
+  }));
 }
 
 function saveChats(subject: string, chats: Chat[]) {
-  localStorage.setItem(chatKey(subject), JSON.stringify(chats.slice(0, 80)));
+  localStorage.setItem(chatIndexKey(subject), serializeChatIndex(chats));
 }
 
 async function readJson(response: Response) {
@@ -109,20 +118,18 @@ async function readJson(response: Response) {
 }
 
 export function ConversationWorkspace({
-  config,
   session,
-  authorize,
   onSignOut,
   onRestart,
   onClose,
 }: {
-  config: PublicConfig;
-  session: StoredSession;
-  authorize: () => Promise<string>;
+  session: WebProfile;
   onSignOut: () => void;
   onRestart: () => void;
   onClose: () => void;
 }) {
+  const config = pathConfig;
+  const authorize = async () => "client-session";
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -152,6 +159,9 @@ export function ConversationWorkspace({
   const [memoryState, setMemoryState] = useState<unknown>(null);
   const [inbox, setInbox] = useState<{ items: Record<string, unknown>[]; cursor: string | null }>({ items: [], cursor: null });
   const [workText, setWorkText] = useState("");
+  const pendingAttachment = useRef<string | null>(null);
+  const actionRunRef = useRef<string | null>(null);
+  const controlRef = useRef<unknown>(null);
   const abortRef = useRef<AbortController | null>(null);
   const sequenceRef = useRef(0);
   const variantRoot = useRef<string | null>(null);
@@ -168,9 +178,9 @@ export function ConversationWorkspace({
     setChats(stored);
     setActiveId(stored[0]?.id ?? null);
     try {
-      setFeedback(JSON.parse(localStorage.getItem(feedbackKey) || "{}"));
-      setReactions(JSON.parse(localStorage.getItem(reactionKey) || "{}"));
-      const saved = JSON.parse(localStorage.getItem(routeKey) || "{}") as { route?: string; model?: string | null };
+      setFeedback(JSON.parse(localStorage.getItem(feedbackKey(session.userId)) || "{}"));
+      setReactions(JSON.parse(localStorage.getItem(reactionKey(session.userId)) || "{}"));
+      const saved = JSON.parse(localStorage.getItem(routeKey(session.userId)) || "{}") as { route?: string; model?: string | null };
       if (saved.route) setRoute(saved.route);
       if (saved.model) setModel(saved.model);
     } catch {
@@ -198,8 +208,8 @@ export function ConversationWorkspace({
         const token = await authorize();
         const headers = chatHeaders({ authorization: `Bearer ${token}`, anonKey: config.anonKey, edgeOrigin: config.edgeOrigin, route: choice, modelsByRoute });
         const [readyResponse, routeResponse] = await Promise.all([
-          fetch(readyzUrl(config), { headers, cache: "no-store" }),
-          fetch(modelRoutesUrl(config), { headers, cache: "no-store" }),
+          edgeFetch(readyzUrl(config), { headers, cache: "no-store" }),
+          edgeFetch(modelRoutesUrl(config), { headers, cache: "no-store" }),
         ]);
         const ready = asRecord(await readJson(readyResponse));
         setConnection(ready?.ready === true ? copy.connected : copy.connectionDown);
@@ -247,9 +257,9 @@ export function ConversationWorkspace({
   async function ensureConversation(id: string) {
     const headers = await authedHeaders();
     const url = joinEndpoint(config.edgeOrigin, conversationPath(session.scopeId, id));
-    let response = await fetch(url, { headers, cache: "no-store" });
+    let response = await edgeFetch(url, { headers, cache: "no-store" });
     if (response.status === 404) {
-      response = await fetch(joinEndpoint(config.edgeOrigin, `${scopePath(session.scopeId)}/conversations`), {
+      response = await edgeFetch(joinEndpoint(config.edgeOrigin, `${scopePath(session.scopeId)}/conversations`), {
         method: "POST",
         headers,
         body: JSON.stringify({ conversation_id: id }),
@@ -267,16 +277,16 @@ export function ConversationWorkspace({
   async function ensureConsent(conversationId: string) {
     const token = await authorize();
     const headers = chatHeaders({ authorization: `Bearer ${token}`, anonKey: config.anonKey, edgeOrigin: config.edgeOrigin, route: choice, modelsByRoute });
-    const privacy = asRecord(await readJson(await fetch(modelRoutePrivacyUrl(config), { headers, cache: "no-store" })));
+    const privacy = asRecord(await readJson(await edgeFetch(modelRoutePrivacyUrl(config), { headers, cache: "no-store" })));
     const ui = asRecord(privacy?.ui);
     const routeHash = stringField(privacy, "route_hash");
-    const stored = asRecord(await readJson(await fetch(modelConsentUrl(config, session.scopeId, conversationId), { headers, cache: "no-store" })));
+    const stored = asRecord(await readJson(await edgeFetch(modelConsentUrl(config, session.scopeId, conversationId), { headers, cache: "no-store" })));
     const prior = asRecord(stored?.consent);
     const revision = Number.isInteger(numberField(prior, "revision")) ? numberField(prior, "revision") : 0;
     const remembered = localStorage.getItem(consentKey(session.userId));
     if (prior?.decision === "allow" && stringField(prior, "route_hash") === routeHash) return;
     if (prior?.decision !== "deny" && remembered === routeHash && routeHash) {
-      const carried = await fetch(modelConsentUrl(config, session.scopeId, conversationId), {
+      const carried = await edgeFetch(modelConsentUrl(config, session.scopeId, conversationId), {
         method: "POST",
         headers,
         body: JSON.stringify({ decision: "allow", expected_revision: revision, route_hash: routeHash }),
@@ -291,7 +301,7 @@ export function ConversationWorkspace({
   async function allowConsent() {
     if (!consent || !activeId) return;
     const headers = await authedHeaders();
-    const response = await fetch(modelConsentUrl(config, session.scopeId, activeId), {
+    const response = await edgeFetch(modelConsentUrl(config, session.scopeId, activeId), {
       method: "POST",
       headers,
       body: JSON.stringify({ decision: "allow", expected_revision: consent.revision, route_hash: consent.routeHash }),
@@ -323,7 +333,16 @@ export function ConversationWorkspace({
     let buffer = "";
     while (true) {
       const chunk = await reader.read();
-      if (chunk.done) break;
+      if (chunk.done) {
+        buffer += decoder.decode();
+        const flushed = flushSseBuffer(buffer);
+        buffer = flushed.rest;
+        for (const line of flushed.lines) {
+          const event = parseSseData(line);
+          if (event) applyEvent(chatId, turnId, event);
+        }
+        break;
+      }
       buffer += decoder.decode(chunk.value, { stream: true });
       const taken = takeSseLines(buffer);
       buffer = taken.rest;
@@ -451,7 +470,7 @@ export function ConversationWorkspace({
         useMemory,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
-      const response = await fetch(request.url, { method: request.method, headers: request.headers, body: request.body, signal: controller.signal });
+      const response = await edgeFetch(request.url, { method: request.method, headers: request.headers, body: request.body, signal: controller.signal });
       await consumeStream(response, chatId, turnId);
       setChats((current) => current.map((chat) => chat.id === chatId ? { ...chat, revision: opened.revision + 1, grantEpoch: opened.grantEpoch, preview: "" } : chat));
     } catch (cause) {
@@ -468,7 +487,7 @@ export function ConversationWorkspace({
     const turnId = [...active.messages].reverse().find((message) => !message.complete)?.turnId;
     if (!turnId) return;
     const request = cancelTurnRequest(config, await authorize(), session.scopeId, active.id, turnId, choice, modelsByRoute);
-    await fetch(request.url, { method: request.method, headers: request.headers, body: request.body });
+    await edgeFetch(request.url, { method: request.method, headers: request.headers, body: request.body });
   }
 
   async function resume(kind: "events" | "busy") {
@@ -479,7 +498,7 @@ export function ConversationWorkspace({
     try {
       const headers = await authedHeaders({ liveText: true, approval: true, memoryProposal: true });
       const url = kind === "events" ? resumeEventsUrl(config, session.scopeId, active.id, message.turnId, sequenceRef.current) : retryBusyUrl(config, session.scopeId, active.id, message.turnId);
-      const response = await fetch(url, { method: kind === "events" ? "GET" : "POST", headers, body: kind === "busy" ? "{}" : undefined });
+      const response = await edgeFetch(url, { method: kind === "events" ? "GET" : "POST", headers, body: kind === "busy" ? "{}" : undefined });
       await consumeStream(response, active.id, message.turnId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : copy.connectionDown);
@@ -495,29 +514,33 @@ export function ConversationWorkspace({
     if (bytes.byteLength > MAX_ATTACHMENT_BYTES) return setError(copy.attachmentTooBig);
     const id = crypto.randomUUID();
     const headers = await authedHeaders();
-    const created = await fetch(attachmentCreateUrl(config, session.scopeId), {
+    const created = await edgeFetch(attachmentCreateUrl(config, session.scopeId), {
       method: "POST",
       headers,
       body: JSON.stringify({ attachment_id: id, mime_type: mime, size_bytes: bytes.byteLength, sha256: await sha256Bytes(bytes) }),
     });
     const json = asRecord(await readJson(created));
     const upload = asRecord(json?.upload);
-    if (upload?.method === "PUT" && typeof upload.url === "string" && upload.url.startsWith("https://")) {
+    if (upload?.method === "PUT") {
+      if (typeof upload.url !== "string" || !uploadUrlAllowed(upload.url, session.uploadHosts)) {
+        setError("暂时连不上服务，请稍后重试");
+        return;
+      }
       const putHeaders = asRecord(upload.headers) ?? {};
       await fetch(upload.url, { method: "PUT", headers: Object.fromEntries(Object.entries(putHeaders).map(([key, value]) => [key, String(value)])), body: bytes });
     }
-    const ready = await fetch(attachmentCompleteUrl(config, session.scopeId, id), { method: "POST", headers, body: "{}" });
+    const ready = await edgeFetch(attachmentCompleteUrl(config, session.scopeId, id), { method: "POST", headers, body: "{}" });
     if (!ready.ok) return setError("暂时连不上服务，请稍后重试");
     setDraft((current) => current);
     setError(null);
-    sessionStorage.setItem("mimi.web.pendingAttachment", id);
+    pendingAttachment.current = id;
   }
 
   async function sendWithAttachment() {
-    const attachment = sessionStorage.getItem("mimi.web.pendingAttachment");
+    const attachment = pendingAttachment.current;
     if (!activeId || !draft.trim()) return send(draft);
     if (!attachment) return send(draft);
-    sessionStorage.removeItem("mimi.web.pendingAttachment");
+    pendingAttachment.current = null;
     const chatId = activeId;
     const turnId = crypto.randomUUID();
     const messageId = crypto.randomUUID();
@@ -526,7 +549,7 @@ export function ConversationWorkspace({
       const opened = await ensureConversation(chatId);
       const body = turnBody({ turnId, revision: opened.revision, grantEpoch: opened.grantEpoch, messageId, text: draft.trim(), attachmentIds: [attachment] });
       const request = plainTurnRequest({ config, accessToken: await authorize(), scopeId: session.scopeId, conversationId: chatId, body, route: choice, modelsByRoute, useMemory, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
-      const response = await fetch(request.url, { method: "POST", headers: request.headers, body: request.body });
+      const response = await edgeFetch(request.url, { method: "POST", headers: request.headers, body: request.body });
       await consumeStream(response, chatId, turnId);
       setDraft("");
     } catch (cause) {
@@ -538,7 +561,7 @@ export function ConversationWorkspace({
 
   async function loadInbox(cursor: string | null) {
     const headers = await authedHeaders();
-    const response = await fetch(inboxUrl(config, session.scopeId, cursor), { headers, cache: "no-store" });
+    const response = await edgeFetch(inboxUrl(config, session.scopeId, cursor), { headers, cache: "no-store" });
     const json = asRecord(await readJson(response));
     const items = Array.isArray(json?.items) ? json.items.flatMap((item) => { const row = asRecord(item); return row ? [row] : []; }) : [];
     setInbox((current) => ({ items: cursor ? [...current.items, ...items] : items, cursor: stringField(json, "next_cursor") || null }));
@@ -546,7 +569,7 @@ export function ConversationWorkspace({
 
   async function openArtifact(artifactId: string, version: number) {
     const headers = await authedHeaders();
-    const json = asRecord(await readJson(await fetch(artifactUrl(config, session.scopeId, artifactId, version), { headers })));
+    const json = asRecord(await readJson(await edgeFetch(artifactUrl(config, session.scopeId, artifactId, version), { headers })));
     const artifact = asRecord(json?.artifact);
     setDetail(`${stringField(artifact, "body") || JSON.stringify(json, null, 2)}`);
     setPanel("detail");
@@ -554,23 +577,23 @@ export function ConversationWorkspace({
 
   async function loadPlan(runId: string) {
     const headers = await authedHeaders();
-    setDetail(JSON.stringify(await readJson(await fetch(planUrl(config, session.scopeId, runId), { headers })), null, 2));
+    setDetail(JSON.stringify(await readJson(await edgeFetch(planUrl(config, session.scopeId, runId), { headers })), null, 2));
     setPanel("detail");
   }
 
   async function loadActions(runId: string) {
     const headers = await authedHeaders();
-    const json = await readJson(await fetch(actionsUrl(config, session.scopeId, runId), { headers }));
+    const json = await readJson(await edgeFetch(actionsUrl(config, session.scopeId, runId), { headers }));
     setDetail(JSON.stringify(json, null, 2));
     setPanel("actions");
-    sessionStorage.setItem("mimi.web.actionRun", runId);
+    actionRunRef.current = runId;
   }
 
   async function decide(actionId: string, decision: "approve" | "deny", revision: number, digest: string, grantEpoch: number) {
-    const runId = sessionStorage.getItem("mimi.web.actionRun");
+    const runId = actionRunRef.current;
     if (!runId || !isUuid(actionId)) return;
     const headers = await authedHeaders();
-    await fetch(actionDecisionUrl(config, session.scopeId, runId, actionId), {
+    await edgeFetch(actionDecisionUrl(config, session.scopeId, runId, actionId), {
       method: "POST",
       headers,
       body: JSON.stringify({ operation_id: crypto.randomUUID(), decision, expected_revision: revision, action_digest: digest, expected_grant_epoch: grantEpoch }),
@@ -580,20 +603,20 @@ export function ConversationWorkspace({
 
   async function loadControl(runId: string) {
     const headers = await authedHeaders();
-    const json = await readJson(await fetch(controlUrl(config, session.scopeId, runId), { headers }));
-    sessionStorage.setItem("mimi.web.control", JSON.stringify(json));
+    const json = await readJson(await edgeFetch(controlUrl(config, session.scopeId, runId), { headers }));
+    controlRef.current = json;
     setDetail(JSON.stringify(json, null, 2));
     setPanel("control");
   }
 
   async function submitControl(action: "pause" | "resume" | "revoke") {
-    const parsed = asRecord(JSON.parse(sessionStorage.getItem("mimi.web.control") || "null"));
+    const parsed = asRecord(controlRef.current);
     const control = asRecord(parsed?.control);
     const plan = asRecord(control?.plan_reference);
     const runId = stringField(asRecord(control?.binding) ?? control, "run_id") || stringField(control, "run_id");
     if (!control || !runId) return;
     const headers = await authedHeaders();
-    await fetch(controlOperationUrl(config, session.scopeId, runId), {
+    await edgeFetch(controlOperationUrl(config, session.scopeId, runId), {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -615,7 +638,7 @@ export function ConversationWorkspace({
     const turnId = stringField(card.raw, "turn_id") || active.messages.at(-1)?.turnId;
     if (!turnId) return;
     const headers = await authedHeaders({ liveText: true });
-    const response = await fetch(approvalDecisionUrl(config, session.scopeId, active.id, turnId, interrupt, sequenceRef.current), {
+    const response = await edgeFetch(approvalDecisionUrl(config, session.scopeId, active.id, turnId, interrupt, sequenceRef.current), {
       method: "POST",
       headers,
       body: JSON.stringify({ operation_id: crypto.randomUUID(), decision, args_hash: stringField(card.raw, "args_hash") }),
@@ -635,7 +658,7 @@ export function ConversationWorkspace({
       args_hash: stringField(card.raw, "argsHash") || stringField(card.raw, "args_hash"),
     };
     if (decision !== "dismiss") body.response = responseBody;
-    const response = await fetch(approvalDecisionUrl(config, session.scopeId, active.id, turnId, interrupt, sequenceRef.current), {
+    const response = await edgeFetch(approvalDecisionUrl(config, session.scopeId, active.id, turnId, interrupt, sequenceRef.current), {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -646,7 +669,7 @@ export function ConversationWorkspace({
   async function submitAcceptedWork() {
     if (!active || !workText.trim()) return;
     const headers = await authedHeaders();
-    const privacy = asRecord(await readJson(await fetch(modelRoutePrivacyUrl(config), { headers })));
+    const privacy = asRecord(await readJson(await edgeFetch(modelRoutePrivacyUrl(config), { headers })));
     const opened = await ensureConversation(active.id);
     if (!(opened.revision > 0) || !(opened.grantEpoch > 0)) {
       setError("已接受的工作需要服务端已确认的对话修订，这次没有提交。");
@@ -676,14 +699,14 @@ export function ConversationWorkspace({
         limits: { due: 1, model: 1, source: 0 },
       },
     };
-    const response = await fetch(acceptedWorkTurnsUrl(config, session.scopeId, active.id), { method: "POST", headers, body: JSON.stringify(wrapper) });
+    const response = await edgeFetch(acceptedWorkTurnsUrl(config, session.scopeId, active.id), { method: "POST", headers, body: JSON.stringify(wrapper) });
     await consumeStream(response, active.id, turnId);
     setPanel(null);
   }
 
   async function loadMemory() {
     const headers = await authedHeaders();
-    setMemoryState(await readJson(await fetch(memoryStateUrl(config, session.scopeId), { headers })));
+    setMemoryState(await readJson(await edgeFetch(memoryStateUrl(config, session.scopeId), { headers })));
     setPanel("memory");
   }
 
@@ -694,7 +717,7 @@ export function ConversationWorkspace({
       return;
     }
     const headers = await authedHeaders({ memoryProposal: true });
-    await fetch(memoryCommandsUrl(config, session.scopeId), {
+    await edgeFetch(memoryCommandsUrl(config, session.scopeId), {
       method: "POST",
       headers,
       body: JSON.stringify({ schema_version: 1, contract: "catpaw.memory.v1", operation_id: crypto.randomUUID(), expected_memory_generation: generation, command }),
@@ -705,7 +728,7 @@ export function ConversationWorkspace({
   async function submitInvite() {
     if (!inviteCodeValid(invite)) return;
     const token = await authorize();
-    const response = await fetch(enrollmentUrl(config, "enroll"), {
+    const response = await edgeFetch(enrollmentUrl(config, "enroll"), {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ invite_code: invite }),
@@ -757,7 +780,7 @@ export function ConversationWorkspace({
     if (next[id] === value) delete next[id];
     else next[id] = value;
     setFeedback(next);
-    localStorage.setItem(feedbackKey, JSON.stringify(next));
+    localStorage.setItem(feedbackKey(session.userId), JSON.stringify(next));
   }
 
   const lastAssistant = [...(active?.messages ?? [])].reverse().find((message) => message.role === "assistant" && visibleMessage(message));
@@ -831,7 +854,7 @@ export function ConversationWorkspace({
                   {parsed.questions.map((question) => <button key={question} disabled={busy} onClick={() => void send(question)}>{question}</button>)}
                 </div>
               ) : null}
-              {reactions[message.id] ? <button onClick={() => { const next = { ...reactions }; delete next[message.id]; setReactions(next); localStorage.setItem(reactionKey, JSON.stringify(next)); }}>{reactions[message.id]}</button> : null}
+              {reactions[message.id] ? <button onClick={() => { const next = { ...reactions }; delete next[message.id]; setReactions(next); localStorage.setItem(reactionKey(session.userId), JSON.stringify(next)); }}>{reactions[message.id]}</button> : null}
               {message.role === "assistant" && message.id === lastAssistant?.id ? (
                 <div className="actions">
                   <button aria-label={copy.copyReply} onClick={() => void copyText(message.text)}>⧉</button>
@@ -884,7 +907,7 @@ export function ConversationWorkspace({
             <button onClick={() => void resume("busy")}>{copy.retryNow}</button>
           </div>
         ) : null}
-        <form className="composer" onSubmit={(event) => { event.preventDefault(); const pending = sessionStorage.getItem("mimi.web.pendingAttachment"); if (pending) void sendWithAttachment(); else void send(draft); }}>
+        <form className="composer" onSubmit={(event) => { event.preventDefault(); if (pendingAttachment.current) void sendWithAttachment(); else void send(draft); }}>
           <label className="icon-button" aria-label={copy.attachment}>
             +
             <input type="file" accept="image/png,image/jpeg" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }} />
@@ -947,9 +970,9 @@ export function ConversationWorkspace({
             {panel === "routes" ? (
               <div className="stack">
                 <h2>{copy.modelRoute}</h2>
-                <button onClick={() => { setRoute("auto"); setModel(null); localStorage.setItem(routeKey, JSON.stringify({ route: "auto", model: null })); }}>{copy.auto}</button>
+                <button onClick={() => { setRoute("auto"); setModel(null); localStorage.setItem(routeKey(session.userId), JSON.stringify({ route: "auto", model: null })); }}>{copy.auto}</button>
                 {routes.map((item) => (
-                  <button key={item.id} onClick={() => { setRoute(item.id); setModel(item.models[0]?.id ?? null); localStorage.setItem(routeKey, JSON.stringify({ route: item.id, model: item.models[0]?.id ?? null })); }}>
+                  <button key={item.id} onClick={() => { setRoute(item.id); setModel(item.models[0]?.id ?? null); localStorage.setItem(routeKey(session.userId), JSON.stringify({ route: item.id, model: item.models[0]?.id ?? null })); }}>
                     {item.display_name} · {item.status === "online" ? copy.connected : copy.disconnected}
                   </button>
                 ))}

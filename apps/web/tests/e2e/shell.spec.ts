@@ -1,14 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-const namedSession = {
-  accessToken: "oauth",
-  refreshToken: "refresh",
-  expiresAt: Date.now() + 60 * 60 * 1000,
-  userId: "11111111-1111-1111-1111-111111111111",
-  email: "parent@example.com",
-  isAnonymous: false,
-  scopeId: "22222222-2222-2222-2222-222222222222",
-};
+async function mark(page: Page, value: "named" | "guest") {
+  await page.context().addCookies([
+    { name: "mimi_e2e", value, url: "http://127.0.0.1:3111", httpOnly: true, sameSite: "Lax" },
+  ]);
+}
 
 test("signed-out pages offer Google and GitHub only", async ({ page }) => {
   await page.goto("/");
@@ -23,19 +19,9 @@ test("signed-out pages offer Google and GitHub only", async ({ page }) => {
 });
 
 test("an anonymous session cannot open the app", async ({ page }) => {
+  await mark(page, "guest");
   await page.addInitScript(() => {
-    sessionStorage.setItem(
-      "mimi.web.session.v1",
-      JSON.stringify({
-        accessToken: "guest",
-        refreshToken: "guest",
-        expiresAt: Date.now() + 60 * 60 * 1000,
-        userId: "11111111-1111-1111-1111-111111111111",
-        email: null,
-        isAnonymous: true,
-        scopeId: "22222222-2222-2222-2222-222222222222",
-      }),
-    );
+    sessionStorage.setItem("mimi.web.session.v1", JSON.stringify({ userId: "guest" }));
   });
   await page.goto("/");
   await expect(page.getByRole("button", { name: "使用 Google 继续" })).toBeVisible();
@@ -43,14 +29,14 @@ test("an anonymous session cannot open the app", async ({ page }) => {
 });
 
 test("a named OAuth session shows the parenting shell and blocks a saved child", async ({ page }) => {
-  await page.addInitScript((session) => {
-    sessionStorage.setItem("mimi.web.session.v1", JSON.stringify(session));
-  }, namedSession);
+  await mark(page, "named");
   await page.goto("/");
   await expect(page.getByRole("tab", { name: "今天" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "成长" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "我们家" })).toBeVisible();
-  await expect(page.getByText("family_v1")).toBeVisible();
+  await expect(page.getByText("孩子的信息只存在手机上")).toBeVisible();
+  await expect(page.getByText("family_v1")).toHaveCount(0);
+  await expect(page.getByText("会加密保留")).toHaveCount(0);
   await expect(page.getByText("开始使用")).toHaveCount(0);
   await page.getByRole("tab", { name: "我们家" }).click();
   await page.getByRole("button", { name: "添加孩子" }).click();
@@ -58,4 +44,8 @@ test("a named OAuth session shows the parenting shell and blocks a saved child",
   await page.getByRole("button", { name: "关闭" }).click();
   await page.getByRole("button", { name: "提醒" }).click();
   await expect(page.getByText("这台设备暂不发送提醒。安排只保存在本机，不会添加系统日历。")).toBeVisible();
+  await page.getByRole("button", { name: "我们家" }).click();
+  await page.getByRole("button", { name: "设置" }).click();
+  await expect(page.getByText("会加密保留")).toHaveCount(0);
+  await expect(page.getByText("网页不保存、不同步孩子资料。")).toBeVisible();
 });

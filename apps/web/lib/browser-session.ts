@@ -5,7 +5,6 @@ import {
   authLogoutRequest,
   ClientError,
   credentialFromToken,
-  readPublicConfig,
   refreshRequest,
   scopeFromSession,
   type Credential,
@@ -21,32 +20,6 @@ export type StoredSession = {
   isAnonymous: boolean;
   scopeId: string;
 };
-
-const KEY = "mimi.web.session.v1";
-
-export function loadStoredSession(): StoredSession | null {
-  if (typeof window === "undefined") return null;
-  const raw = window.sessionStorage.getItem(KEY);
-  if (!raw) return null;
-  try {
-    const value = JSON.parse(raw) as StoredSession;
-    if (!value.accessToken || !value.refreshToken || !value.userId || !value.scopeId || value.isAnonymous !== false) {
-      window.sessionStorage.removeItem(KEY);
-      return null;
-    }
-    return value;
-  } catch {
-    return null;
-  }
-}
-
-export function saveStoredSession(session: StoredSession) {
-  window.sessionStorage.setItem(KEY, JSON.stringify(session));
-}
-
-export function clearStoredSession() {
-  window.sessionStorage.removeItem(KEY);
-}
 
 export function sessionFromCredential(credential: Credential, scopeId: string): StoredSession {
   if (credential.user.isAnonymous) throw new ClientError("Web 不提供体验登录，请使用 Google 或 GitHub。");
@@ -82,14 +55,6 @@ export async function establishSession(config: PublicConfig, credential: Credent
   return sessionFromCredential(credential, scopeFromSession(json, credential.user.id));
 }
 
-export function readBrowserConfig() {
-  return readPublicConfig({
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    NEXT_PUBLIC_CATPAW_EDGE_ORIGIN: process.env.NEXT_PUBLIC_CATPAW_EDGE_ORIGIN,
-  });
-}
-
 export async function logoutStoredSession(config: PublicConfig, accessToken: string) {
   const application = applicationLogoutRequest(config, accessToken);
   const auth = authLogoutRequest(config, accessToken);
@@ -103,7 +68,6 @@ export async function logoutStoredSession(config: PublicConfig, accessToken: str
   } catch {
     /* Local sign-out still proceeds when the auth logout cannot be reached. */
   }
-  clearStoredSession();
 }
 
 export async function refreshStoredSession(config: PublicConfig, session: StoredSession) {

@@ -296,6 +296,32 @@ a { color: var(--deep); }
 
 @keyframes tail-fade { from { opacity: 0.2; } to { opacity: 1; } }
 
+.privacy-cover,
+.privacy-lock {
+  position: fixed;
+  inset: 0;
+  background: var(--canvas);
+  animation: none;
+  transition: none;
+}
+
+.privacy-cover { z-index: 40; }
+.privacy-cover.blurred {
+  background: color-mix(in srgb, var(--canvas) 72%, transparent);
+  backdrop-filter: blur(18px);
+}
+.privacy-lock {
+  z-index: 41;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .privacy-cover.blurred { backdrop-filter: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;

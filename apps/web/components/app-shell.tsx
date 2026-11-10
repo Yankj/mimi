@@ -1,112 +1,105 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ConversationWorkspace } from "@/components/conversation-workspace";
+import { wipeBrowserState } from "@/lib/browser-wipe";
 import { copy } from "@/lib/copy";
-import {
-  loadStoredSession,
-  logoutStoredSession,
-  readBrowserConfig,
-  refreshStoredSession,
-  saveStoredSession,
-  clearStoredSession,
-  type StoredSession,
-} from "@/lib/browser-session";
-import { authorizeUrl, createPkceVerifier, type PublicConfig } from "@/lib/wire";
+import type { WebProfile } from "@/lib/profile";
 
 type Tab = "today" | "growth" | "family";
 type Page = "home" | "settings" | "reminders" | "timeline" | "goals";
 
+const IDLE_MS = 15 * 60 * 1000;
+
 export function AppShell() {
-  const [session, setSession] = useState<StoredSession | null>(null);
-  const [config, setConfig] = useState<PublicConfig | null>(null);
-  const [configError, setConfigError] = useState<string | null>(null);
+  const [session, setSession] = useState<WebProfile | null>(null);
   const [phase, setPhase] = useState<"boot" | "login" | "home">("boot");
   const [notice, setNotice] = useState<string | null>(null);
   const [chat, setChat] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
 
   useEffect(() => {
-    let configValue: PublicConfig | null = null;
-    try {
-      configValue = readBrowserConfig();
-      setConfig(configValue);
-    } catch (cause) {
-      setConfigError(cause instanceof Error ? cause.message : copy.notConfigured);
-    }
-    if (sessionStorage.getItem("mimi.web.restart") === "1") {
-      sessionStorage.removeItem("mimi.web.restart");
-      setNotice(copy.restartNotice);
-    }
-    const stored = loadStoredSession();
-    if (!stored) {
-      setPhase("login");
-      return;
-    }
-    if (!configValue || stored.expiresAt > Date.now() + 60_000) {
-      setSession(stored);
-      setPhase("home");
-      if (!configValue) setConfigError(copy.notConfigured);
-      return;
-    }
-    void refreshStoredSession(configValue, stored)
-      .then((next) => {
-        saveStoredSession(next);
-        setSession(next);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("notice") === "cancelled") setNotice(copy.cancelled);
+    if (params.get("notice") === "restart") setNotice(copy.restartNotice);
+    if (params.get("notice") === "invalid") setNotice(copy.invalidResponse);
+    const switching = params.get("switch") === "1";
+    void fetch("/api/session", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) {
+          setPhase("login");
+          return;
+        }
+        const profile = (await response.json()) as WebProfile;
+        setSession(profile);
         setPhase("home");
+        if (switching) setSwitchOpen(true);
       })
-      .catch(() => {
-        clearStoredSession();
-        sessionStorage.setItem("mimi.web.restart", "1");
-        setNotice(copy.restartNotice);
-        setPhase("login");
-      });
+      .catch(() => setPhase("login"));
   }, []);
 
   async function startOAuth(provider: "google" | "github") {
-    if (!config || busy) {
-      setNotice(configError || copy.notConfigured);
-      return;
-    }
+    if (busy) return;
     setBusy(true);
     setNotice(null);
     try {
-      const pkce = await createPkceVerifier();
-      sessionStorage.setItem("mimi.oauth.pkce", pkce.verifier);
-      const redirectTo = `${window.location.origin}/auth/callback`;
-      window.location.assign(authorizeUrl(config, provider, pkce.challenge, redirectTo));
-    } catch (cause) {
+      const response = await fetch("/api/auth/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider }),
+      });
+      const json = (await response.json().catch(() => null)) as { url?: unknown; error?: unknown } | null;
+      if (!response.ok || typeof json?.url !== "string") {
+        setNotice(typeof json?.error === "string" ? json.error : copy.notConfigured);
+        setBusy(false);
+        return;
+      }
+      window.location.assign(json.url);
+    } catch {
       setBusy(false);
-      setNotice(cause instanceof Error ? cause.message : copy.invalidResponse);
+      setNotice(copy.unavailable);
     }
   }
 
-  async function authorize() {
-    if (!config || !session) throw new Error(copy.loginRequired);
-    if (session.expiresAt > Date.now() + 60_000) return session.accessToken;
-    const next = await refreshStoredSession(config, session);
-    saveStoredSession(next);
-    setSession(next);
-    return next.accessToken;
-  }
-
   async function signOut() {
-    const current = session;
-    if (config && current) await logoutStoredSession(config, current.accessToken);
-    else clearStoredSession();
+    await fetch("/api/auth/logout", { method: "POST" });
+    await wipeBrowserState();
     setSession(null);
     setChat(false);
+    setSwitchOpen(false);
     setPhase("login");
   }
 
   function restart() {
-    clearStoredSession();
-    sessionStorage.setItem("mimi.web.restart", "1");
-    setSession(null);
-    setChat(false);
-    setNotice(copy.restartNotice);
-    setPhase("login");
+    void fetch("/api/auth/logout", { method: "POST" })
+      .then(() => wipeBrowserState())
+      .finally(() => window.location.assign("/?notice=restart"));
+  }
+
+  async function confirmSwitch() {
+    const response = await fetch("/api/auth/switch", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ confirm: true }),
+    });
+    if (!response.ok) {
+      setNotice(copy.invalidResponse);
+      return;
+    }
+    await wipeBrowserState();
+    window.location.assign("/");
+  }
+
+  async function cancelSwitch() {
+    await fetch("/api/auth/switch", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ confirm: false }),
+    });
+    setSwitchOpen(false);
+    window.history.replaceState(null, "", "/");
   }
 
   if (phase === "boot") {
@@ -128,9 +121,9 @@ export function AppShell() {
         <div className="stack">
           <h2>{copy.loginTitle}</h2>
           <p className="quiet">{copy.oauthOnly}</p>
-          {notice || configError ? <p className="error">{notice || configError}</p> : null}
-          <button className="cta" disabled={!config || busy} onClick={() => void startOAuth("google")}>{copy.google}</button>
-          <button className="cta" disabled={!config || busy} onClick={() => void startOAuth("github")}>{copy.github}</button>
+          {notice ? <p className="error">{notice}</p> : null}
+          <button className="cta" disabled={busy} onClick={() => void startOAuth("google")}>{copy.google}</button>
+          <button className="cta" disabled={busy} onClick={() => void startOAuth("github")}>{copy.github}</button>
         </div>
       </main>
     );
@@ -138,26 +131,81 @@ export function AppShell() {
 
   return (
     <div className="app-shell">
-      <ParentingShell
-        email={session.email}
-        onSignOut={() => void signOut()}
-        onOpenChat={() => {
-          if (!config) setNotice(copy.notConfigured);
-          else setChat(true);
-        }}
-      />
-      {notice || configError ? <p className="error">{notice || configError}</p> : null}
-      {chat && config ? (
-        <ConversationWorkspace
-          config={config}
-          session={session}
-          authorize={authorize}
-          onSignOut={() => void signOut()}
-          onRestart={restart}
-          onClose={() => setChat(false)}
-        />
+      <ParentingShell email={session.email} onSignOut={() => void signOut()} onOpenChat={() => setChat(true)} />
+      {notice ? <p className="error">{notice}</p> : null}
+      {chat ? (
+        <ConversationWorkspace session={session} onSignOut={() => void signOut()} onRestart={restart} onClose={() => setChat(false)} />
+      ) : null}
+      <PrivacyGate onLockedOut={() => void signOut()} />
+      {switchOpen ? (
+        <div className="dialog-back" role="dialog" aria-label={copy.switchTitle}>
+          <div className="dialog">
+            <h2>{copy.switchTitle}</h2>
+            <p>{copy.signOutNamed}</p>
+            <button onClick={() => void cancelSwitch()}>{copy.cancel}</button>
+            <button className="danger" onClick={() => void confirmSwitch()}>{copy.switchConfirm}</button>
+          </div>
+        </div>
       ) : null}
     </div>
+  );
+}
+
+function PrivacyGate({ onLockedOut }: { onLockedOut: () => void }) {
+  const [obscured, setObscured] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [reduced, setReduced] = useState(false);
+  const last = useRef(Date.now());
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setReduced(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    const mark = () => {
+      last.current = Date.now();
+    };
+    const names = ["pointerdown", "keydown", "touchstart", "scroll"] as const;
+    for (const name of names) window.addEventListener(name, mark, { passive: true });
+    const timer = window.setInterval(() => {
+      if (Date.now() - last.current >= IDLE_MS) setLocked(true);
+    }, 15_000);
+    const onVis = () => {
+      if (document.visibilityState === "hidden") setObscured(true);
+      else {
+        setObscured(false);
+        if (Date.now() - last.current >= IDLE_MS) setLocked(true);
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      media.removeEventListener("change", apply);
+      for (const name of names) window.removeEventListener(name, mark);
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
+  async function unlock() {
+    const response = await fetch("/api/auth/refresh", { method: "POST" });
+    if (response.ok) {
+      last.current = Date.now();
+      setLocked(false);
+      return;
+    }
+    onLockedOut();
+  }
+
+  return (
+    <>
+      {obscured || locked ? <div className={obscured && !locked && !reduced ? "privacy-cover blurred" : "privacy-cover"} /> : null}
+      {locked ? (
+        <div className="privacy-lock" role="dialog" aria-label="重新确认登录">
+          <p>一段时间没有操作，请重新确认登录。</p>
+          <button className="cta" onClick={() => void unlock()}>继续</button>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -170,7 +218,7 @@ function ParentingShell({ email, onSignOut, onOpenChat }: { email: string | null
   return (
     <>
       <main className="page">
-        <p className="todo">{copy.familyTodo}</p>
+        <p className="quiet">{copy.familyTodo}</p>
         {page === "home" ? (
           <>
             <h1>{tab === "today" ? copy.today : tab === "growth" ? copy.growth : copy.family}</h1>
@@ -262,7 +310,6 @@ function ParentingShell({ email, onSignOut, onOpenChat }: { email: string | null
             <h2>{copy.addChildTitle}</h2>
             <p>{copy.addChildBody}</p>
             <p>{copy.addChildBlocked}</p>
-            <p className="todo">{copy.familyTodo}</p>
             <button onClick={() => setAddOpen(false)}>{copy.close}</button>
           </div>
         </div>
