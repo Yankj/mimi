@@ -18,9 +18,19 @@ for name in paths:
     assert not path.is_absolute() and '..' not in path.parts, name
     assert (ROOT / path).exists(), name
 declared_apps = {Path(layout['native_host']).name, *(Path(p).name for p in layout['frozen_app_roots'])}
-declared_apps.add(Path(layout['website']).name)
-assert (ROOT / layout['website'] / 'package.json').is_file(), 'Website build manifest missing'
-assert not list((ROOT / layout['website']).rglob('*.xcodeproj')), 'Website cannot become another native host'
+website = ROOT / layout['website']
+declared_apps.add(website.name)
+assert (website / 'README.md').is_file(), 'Website stub missing'
+assert not list(website.rglob('*.xcodeproj')), 'Website cannot become another native host'
+if (website / 'package.json').is_file():
+    pass
+else:
+    assert '已迁出' in (website / 'README.md').read_text(), 'Website build manifest missing'
+web = ROOT / layout['web_client']
+declared_apps.add(web.name)
+assert (web / 'package.json').is_file(), 'Web client build manifest missing'
+assert not list(web.rglob('*.xcodeproj')), 'Web client cannot become another native host'
+assert 'family_v1' in layout['web_client_role']
 actual_apps = {p.name for p in (ROOT / 'apps').iterdir() if p.is_dir() and not p.name.startswith('.')}
 assert actual_apps == declared_apps, 'Undeclared App root; update reviewed layout roles first'
 assert not (ROOT / 'CatCompanion').exists(), 'Second App skeleton cannot be imported as the active host'
@@ -40,5 +50,5 @@ for source in (ROOT / layout['native_host'] / 'Sources/Domain').glob('*.swift'):
 assert not layout['second_active_app_allowed']
 assert not layout['component_owned_model_or_auth_allowed']
 assert not layout['deployment_implied_by_checks']
-print('PASS one active native entry, independent website, two local packages, declared maintenance/history/source paths')
+print('PASS one active native entry, independent website stub, browser client, two local packages, declared maintenance/history/source paths')
 print('PASS Domain imports and package host/network boundaries; layout validation only')
