@@ -30,3 +30,10 @@ test("request uses the injected transport and never invents a live call", async 
   setTransport(null);
   await assert.rejects(() => request({ path: "/readyz" }), /模拟数据/);
 });
+
+test("functions/v1 is blocked without a trailing slash, in any case, and when encoded", () => {
+  assert.equal(isForbiddenUrl("https://proxy.example.com/functions/v1"), true);
+  assert.equal(isForbiddenUrl("https://proxy.example.com/FUNCTIONS/V1/x"), true);
+  assert.equal(isForbiddenUrl("https://proxy.example.com/functions%2Fv1/x"), true);
+  assert.equal(isForbiddenUrl("https://proxy.example.com/functions/v10"), false);
+});

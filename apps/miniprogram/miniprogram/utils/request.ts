@@ -41,7 +41,13 @@ export function isForbiddenUrl(url: string) {
   if (host === "localhost" || host === "127.0.0.1" || host === "::1") return true;
   if (host === "supabase.co" || host.endsWith(".supabase.co") || host.includes("supabase")) return true;
   if (host.includes("catpaw")) return true;
-  if (parsed.pathname.includes("/functions/v1/")) return true;
+  let path = parsed.pathname;
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    return true;
+  }
+  if (/\/functions\/v1(\/|$)/i.test(path)) return true;
   return false;
 }
 

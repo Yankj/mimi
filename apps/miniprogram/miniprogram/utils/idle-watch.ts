@@ -1,6 +1,6 @@
 import type { SessionController } from "./session";
 
-export const IDLE_CHECK_MS = 30 * 1000;
+export const IDLE_CHECK_MS = 5 * 1000;
 
 type Timers = {
   setInterval: (fn: () => void, ms: number) => unknown;

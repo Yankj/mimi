@@ -101,13 +101,16 @@ export function createSessionController(storage: Storage, hooks: SessionHooks = 
     signOut() {
       wipe();
     },
+    /** Same rule as Web activityDecision: already idle means lock, never refresh seenAt. */
     touch(now: number) {
       if (!snapshot.signedIn || snapshot.locked) return;
+      if (this.checkIdle(now) === "locked") return;
       snapshot = { ...snapshot, seenAt: now };
       persist();
     },
+    /** Backgrounding is not activity: it must not reset a nearly-expired idle timer. */
     onHide(now: number) {
-      this.touch(now);
+      this.checkIdle(now);
     },
     onShow(now: number) {
       if (!snapshot.signedIn) return "signed-out";

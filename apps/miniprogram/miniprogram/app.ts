@@ -32,7 +32,9 @@ App<MimiApp>({
   onShow() {
     const state = this.session.onShow(Date.now());
     if (state === "locked") {
+      // Keep old pages covered; reLaunch destroys them and the lock page has no mask.
       wx.reLaunch({ url: "/pages/lock/lock" });
+      return;
     }
     this.privacyMask.reveal();
     if (state === "ok") this.idleWatch.start();
