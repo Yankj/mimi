@@ -13,11 +13,13 @@ export async function wipeBrowserState() {
     const names = await caches.keys();
     await Promise.all(names.filter((name) => name.startsWith("mimi.web.")).map((name) => caches.delete(name)));
   }
+  const known = ["mimi.web.vault.v1"];
   const listed = indexedDB.databases ? await indexedDB.databases() : [];
-  await Promise.all(listed.map((db) => db.name && db.name.startsWith("mimi.web.") ? new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(db.name as string);
+  for (const db of listed) if (db.name) known.push(db.name);
+  await Promise.all([...new Set(known)].filter((name) => name.startsWith("mimi.web.")).map((name) => new Promise<void>((resolve) => {
+    const request = indexedDB.deleteDatabase(name);
     request.onsuccess = () => resolve();
     request.onerror = () => resolve();
     request.onblocked = () => resolve();
-  }) : Promise.resolve()));
+  })));
 }

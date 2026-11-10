@@ -19,6 +19,8 @@ export type StoredSession = {
   email: string | null;
   isAnonymous: boolean;
   scopeId: string;
+  provider?: "google" | "github";
+  lockedUntil?: number;
 };
 
 export function sessionFromCredential(credential: Credential, scopeId: string): StoredSession {

@@ -12,7 +12,7 @@ export function legacyChatKey(subject: string) {
   return `mimi.web.chats.v1.${subject}`;
 }
 
-/** Ids and timestamps only. Message text, titles and previews stay in memory. */
+/** Legacy index. Message text belongs in the encrypted vault, never in this JSON. */
 export function serializeChatIndex(chats: { id: string; updatedAt: string }[]) {
   const rows = chats.slice(0, 80).flatMap((chat) => (isUuid(chat.id) && chat.updatedAt ? [{ id: chat.id, updatedAt: chat.updatedAt }] : []));
   return JSON.stringify(rows);

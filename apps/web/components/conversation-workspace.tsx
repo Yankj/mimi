@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { accountPreferenceKey, chatIndexKey, legacyChatKey, parseChatIndex, serializeChatIndex } from "@/lib/chat-index";
+import { accountPreferenceKey, chatIndexKey, legacyChatKey } from "@/lib/chat-index";
+import { loadVault, saveVault } from "@/lib/chat-vault";
 import { copy, orderedStarters } from "@/lib/copy";
 import { edgeFetch, pathConfig } from "@/lib/edge-client";
 import type { WebProfile } from "@/lib/profile";
@@ -87,24 +88,38 @@ const reactionKey = (subject: string) => accountPreferenceKey("reactions", subje
 const consentKey = (subject: string) => `mimi.web.consent.v1.${subject}`;
 const routeKey = (subject: string) => accountPreferenceKey("route", subject);
 
-function loadChats(subject: string): Chat[] {
+function dropLegacyChatStorage(subject: string) {
   localStorage.removeItem(legacyChatKey(subject));
+  localStorage.removeItem(chatIndexKey(subject));
   localStorage.removeItem("mimi.web.feedback.v1");
   localStorage.removeItem("mimi.web.reactions.v1");
   localStorage.removeItem("mimi.web.route.v1");
-  return parseChatIndex(localStorage.getItem(chatIndexKey(subject))).map((row) => ({
-    id: row.id,
-    title: "",
-    preview: "",
-    updatedAt: row.updatedAt,
-    revision: 0,
-    grantEpoch: 0,
-    messages: [],
-  }));
+}
+
+function sanitizeChats(value: unknown): Chat[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((row) => {
+    const chat = row as Partial<Chat>;
+    if (!chat || typeof chat.id !== "string" || !isUuid(chat.id) || !Array.isArray(chat.messages)) return [];
+    const messages = chat.messages.flatMap((message) => {
+      if (!message || typeof message.id !== "string" || typeof message.text !== "string" || typeof message.turnId !== "string") return [];
+      if (message.role !== "user" && message.role !== "assistant") return [];
+      return [{ ...message, role: message.role, complete: message.complete !== false }];
+    });
+    return [{
+      id: chat.id,
+      title: typeof chat.title === "string" ? chat.title : "",
+      preview: typeof chat.preview === "string" ? chat.preview : "",
+      updatedAt: typeof chat.updatedAt === "string" ? chat.updatedAt : new Date().toISOString(),
+      revision: typeof chat.revision === "number" ? chat.revision : 0,
+      grantEpoch: typeof chat.grantEpoch === "number" ? chat.grantEpoch : 0,
+      messages,
+    }];
+  });
 }
 
 function saveChats(subject: string, chats: Chat[]) {
-  localStorage.setItem(chatIndexKey(subject), serializeChatIndex(chats));
+  void saveVault(subject, chats).catch(() => undefined);
 }
 
 async function readJson(response: Response) {
@@ -159,6 +174,7 @@ export function ConversationWorkspace({
   const [memoryState, setMemoryState] = useState<unknown>(null);
   const [inbox, setInbox] = useState<{ items: Record<string, unknown>[]; cursor: string | null }>({ items: [], cursor: null });
   const [workText, setWorkText] = useState("");
+  const hydrated = useRef(false);
   const pendingAttachment = useRef<string | null>(null);
   const actionRunRef = useRef<string | null>(null);
   const controlRef = useRef<unknown>(null);
@@ -174,9 +190,16 @@ export function ConversationWorkspace({
   const hour = new Date().getHours();
 
   useEffect(() => {
-    const stored = loadChats(session.userId);
-    setChats(stored);
-    setActiveId(stored[0]?.id ?? null);
+    dropLegacyChatStorage(session.userId);
+    let alive = true;
+    void loadVault(session.userId).then((value) => {
+      if (!alive || hydrated.current) return;
+      const stored = sanitizeChats(value);
+      if (stored.length === 0) return;
+      hydrated.current = true;
+      setChats(stored);
+      setActiveId(stored[0]?.id ?? null);
+    }).catch(() => undefined);
     try {
       setFeedback(JSON.parse(localStorage.getItem(feedbackKey(session.userId)) || "{}"));
       setReactions(JSON.parse(localStorage.getItem(reactionKey(session.userId)) || "{}"));
@@ -190,7 +213,10 @@ export function ConversationWorkspace({
     const apply = () => setReduceMotion(media.matches);
     apply();
     media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
+    return () => {
+      alive = false;
+      media.removeEventListener("change", apply);
+    };
   }, [session.userId]);
 
   useEffect(() => {
@@ -227,6 +253,7 @@ export function ConversationWorkspace({
   }, [config, session.scopeId]);
 
   function persist(next: Chat[]) {
+    hydrated.current = true;
     setChats(next);
     saveChats(session.userId, next);
   }

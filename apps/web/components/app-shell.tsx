@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ConversationWorkspace } from "@/components/conversation-workspace";
 import { wipeBrowserState } from "@/lib/browser-wipe";
 import { copy } from "@/lib/copy";
@@ -19,6 +19,7 @@ export function AppShell() {
   const [chat, setChat] = useState(false);
   const [busy, setBusy] = useState(false);
   const [switchOpen, setSwitchOpen] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -26,18 +27,20 @@ export function AppShell() {
     if (params.get("notice") === "restart") setNotice(copy.restartNotice);
     if (params.get("notice") === "invalid") setNotice(copy.invalidResponse);
     const switching = params.get("switch") === "1";
-    void fetch("/api/session", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) {
-          setPhase("login");
-          return;
-        }
-        const profile = (await response.json()) as WebProfile;
-        setSession(profile);
-        setPhase("home");
-        if (switching) setSwitchOpen(true);
-      })
-      .catch(() => setPhase("login"));
+    const switchedAccount = params.get("reauth") === "switched";
+    void (async () => {
+      if (switchedAccount) await wipeBrowserState();
+      const response = await fetch("/api/session", { cache: "no-store" });
+      if (!response.ok) {
+        setPhase("login");
+        return;
+      }
+      const profile = (await response.json()) as WebProfile;
+      setSession(profile);
+      setLocked(profile.locked);
+      setPhase("home");
+      if (switching && !switchedAccount) setSwitchOpen(true);
+    })().catch(() => setPhase("login"));
   }, []);
 
   async function startOAuth(provider: "google" | "github") {
@@ -63,11 +66,41 @@ export function AppShell() {
     }
   }
 
+  const engageLock = useCallback(() => {
+    setLocked(true);
+    setChat(false);
+    void fetch("/api/auth/lock", { method: "POST" });
+  }, []);
+
+  async function continueLocked() {
+    if (!session?.provider || busy) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/auth/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: session.provider, reauth: true }),
+      });
+      const json = (await response.json().catch(() => null)) as { url?: unknown; error?: unknown } | null;
+      if (!response.ok || typeof json?.url !== "string") {
+        setNotice(typeof json?.error === "string" ? json.error : copy.loginRequired);
+        setBusy(false);
+        return;
+      }
+      window.location.assign(json.url);
+    } catch {
+      setBusy(false);
+      setNotice(copy.unavailable);
+    }
+  }
+
   async function signOut() {
     await fetch("/api/auth/logout", { method: "POST" });
     await wipeBrowserState();
     setSession(null);
     setChat(false);
+    setLocked(false);
     setSwitchOpen(false);
     setPhase("login");
   }
@@ -130,13 +163,13 @@ export function AppShell() {
   }
 
   return (
-    <div className="app-shell">
-      <ParentingShell email={session.email} onSignOut={() => void signOut()} onOpenChat={() => setChat(true)} />
-      {notice ? <p className="error">{notice}</p> : null}
-      {chat ? (
+    <>
+    <div className="app-shell" inert={locked ? true : undefined}>
+      <ParentingShell email={session.email} onSignOut={() => void signOut()} onOpenChat={() => { if (!locked) setChat(true); }} />
+      {notice && !locked ? <p className="error">{notice}</p> : null}
+      {chat && !locked ? (
         <ConversationWorkspace session={session} onSignOut={() => void signOut()} onRestart={restart} onClose={() => setChat(false)} />
       ) : null}
-      <PrivacyGate onLockedOut={() => void signOut()} />
       {switchOpen ? (
         <div className="dialog-back" role="dialog" aria-label={copy.switchTitle}>
           <div className="dialog">
@@ -148,14 +181,20 @@ export function AppShell() {
         </div>
       ) : null}
     </div>
+    <PrivacyGate locked={locked} onLock={engageLock} onContinue={() => void continueLocked()} onSignOut={() => void signOut()} notice={notice} />
+    </>
   );
 }
 
-function PrivacyGate({ onLockedOut }: { onLockedOut: () => void }) {
+function PrivacyGate({ locked, onLock, onContinue, onSignOut, notice }: { locked: boolean; onLock: () => void; onContinue: () => void; onSignOut: () => void; notice: string | null }) {
   const [obscured, setObscured] = useState(false);
-  const [locked, setLocked] = useState(false);
   const [reduced, setReduced] = useState(false);
   const last = useRef(Date.now());
+  const engaged = useRef(false);
+
+  useEffect(() => {
+    if (locked) engaged.current = true;
+  }, [locked]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -167,14 +206,17 @@ function PrivacyGate({ onLockedOut }: { onLockedOut: () => void }) {
     };
     const names = ["pointerdown", "keydown", "touchstart", "scroll"] as const;
     for (const name of names) window.addEventListener(name, mark, { passive: true });
-    const timer = window.setInterval(() => {
-      if (Date.now() - last.current >= IDLE_MS) setLocked(true);
-    }, 15_000);
+    const trip = () => {
+      if (Date.now() - last.current < IDLE_MS || engaged.current) return;
+      engaged.current = true;
+      onLock();
+    };
+    const timer = window.setInterval(trip, 15_000);
     const onVis = () => {
       if (document.visibilityState === "hidden") setObscured(true);
       else {
         setObscured(false);
-        if (Date.now() - last.current >= IDLE_MS) setLocked(true);
+        trip();
       }
     };
     document.addEventListener("visibilitychange", onVis);
@@ -184,25 +226,17 @@ function PrivacyGate({ onLockedOut }: { onLockedOut: () => void }) {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, []);
-
-  async function unlock() {
-    const response = await fetch("/api/auth/refresh", { method: "POST" });
-    if (response.ok) {
-      last.current = Date.now();
-      setLocked(false);
-      return;
-    }
-    onLockedOut();
-  }
+  }, [onLock]);
 
   return (
     <>
       {obscured || locked ? <div className={obscured && !locked && !reduced ? "privacy-cover blurred" : "privacy-cover"} /> : null}
       {locked ? (
-        <div className="privacy-lock" role="dialog" aria-label="重新确认登录">
-          <p>一段时间没有操作，请重新确认登录。</p>
-          <button className="cta" onClick={() => void unlock()}>继续</button>
+        <div className="privacy-lock" role="dialog" aria-modal="true" aria-label={copy.lockTitle}>
+          <p>{copy.lockBody}</p>
+          {notice ? <p className="error">{notice}</p> : null}
+          <button className="cta" onClick={onContinue}>{copy.continueSession}</button>
+          <button className="danger" onClick={onSignOut}>{copy.signOut}</button>
         </div>
       ) : null}
     </>

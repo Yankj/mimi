@@ -18,6 +18,7 @@ export default defineConfig({
       NEXT_PUBLIC_CATPAW_EDGE_ORIGIN: "",
       NEXT_TELEMETRY_DISABLED: "1",
       MIMI_WEB_E2E: "1",
+      MIMI_WEB_SITE_URL: "",
     },
   },
   projects: [

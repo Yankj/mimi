@@ -264,12 +264,13 @@ export function assertVerifier(verifier: string) {
   if (verifier.length < 43 || verifier.length > 128 || !UNRESERVED.test(verifier)) throw new ClientError("登录连接尚未配置。");
 }
 
-export function authorizeUrl(config: PublicConfig, provider: "google" | "github", challenge: string, redirectTo: string) {
+export function authorizeUrl(config: PublicConfig, provider: "google" | "github", challenge: string, redirectTo: string, prompt?: string) {
   const url = new URL(joinEndpoint(config.supabaseUrl, "/auth/v1/authorize"));
   url.searchParams.set("provider", provider);
   url.searchParams.set("redirect_to", redirectTo);
   url.searchParams.set("code_challenge", challenge);
   url.searchParams.set("code_challenge_method", "s256");
+  if (prompt) url.searchParams.set("prompt", prompt);
   return url.toString();
 }
 

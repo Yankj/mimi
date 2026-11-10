@@ -4,9 +4,11 @@
 
 登录只有 Google 与 GitHub，走 Supabase Auth 的 PKCE。没有匿名体验登录，也没有「开始使用」。未登录时只显示登录页。`/auth/callback` 在服务端换票。访问令牌和刷新令牌只放在 HttpOnly、Secure、SameSite=Lax 的 cookie 里；浏览器脚本读不到。`is_anonymous !== false` 的身份会被拒绝。edge 请求经 `/api/edge` 由服务端附上 `Authorization` 和 `apikey`。
 
-对话正文只留在内存里，刷新后不再显示。这和 iOS 一样：历史在设备上（SwiftData），edge 只有按 id 读取，没有对话列表。网页不另做服务端历史。可选的本机索引只存对话 id 和时间，不存正文或标题。同一账户换浏览器看不到这些对话（A03 与 iOS 等价，不是跨浏览器同步）。
+对话正文加密后放在这台浏览器的 IndexedDB（AES-GCM，密钥不可导出、按账户存放）。刷新后仍在。不写入 localStorage，也没有服务端对话列表：和 iOS 一样，历史在设备上，edge 只有按 id 读取。同一账户换浏览器看不到这些对话（A03 与 iOS 等价）。
 
-退出登录会清掉 cookie，并清掉 `localStorage` / `sessionStorage` 里所有 `mimi.web.*`，以及同名前缀的 Cache Storage 和 IndexedDB。大约 15 分钟无操作会锁定；页面隐藏时会遮住内容。`prefers-reduced-motion` 时不做模糊动画。
+退出登录、换账户，或锁定后用另一个账户回来，会删掉这个库和密钥。大约 15 分钟无操作会锁定：内存里的正文清掉，`/api/edge` 返回 401，继续需要用原来的 Google 或 GitHub 再登录。页面隐藏时会遮住内容。`prefers-reduced-motion` 时不做模糊动画。
+
+`MIMI_WEB_SITE_URL` 是站点 origin，只在服务端用于跳转和 CSRF。本地回环可以留空。
 
 ## 环境变量
 
@@ -17,6 +19,7 @@
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://<20位>.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | publishable key 或 role 为 anon 的旧 JWT |
 | `NEXT_PUBLIC_CATPAW_EDGE_ORIGIN` | catpaw-api 的 https origin，路径为 `/` 或 `/functions/v1/<name>` |
+| `MIMI_WEB_SITE_URL` | 这个站点的 origin。服务端读取，不进浏览器包 |
 
 Supabase 的重定向允许列表需要包含这个站点的 `/auth/callback`。本仓库不修改线上 Supabase 配置。
 

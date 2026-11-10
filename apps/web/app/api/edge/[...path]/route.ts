@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readServerConfig } from "@/lib/server-config";
-import { attachSession, e2eFixture, readE2EMarker, readSession, refreshedSession } from "@/lib/server-session";
+import { attachSession, e2eFixture, readE2EMarker, readLockedUser, readSession, refreshedSession, rejectCrossSite } from "@/lib/server-session";
+import { upstreamRequestInit } from "@/lib/upstream";
 import { joinEndpoint, pinnedRegion } from "@/lib/wire";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,11 @@ export const dynamic = "force-dynamic";
 const ALLOWED = new Set(["accept", "content-type", "idempotency-key"]);
 
 async function proxy(request: Request, context: { params: Promise<{ path: string[] }> }) {
+  if (request.method === "POST") {
+    const forbidden = rejectCrossSite(request);
+    if (forbidden) return forbidden;
+  }
+  if (await readLockedUser()) return new NextResponse(null, { status: 401 });
   if (e2eFixture(request) && (await readE2EMarker()) === "named") {
     return NextResponse.json({ error: "e2e" }, { status: 401 });
   }
@@ -52,13 +58,7 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
     headers.set("apikey", config.anonKey);
     const region = pinnedRegion(config.edgeOrigin);
     if (region) headers.set("x-region", region);
-    return fetch(target, {
-      method: request.method,
-      headers,
-      body: replay,
-      redirect: "manual",
-      cache: "no-store",
-    });
+    return fetch(target, upstreamRequestInit(request.method, headers, replay, request.signal));
   };
   let upstream = await send(session.accessToken);
   if (upstream.status === 401) {
