@@ -5,3 +5,5 @@
   <button class="cta" bindtap="onContinue">{{continueSession}}</button>
   <button class="danger" bindtap="onSignOut">{{signOut}}</button>
 </view>
+
+<view wx:if="{{privacyMask}}" class="privacy-mask"></view>

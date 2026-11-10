@@ -3,3 +3,5 @@
   <view class="headline">{{title}}</view>
   <view>{{body}}</view>
 </view>
+
+<view wx:if="{{privacyMask}}" class="privacy-mask"></view>

@@ -49,6 +49,7 @@ Page({
   },
   confirmSignOut() {
     const app = getApp<MimiApp>();
+    app.idleWatch.stop();
     app.session.signOut();
     wx.reLaunch({ url: "/pages/login/login" });
   },

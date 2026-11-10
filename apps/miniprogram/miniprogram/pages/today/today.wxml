@@ -12,3 +12,5 @@
     <button class="text-button" bindtap="onCloseAdd">{{closeLabel}}</button>
   </view>
 </view>
+
+<view wx:if="{{privacyMask}}" class="privacy-mask"></view>

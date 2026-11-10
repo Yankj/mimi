@@ -14,3 +14,5 @@
     <button class="cta" bindtap="onMockLogin">{{wechatLogin}}</button>
   </view>
 </view>
+
+<view wx:if="{{privacyMask}}" class="privacy-mask"></view>

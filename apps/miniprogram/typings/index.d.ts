@@ -84,3 +84,4 @@ declare function Component<TData extends WechatMiniprogram.AnyRecord, TCustom = 
   options: WechatMiniprogram.Component.Options<TData, TCustom>,
 ): void;
 declare function getApp<T = WechatMiniprogram.AnyRecord>(): T;
+declare function getCurrentPages(): Array<{ route: string; setData(data: WechatMiniprogram.AnyRecord): void }>;

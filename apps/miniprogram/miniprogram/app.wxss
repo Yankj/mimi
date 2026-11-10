@@ -141,3 +141,14 @@ page {
   padding: 40rpx;
   width: 100%;
 }
+
+/* Covers the page before backgrounding so the multitask snapshot shows nothing (MP-P2). */
+.privacy-mask {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 9999;
+  background: #fbf3e8;
+}

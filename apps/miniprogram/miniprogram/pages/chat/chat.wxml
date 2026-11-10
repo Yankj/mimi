@@ -7,3 +7,5 @@
     <button class="cta" bindtap="onSend" disabled="{{busy}}">{{send}}</button>
   </view>
 </view>
+
+<view wx:if="{{privacyMask}}" class="privacy-mask"></view>

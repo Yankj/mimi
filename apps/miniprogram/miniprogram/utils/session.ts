@@ -120,6 +120,16 @@ export function createSessionController(storage: Storage, hooks: SessionHooks = 
       this.touch(now);
       return "ok";
     },
+    /** Foreground idle check: locks at the idle deadline without counting as activity. */
+    checkIdle(now: number) {
+      if (!snapshot.signedIn) return "signed-out";
+      if (snapshot.locked) return "locked";
+      if (!idleExceeded(snapshot.seenAt, now)) return "ok";
+      snapshot = { ...snapshot, locked: true };
+      persist();
+      hooks.onLock?.();
+      return "locked";
+    },
     /** Mock re-confirm. Real re-auth waits on the WeChat login decision. */
     unlockMock(now: number) {
       if (!snapshot.signedIn) return;

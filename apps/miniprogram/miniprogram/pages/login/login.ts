@@ -27,6 +27,7 @@ Page({
   onMockLogin() {
     const app = getApp<MimiApp>();
     app.session.signInMock(Date.now());
+    app.idleWatch.start();
     wx.switchTab({ url: "/pages/today/today" });
   },
 });

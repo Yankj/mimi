@@ -22,10 +22,12 @@ Page({
   onContinue() {
     const app = getApp<MimiApp>();
     app.session.unlockMock(Date.now());
+    app.idleWatch.start();
     wx.switchTab({ url: "/pages/today/today" });
   },
   onSignOut() {
     const app = getApp<MimiApp>();
+    app.idleWatch.stop();
     app.session.signOut();
     wx.reLaunch({ url: "/pages/login/login" });
   },
