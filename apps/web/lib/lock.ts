@@ -26,8 +26,9 @@ export function lockRecorded(meta: { locked?: boolean; lockedUntil?: number | nu
   return typeof meta.lockedUntil === "number" && Number.isFinite(meta.lockedUntil);
 }
 
+/** Missing or non-finite seenAt is idle. A deleted field must not look like a fresh session. */
 export function idleExceeded(seenAt: number | null | undefined, now: number, idleMs = IDLE_MS) {
-  if (typeof seenAt !== "number" || !Number.isFinite(seenAt)) return false;
+  if (typeof seenAt !== "number" || !Number.isFinite(seenAt)) return true;
   return now - seenAt >= idleMs;
 }
 

@@ -6,9 +6,9 @@
 
 对话正文加密后放在这台浏览器的 IndexedDB（AES-GCM，密钥不可导出、按账户存放）。刷新后仍在。不写入 localStorage，也没有服务端对话列表：和 iOS 一样，历史在设备上，edge 只有按 id 读取。同一账户换浏览器看不到这些对话（A03 与 iOS 等价）。
 
-退出登录、换账户，或锁定后用另一个账户回来，会删掉这个库和密钥。大约 15 分钟无操作会锁定：内存里的正文清掉，`/api/edge` 返回 401，继续需要用原来的 Google 或 GitHub 再登录。锁定不会在 30 分钟后自己解开，cookie 和会话一样保留到同一账户重新登录或退出。服务端在会话 meta 里记录最后活动时间；超过 15 分钟，即使页面计时器没跑，会话接口也会返回 locked，`/api/edge` 仍是 401。页面隐藏时会遮住内容。`prefers-reduced-motion` 时不做模糊动画。
+退出登录、换账户，或锁定后用另一个账户回来，会删掉这个库和密钥。大约 15 分钟无操作会锁定：内存里的正文清掉，`/api/edge` 返回 401，继续需要用原来的 Google 或 GitHub 再登录。锁定不会在 30 分钟后自己解开，cookie 和会话一样保留到同一账户重新登录或退出。服务端在会话 meta 里记录最后活动时间；缺少、无效或超过 15 分钟，即使页面计时器没跑，会话接口也会返回 locked，`/api/edge` 仍是 401。页面上的点击、按键、滚动、触摸，以及重新回到前台，会最多每 5 分钟向 `/api/session` 打一次，用来刷新活动时间。没有这些操作就不会打。已经锁定的会话不会被这次请求解开。令牌刷新不会改活动时间。页面隐藏时会遮住内容。`prefers-reduced-motion` 时不做模糊动画。
 
-`MIMI_WEB_SITE_URL` 是站点 origin，只在服务端用于跳转和 CSRF。本地回环可以留空。
+会话 meta cookie 用服务端 `MIMI_WEB_SESSION_SECRET` 做 HMAC-SHA256。生产环境缺少密钥、cookie 被删、签名不对或内容坏了，都按锁定处理。`MIMI_WEB_SITE_URL` 是站点 origin，只在服务端用于跳转和 CSRF。本地回环可以留空。
 
 ## 环境变量
 
@@ -20,6 +20,7 @@
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | publishable key 或 role 为 anon 的旧 JWT |
 | `NEXT_PUBLIC_CATPAW_EDGE_ORIGIN` | catpaw-api 的 https origin，路径为 `/` 或 `/functions/v1/<name>` |
 | `MIMI_WEB_SITE_URL` | 这个站点的 origin。服务端读取，不进浏览器包 |
+| `MIMI_WEB_SESSION_SECRET` | 会话 meta 的 HMAC 密钥。只在服务端。生产必填，仓库里留空 |
 
 Supabase 的重定向允许列表需要包含这个站点的 `/auth/callback`。本仓库不修改线上 Supabase 配置。
 

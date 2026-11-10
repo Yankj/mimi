@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { establishSession, refreshStoredSession, type StoredSession } from "./browser-session";
 import { SESSION_MAX_AGE_SEC, activityDecision, lockRecorded } from "./lock";
 import { sameOriginAllowed, siteOrigin } from "./origin";
+import { openMeta, sealMeta } from "./meta-seal";
 import { decodePending, encodePending } from "./pending";
 import type { WebProfile } from "./profile";
 import { readServerConfig, serverUploadHosts } from "./server-config";
@@ -81,11 +82,21 @@ function stamp(response: NextResponse, request: Request, name: string, value: st
   response.cookies.set(name, value, cookieOptions(request, maxAge));
 }
 
+function writeMeta(response: NextResponse, request: Request, session: StoredSession, options?: { clearLock?: boolean }) {
+  const encoded = JSON.stringify(metaFrom(session, options));
+  const sealed = sealMeta(encoded, process.env.MIMI_WEB_SESSION_SECRET, process.env.NODE_ENV === "production");
+  if (!sealed) {
+    stamp(response, request, META, "", 0);
+    return;
+  }
+  stamp(response, request, META, sealed, SESSION_MAX_AGE_SEC);
+}
+
 export function attachSession(response: NextResponse, request: Request, session: StoredSession, options?: { clearLock?: boolean }) {
   const stored: StoredSession = options?.clearLock ? { ...session, locked: false, seenAt: Date.now() } : session;
   stamp(response, request, ACCESS, stored.accessToken, SESSION_MAX_AGE_SEC);
   stamp(response, request, REFRESH, stored.refreshToken, SESSION_MAX_AGE_SEC);
-  stamp(response, request, META, JSON.stringify(metaFrom(stored, options)), SESSION_MAX_AGE_SEC);
+  writeMeta(response, request, stored, options);
   stamp(response, request, PENDING, "", 0);
   stamp(response, request, PROVIDER, "", 0);
   if (options?.clearLock) {
@@ -95,7 +106,7 @@ export function attachSession(response: NextResponse, request: Request, session:
 }
 
 export function noteActivity(response: NextResponse, request: Request, session: StoredSession) {
-  stamp(response, request, META, JSON.stringify(metaFrom({ ...session, locked: false, seenAt: Date.now() }, { clearLock: true })), SESSION_MAX_AGE_SEC);
+  writeMeta(response, request, { ...session, locked: false, seenAt: Date.now() }, { clearLock: true });
 }
 
 export function attachPending(response: NextResponse, request: Request, session: StoredSession) {
@@ -113,7 +124,7 @@ export function attachPending(response: NextResponse, request: Request, session:
 export function attachLock(response: NextResponse, request: Request, userId: string, session?: StoredSession | null) {
   stamp(response, request, LOCKED, userId, SESSION_MAX_AGE_SEC);
   if (!session) return;
-  stamp(response, request, META, JSON.stringify(metaFrom({ ...session, locked: true })), SESSION_MAX_AGE_SEC);
+  writeMeta(response, request, { ...session, locked: true });
 }
 
 export function attachReauth(response: NextResponse, request: Request, userId: string) {
@@ -168,7 +179,8 @@ export async function readLockedUser(now = Date.now()) {
   const session = await readSession();
   if (!session) return null;
   const decision = activityDecision({ locked: session.locked === true, seenAt: session.seenAt, now });
-  return decision.locked ? session.userId : null;
+  if (!decision.locked) return null;
+  return session.userId || "locked";
 }
 
 export async function readSession(): Promise<StoredSession | null> {
@@ -176,25 +188,38 @@ export async function readSession(): Promise<StoredSession | null> {
   const accessToken = jar.get(ACCESS)?.value;
   const refreshToken = jar.get(REFRESH)?.value;
   const raw = jar.get(META)?.value;
-  if (!accessToken || !refreshToken || !raw) return null;
-  try {
-    const meta = JSON.parse(raw) as Meta;
-    if (!meta.userId || !meta.scopeId) return null;
-    return {
-      accessToken,
-      refreshToken,
-      expiresAt: meta.expiresAt,
-      userId: meta.userId,
-      email: meta.email,
-      isAnonymous: false,
-      scopeId: meta.scopeId,
-      provider: meta.provider,
-      locked: lockRecorded(meta),
-      seenAt: typeof meta.seenAt === "number" && Number.isFinite(meta.seenAt) ? meta.seenAt : undefined,
-    };
-  } catch {
-    return null;
-  }
+  if (!accessToken || !refreshToken) return null;
+  const opened = openMeta(raw, process.env.MIMI_WEB_SESSION_SECRET, process.env.NODE_ENV === "production");
+  if (!opened.ok) return lockedSession(accessToken, refreshToken);
+  const meta = opened.meta as Meta;
+  if (typeof meta.userId !== "string" || !meta.userId || typeof meta.scopeId !== "string" || !meta.scopeId) return lockedSession(accessToken, refreshToken);
+  const email = meta.email === null || typeof meta.email === "string" ? meta.email : null;
+  const provider = meta.provider === "google" || meta.provider === "github" ? meta.provider : undefined;
+  return {
+    accessToken,
+    refreshToken,
+    expiresAt: typeof meta.expiresAt === "number" ? meta.expiresAt : 0,
+    userId: meta.userId,
+    email,
+    isAnonymous: false,
+    scopeId: meta.scopeId,
+    provider,
+    locked: lockRecorded(meta),
+    seenAt: typeof meta.seenAt === "number" && Number.isFinite(meta.seenAt) ? meta.seenAt : undefined,
+  };
+}
+
+function lockedSession(accessToken: string, refreshToken: string): StoredSession {
+  return {
+    accessToken,
+    refreshToken,
+    expiresAt: 0,
+    userId: "",
+    email: null,
+    isAnonymous: false,
+    scopeId: "",
+    locked: true,
+  };
 }
 
 function profileFrom(session: StoredSession, locked: boolean): WebProfile {
@@ -237,8 +262,9 @@ export async function openSession(request: Request) {
   if (!session || session.isAnonymous !== false) return new NextResponse(null, { status: 401, headers: { "cache-control": "no-store" } });
   const decision = activityDecision({ locked: session.locked === true, seenAt: session.seenAt, now });
   const response = NextResponse.json(profileFrom(session, decision.locked), { headers: { "cache-control": "no-store" } });
-  if (decision.locked) attachLock(response, request, session.userId, session);
-  else noteActivity(response, request, session);
+  if (decision.locked) {
+    if (session.userId) attachLock(response, request, session.userId, session);
+  } else noteActivity(response, request, session);
   return response;
 }
 

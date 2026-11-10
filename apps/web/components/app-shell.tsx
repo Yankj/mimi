@@ -3,7 +3,8 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ConversationWorkspace } from "@/components/conversation-workspace";
-import { wipeBrowserState } from "@/lib/browser-wipe";
+import { noteLocalActivity } from "@/lib/activity-ping";
+import { BrowserWipeError, wipeBrowserState } from "@/lib/browser-wipe";
 import { copy } from "@/lib/copy";
 import { IDLE_MS } from "@/lib/lock";
 import type { WebProfile } from "@/lib/profile";
@@ -28,7 +29,13 @@ export function AppShell() {
     const switching = params.get("switch") === "1";
     const switchedAccount = params.get("reauth") === "switched";
     void (async () => {
-      if (switchedAccount) await wipeBrowserState();
+      if (switchedAccount) {
+        try {
+          await wipeBrowserState();
+        } catch (error) {
+          if (error instanceof BrowserWipeError) setNotice(copy.wipeBlocked);
+        }
+      }
       const response = await fetch("/api/session", { cache: "no-store" });
       if (!response.ok) {
         setPhase("login");
@@ -94,9 +101,19 @@ export function AppShell() {
     }
   }
 
+  async function clearLocalOrWarn() {
+    try {
+      await wipeBrowserState();
+      return true;
+    } catch {
+      setNotice(copy.wipeBlocked);
+      return false;
+    }
+  }
+
   async function signOut() {
     await fetch("/api/auth/logout", { method: "POST" });
-    await wipeBrowserState();
+    if (!(await clearLocalOrWarn())) return;
     setSession(null);
     setChat(false);
     setLocked(false);
@@ -105,9 +122,10 @@ export function AppShell() {
   }
 
   function restart() {
-    void fetch("/api/auth/logout", { method: "POST" })
-      .then(() => wipeBrowserState())
-      .finally(() => window.location.assign("/?notice=restart"));
+    void (async () => {
+      await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+      if (await clearLocalOrWarn()) window.location.assign("/?notice=restart");
+    })();
   }
 
   async function confirmSwitch() {
@@ -120,7 +138,7 @@ export function AppShell() {
       setNotice(copy.invalidResponse);
       return;
     }
-    await wipeBrowserState();
+    if (!(await clearLocalOrWarn())) return;
     window.location.assign("/");
   }
 
@@ -164,10 +182,10 @@ export function AppShell() {
   return (
     <>
     <div className="app-shell" inert={locked ? true : undefined}>
-      <ParentingShell email={session.email} onSignOut={() => void signOut()} onOpenChat={() => { if (!locked) setChat(true); }} />
+      <ParentingShell email={session.email} notice={notice} onSignOut={() => void signOut()} onOpenChat={() => { if (!locked) setChat(true); }} />
       {notice && !locked ? <p className="error">{notice}</p> : null}
       {chat && !locked ? (
-        <ConversationWorkspace session={session} onSignOut={() => void signOut()} onRestart={restart} onClose={() => setChat(false)} />
+        <ConversationWorkspace session={session} notice={notice} onSignOut={() => void signOut()} onRestart={restart} onClose={() => setChat(false)} />
       ) : null}
       {switchOpen ? (
         <div className="dialog-back" role="dialog" aria-label={copy.switchTitle}>
@@ -189,6 +207,7 @@ function PrivacyGate({ locked, onLock, onContinue, onSignOut, notice }: { locked
   const [obscured, setObscured] = useState(false);
   const [reduced, setReduced] = useState(false);
   const last = useRef(Date.now());
+  const lastPing = useRef(Date.now());
   const engaged = useRef(false);
 
   useEffect(() => {
@@ -201,7 +220,17 @@ function PrivacyGate({ locked, onLock, onContinue, onSignOut, notice }: { locked
     apply();
     media.addEventListener("change", apply);
     const mark = () => {
-      last.current = Date.now();
+      const now = Date.now();
+      last.current = now;
+      if (engaged.current) return;
+      const noted = noteLocalActivity({ lastPingAt: lastPing.current, locked: false }, now);
+      if (!noted.ping) return;
+      lastPing.current = noted.state.lastPingAt;
+      void fetch("/api/session", { cache: "no-store" }).then(async (response) => {
+        if (!response.ok || engaged.current) return;
+        const profile = (await response.json()) as WebProfile;
+        if (profile.locked) onLock();
+      }).catch(() => undefined);
     };
     const names = ["pointerdown", "keydown", "touchstart", "scroll"] as const;
     for (const name of names) window.addEventListener(name, mark, { passive: true });
@@ -215,7 +244,8 @@ function PrivacyGate({ locked, onLock, onContinue, onSignOut, notice }: { locked
       if (document.visibilityState === "hidden") setObscured(true);
       else {
         setObscured(false);
-        trip();
+        if (Date.now() - last.current >= IDLE_MS) trip();
+        else mark();
       }
     };
     document.addEventListener("visibilitychange", onVis);
@@ -242,7 +272,7 @@ function PrivacyGate({ locked, onLock, onContinue, onSignOut, notice }: { locked
   );
 }
 
-function ParentingShell({ email, onSignOut, onOpenChat }: { email: string | null; onSignOut: () => void; onOpenChat: () => void }) {
+function ParentingShell({ email, notice, onSignOut, onOpenChat }: { email: string | null; notice: string | null; onSignOut: () => void; onOpenChat: () => void }) {
   const [tab, setTab] = useState<Tab>("today");
   const [page, setPage] = useState<Page>("home");
   const [addOpen, setAddOpen] = useState(false);
@@ -352,6 +382,7 @@ function ParentingShell({ email, onSignOut, onOpenChat }: { email: string | null
           <div className="dialog">
             <h2>{copy.signOutTitle}</h2>
             <p>{copy.signOutNamed}</p>
+            {notice ? <p className="error">{notice}</p> : null}
             <button onClick={() => setSignOutOpen(false)}>{copy.cancel}</button>
             <button className="danger" onClick={onSignOut}>{copy.signOut}</button>
           </div>

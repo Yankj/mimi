@@ -47,6 +47,7 @@ export const copy = {
   signOutNamed: "退出后需重新登录。孩子的信息只存在手机上的小咪里，网页不会保存育儿记录。",
   signOutChatAnonymous: "体验身份暂时无法找回。退出后，你将无法继续访问这些对话。",
   signOutChatNamed: "退出后，这台浏览器上加密保存的对话会删除。",
+  wipeBlocked: "其他标签页还开着这些对话，这次没能删掉。请关掉那些标签页后再试一次。",
   lockTitle: "重新确认登录",
   lockBody: "一段时间没有操作，请重新确认登录。",
   continueSession: "继续",

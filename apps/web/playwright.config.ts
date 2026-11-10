@@ -19,6 +19,7 @@ export default defineConfig({
       NEXT_TELEMETRY_DISABLED: "1",
       MIMI_WEB_E2E: "1",
       MIMI_WEB_SITE_URL: "",
+      MIMI_WEB_SESSION_SECRET: "e2e-session-meta-hmac",
     },
   },
   projects: [

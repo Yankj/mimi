@@ -134,11 +134,13 @@ async function readJson(response: Response) {
 
 export function ConversationWorkspace({
   session,
+  notice = null,
   onSignOut,
   onRestart,
   onClose,
 }: {
   session: WebProfile;
+  notice?: string | null;
   onSignOut: () => void;
   onRestart: () => void;
   onClose: () => void;
@@ -1069,6 +1071,7 @@ export function ConversationWorkspace({
           <div className="dialog">
             <h2>{copy.signOutTitle}</h2>
             <p>{copy.signOutChatNamed}</p>
+            {notice ? <p className="error">{notice}</p> : null}
             <button onClick={() => setSignOutOpen(false)}>{copy.cancel}</button>
             <button className="danger" onClick={onSignOut}>{copy.signOut}</button>
           </div>

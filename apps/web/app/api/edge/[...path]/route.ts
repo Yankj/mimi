@@ -19,7 +19,7 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
   const idle = opened ? activityDecision({ locked: opened.locked === true, seenAt: opened.seenAt, now }).locked : false;
   if ((await readLockedUser(now)) || idle) {
     const response = NextResponse.json({ error: "locked" }, { status: 401, headers: { "cache-control": "no-store" } });
-    if (opened) attachLock(response, request, opened.userId, opened);
+    if (opened?.userId) attachLock(response, request, opened.userId, opened);
     return response;
   }
   if (e2eFixture(request) && (await readE2EMarker()) === "named") {

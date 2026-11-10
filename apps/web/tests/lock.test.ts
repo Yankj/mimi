@@ -37,9 +37,17 @@ test("a lock stays until re-auth and idle is judged on the server", () => {
   const now = 1_000_000;
   assert.equal(idleExceeded(now - IDLE_MS, now), true);
   assert.equal(idleExceeded(now - IDLE_MS + 1, now), false);
-  assert.equal(idleExceeded(undefined, now), false);
   assert.deepEqual(activityDecision({ locked: false, seenAt: now - IDLE_MS, now }), { locked: true, seenAt: now - IDLE_MS, touch: false });
   assert.deepEqual(activityDecision({ locked: false, seenAt: now - 60_000, now }), { locked: false, seenAt: now, touch: true });
   assert.deepEqual(activityDecision({ locked: true, seenAt: now, now }), { locked: true, seenAt: now, touch: false });
-  assert.deepEqual(activityDecision({ locked: false, seenAt: null, now }), { locked: false, seenAt: now, touch: true });
+});
+
+test("a missing or invalid seenAt is locked and is not refreshed", () => {
+  const now = 1_000_000;
+  assert.equal(idleExceeded(undefined, now), true);
+  assert.equal(idleExceeded(null, now), true);
+  assert.equal(idleExceeded(Number.NaN, now), true);
+  assert.equal(idleExceeded(Number.POSITIVE_INFINITY, now), true);
+  assert.deepEqual(activityDecision({ locked: false, seenAt: undefined, now }), { locked: true, seenAt: null, touch: false });
+  assert.deepEqual(activityDecision({ locked: false, seenAt: null, now }), { locked: true, seenAt: null, touch: false });
 });

@@ -1,5 +1,19 @@
 export const VAULT_DB_NAME = "mimi.web.vault.v1";
 
+const openDatabases = new Set<IDBDatabase>();
+
+/** Close vault connections this page opened so deleteDatabase is not blocked by them. */
+export function closeTrackedVaults() {
+  for (const db of [...openDatabases]) {
+    openDatabases.delete(db);
+    try {
+      db.close();
+    } catch {
+      /* The connection may already be closing. */
+    }
+  }
+}
+
 export async function createChatKey() {
   return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
 }
@@ -47,9 +61,11 @@ function idbPut(db: IDBDatabase, store: string, key: string, value: unknown) {
 
 async function withVault<T>(fn: (db: IDBDatabase) => Promise<T>) {
   const db = await openVault();
+  openDatabases.add(db);
   try {
     return await fn(db);
   } finally {
+    openDatabases.delete(db);
     db.close();
   }
 }
