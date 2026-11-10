@@ -15,7 +15,7 @@ enum CartoonPaperScanner {
         request.quadratureTolerance = 20
         let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
         guard (try? handler.perform([request])) != nil,
-              let observed = (request.results as? [VNRectangleObservation])?.first else { return nil }
+              let observed = request.results?.first else { return nil }
         return PaperQuad.fromVision(topLeft: observed.topLeft, topRight: observed.topRight, bottomRight: observed.bottomRight, bottomLeft: observed.bottomLeft)
     }
 

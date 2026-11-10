@@ -68,7 +68,8 @@ import UIKit
     }
 
     private var capture: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        let libraryLabel = ui("从相册选择")
+        return VStack(alignment: .leading, spacing: 16) {
             Text(ui("拍下孩子的画。接下来把四个角拖到纸边上，手指和桌面不会进电子稿。"))
                 .font(.subheadline).foregroundStyle(catColors.calmSecondary).fixedSize(horizontal: false, vertical: true)
             Button { showCamera = true } label: { Label(ui("拍照"), systemImage: "camera").frame(maxWidth: .infinity) }
@@ -76,7 +77,7 @@ import UIKit
                 .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
                 .accessibilityIdentifier("cartoon.capture.camera")
             PhotosPicker(selection: $libraryItem, matching: .images) {
-                Label(ui("从相册选择"), systemImage: "photo").frame(maxWidth: .infinity)
+                Label(libraryLabel, systemImage: "photo").frame(maxWidth: .infinity)
             }
             .parentingSecondaryButton()
             .accessibilityIdentifier("cartoon.capture.library")

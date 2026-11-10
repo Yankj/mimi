@@ -99,7 +99,13 @@ actor CartoonECopyClient {
         guard let base else { throw CartoonECopyClientError.notConfigured("卡通电子稿服务地址未配置。") }
         let bearer: String
         do {
-            bearer = try await authorization?() ?? catPushTokenUploader.shared.bearer()
+            let token: String
+            if let authorization {
+                token = try await authorization()
+            } else {
+                token = try await catPushTokenUploader.shared.bearer()
+            }
+            bearer = token
         } catch {
             throw CartoonECopyClientError.unauthorized
         }
