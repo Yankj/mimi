@@ -1,0 +1,143 @@
+page {
+  background: #fbf3e8;
+  color: #3b2a1c;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 30rpx;
+  line-height: 1.5;
+  min-height: 100%;
+}
+
+.page {
+  padding: 40rpx 40rpx 160rpx;
+}
+
+.brand {
+  font-size: 48rpx;
+  font-weight: 650;
+}
+
+.brand-sub {
+  color: #8a7a6a;
+  font-size: 28rpx;
+}
+
+.headline {
+  font-size: 44rpx;
+  font-weight: 650;
+  white-space: pre-wrap;
+}
+
+.quiet {
+  color: #8a7a6a;
+}
+
+.error {
+  color: #b42318;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.card,
+.glass-card {
+  background: rgba(255, 248, 240, 0.92);
+  border-radius: 28rpx;
+  padding: 32rpx;
+  box-shadow: 0 8rpx 32rpx rgba(196, 92, 26, 0.06);
+}
+
+.cta,
+.primary,
+.row-link,
+.danger,
+.text-button {
+  border: none;
+  border-radius: 20rpx;
+  padding: 22rpx 28rpx;
+  font-size: 30rpx;
+  line-height: 1.4;
+}
+
+.cta,
+.primary {
+  background: #c45c1a;
+  color: #fff8f0;
+}
+
+.row-link {
+  background: #fff8f0;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.danger {
+  background: transparent;
+  color: #b42318;
+  padding-left: 0;
+}
+
+.text-button {
+  background: transparent;
+  color: #c45c1a;
+  padding-left: 0;
+  text-align: left;
+}
+
+.composer {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+
+.composer input,
+.input {
+  flex: 1;
+  background: #fff8f0;
+  border: 2rpx solid #ead8c4;
+  border-radius: 20rpx;
+  padding: 20rpx 24rpx;
+  font-size: 30rpx;
+}
+
+.bubble {
+  margin: 16rpx 0;
+  padding: 20rpx 24rpx;
+  border-radius: 24rpx;
+  max-width: 85%;
+}
+
+.bubble.user {
+  margin-left: auto;
+  background: #c45c1a;
+  color: #fff8f0;
+}
+
+.bubble.assistant {
+  background: #fff8f0;
+}
+
+.dialog-back {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(59, 42, 28, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx;
+  z-index: 20;
+}
+
+.dialog {
+  background: #fff8f0;
+  border-radius: 28rpx;
+  padding: 40rpx;
+  width: 100%;
+}

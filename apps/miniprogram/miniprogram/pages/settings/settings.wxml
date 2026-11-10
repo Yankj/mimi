@@ -1,0 +1,41 @@
+<view class="page stack">
+  <button class="text-button" bindtap="goBack">{{back}}</button>
+  <view class="headline">{{title}}</view>
+  <view class="quiet">{{settingsSubtitle}}</view>
+  <view class="card stack">
+    <view class="headline">{{account}}</view>
+    <view>{{currentAccount}}</view>
+    <view>{{displayName}}</view>
+    <button class="danger" bindtap="openSignOut">{{signOut}}</button>
+  </view>
+  <view class="card stack">
+    <view class="headline">{{reviewHints}}</view>
+    <view class="quiet">{{showHints}}（这一步先不能改）</view>
+    <view class="quiet">{{hintsBody}}</view>
+  </view>
+  <view class="card stack">
+    <view class="headline">{{dataBoundary}}</view>
+    <view>{{localLedger}}</view>
+    <view>{{noCalendar}}</view>
+    <view>{{chatBoundary}}</view>
+    <button class="text-button" disabled>{{reread}}</button>
+    <button class="text-button" disabled>{{eraseAll}}</button>
+  </view>
+  <button class="row-link" bindtap="openChat">
+    <text>{{advanced}}</text>
+    <text class="quiet">{{advancedBody}}</text>
+  </button>
+  <view class="card stack">
+    <view class="headline">{{about}}</view>
+    <view>{{version}}</view>
+    <view>{{build}}</view>
+  </view>
+</view>
+<view wx:if="{{signOutOpen}}" class="dialog-back">
+  <view class="dialog stack">
+    <view class="headline">{{signOutTitle}}</view>
+    <view>{{signOutNamed}}</view>
+    <button bindtap="closeSignOut">{{cancel}}</button>
+    <button class="danger" bindtap="confirmSignOut">{{signOut}}</button>
+  </view>
+</view>

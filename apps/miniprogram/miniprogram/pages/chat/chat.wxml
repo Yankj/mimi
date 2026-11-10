@@ -1,0 +1,9 @@
+<view class="page stack">
+  <view class="headline">{{ask}}</view>
+  <view class="quiet">{{hint}}</view>
+  <view wx:for="{{messages}}" wx:key="id" class="bubble {{item.role}}">{{item.text}}</view>
+  <view class="composer">
+    <input class="input" value="{{draft}}" bindinput="onDraft" confirm-type="send" bindconfirm="onSend" disabled="{{busy}}" placeholder="{{ask}}" />
+    <button class="cta" bindtap="onSend" disabled="{{busy}}">{{send}}</button>
+  </view>
+</view>

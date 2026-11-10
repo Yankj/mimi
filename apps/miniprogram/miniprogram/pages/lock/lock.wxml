@@ -1,0 +1,7 @@
+<view class="page stack">
+  <view class="headline">{{title}}</view>
+  <view>{{body}}</view>
+  <view class="quiet">{{pending}}</view>
+  <button class="cta" bindtap="onContinue">{{continueSession}}</button>
+  <button class="danger" bindtap="onSignOut">{{signOut}}</button>
+</view>

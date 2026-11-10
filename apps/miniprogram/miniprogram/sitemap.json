@@ -1,0 +1,4 @@
+{
+  "desc": "The skeleton is not submitted for review.",
+  "rules": [{ "action": "disallow", "page": "*" }]
+}

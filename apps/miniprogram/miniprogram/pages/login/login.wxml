@@ -1,0 +1,16 @@
+<view class="page stack">
+  <view>
+    <view class="brand">{{brand}} <text class="brand-sub">小咪</text></view>
+    <view class="brand-sub">{{brandSubtitle}}</view>
+  </view>
+  <view>
+    <view class="headline">{{headline}}</view>
+    <view class="quiet">{{subtitle}}</view>
+  </view>
+  <view class="stack">
+    <view class="headline">{{loginTitle}}</view>
+    <view class="quiet">{{loginPending}}</view>
+    <view wx:if="{{notice}}" class="error">{{notice}}</view>
+    <button class="cta" bindtap="onMockLogin">{{wechatLogin}}</button>
+  </view>
+</view>

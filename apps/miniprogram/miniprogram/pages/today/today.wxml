@@ -1,0 +1,14 @@
+<view class="page stack">
+  <view class="quiet">{{familyTodo}}</view>
+  <view class="headline">{{title}}</view>
+  <empty-child bind:add="onAddChild" />
+  <view class="quiet">{{emptyToday}}</view>
+</view>
+<view wx:if="{{addOpen}}" class="dialog-back">
+  <view class="dialog stack">
+    <view class="headline">{{addTitle}}</view>
+    <view>{{addBody}}</view>
+    <view>{{addBlocked}}</view>
+    <button class="text-button" bindtap="onCloseAdd">{{closeLabel}}</button>
+  </view>
+</view>

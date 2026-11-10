@@ -2,6 +2,8 @@
 
 浏览器里的 mimi / 小咪。这一版是现有 catpaw edge API 的客户端，不是第二套原生宿主，也不是营销站（营销站仍在 `apps/website`，已迁出）。
 
+请求头、合同和共用文案在 [`packages/mimi-core`](../../packages/mimi-core)。本目录的 `lib/wire.ts` 与 `lib/copy.ts` 只做再导出，对外行为与抽出前一致。
+
 登录只有 Google 与 GitHub，走 Supabase Auth 的 PKCE。没有匿名体验登录，也没有「开始使用」。未登录时只显示登录页。`/auth/callback` 在服务端换票。访问令牌和刷新令牌只放在 HttpOnly、Secure、SameSite=Lax 的 cookie 里；浏览器脚本读不到。`is_anonymous !== false` 的身份会被拒绝。edge 请求经 `/api/edge` 由服务端附上 `Authorization` 和 `apikey`。
 
 对话正文加密后放在这台浏览器的 IndexedDB（AES-GCM，密钥不可导出、按账户存放）。刷新后仍在。不写入 localStorage，也没有服务端对话列表：和 iOS 一样，历史在设备上，edge 只有按 id 读取。同一账户换浏览器看不到这些对话（A03 与 iOS 等价）。

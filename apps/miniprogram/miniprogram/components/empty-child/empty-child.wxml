@@ -1,0 +1,5 @@
+<view class="glass-card">
+  <view class="title">{{title}}</view>
+  <view class="body">{{body}}</view>
+  <button class="primary" bindtap="onAdd">{{action}}</button>
+</view>

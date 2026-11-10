@@ -1,0 +1,5 @@
+<view class="page stack">
+  <button class="text-button" bindtap="goBack">{{back}}</button>
+  <view class="headline">{{title}}</view>
+  <view>{{body}}</view>
+</view>

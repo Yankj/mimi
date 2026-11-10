@@ -1,0 +1,34 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/today/today",
+    "pages/growth/growth",
+    "pages/family/family",
+    "pages/chat/chat",
+    "pages/timeline/timeline",
+    "pages/goals/goals",
+    "pages/reminders/reminders",
+    "pages/settings/settings",
+    "pages/lock/lock"
+  ],
+  "window": {
+    "navigationBarTitleText": "小咪",
+    "navigationBarBackgroundColor": "#FBF3E8",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#FBF3E8",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#8A7A6A",
+    "selectedColor": "#C45C1A",
+    "backgroundColor": "#FFF8F0",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/today/today", "text": "今天" },
+      { "pagePath": "pages/growth/growth", "text": "成长" },
+      { "pagePath": "pages/family/family", "text": "我们家" }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}
