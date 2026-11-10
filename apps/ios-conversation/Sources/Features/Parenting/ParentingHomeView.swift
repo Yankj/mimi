@@ -901,6 +901,7 @@ import Combine
             addGoal: { sheet = .newGoal($0) },
             openGoals: { selectedChildID = activeChild?.id; growthMode = .goals },
             openTimeline: { selectedChildID = activeChild?.id; recordFilter = .all; growthMode = .timeline },
+            openCartoon: { growthMode = .cartoon },
             renameChild: { sheet = .editChild($0) },
             deleteChild: { deletion = .child($0) },
             changeAvatar: { avatarChild = $0 })
@@ -938,6 +939,8 @@ import Combine
                     onSelect: { selectedGoalID = $0 }, onAdd: { sheet = .newGoal(child.id) }, onDelete: { deletion = .goal($0) },
                     review: { growthReview(child) })
             }
+        case .cartoon:
+            CartoonECopyFlowView()
         }
     }
 
@@ -1335,10 +1338,10 @@ private enum ParentingTab: String, CaseIterable, Identifiable, Hashable {
     }
 }
 private enum ParentingGrowthMode: String, CaseIterable, Identifiable {
-    case timeline, goals
+    case timeline, goals, cartoon
     var id: String { rawValue }
     var title: String {
-        switch self { case .timeline: "时间线"; case .goals: "目标与回顾" }
+        switch self { case .timeline: "时间线"; case .goals: "目标与回顾"; case .cartoon: "画作电子稿" }
     }
 }
 private enum ParentingRecordFilter: String, CaseIterable, Identifiable {

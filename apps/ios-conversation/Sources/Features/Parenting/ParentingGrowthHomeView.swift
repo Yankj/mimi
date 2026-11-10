@@ -9,6 +9,7 @@ struct ParentingGrowthHomeActions {
     var addGoal: (UUID) -> Void
     var openGoals: () -> Void
     var openTimeline: () -> Void
+    var openCartoon: () -> Void = {}
     var renameChild: (ParentingChild) -> Void
     var deleteChild: (UUID) -> Void
     /// Opens the avatar sheet (photo or default plush cat).
@@ -155,6 +156,10 @@ struct ParentingGrowthHomeView: View {
             door(symbol: "clock.arrow.circlepath", title: ui("成长时间线"),
                  subtitle: recordCount == 0 ? ui("还没有记录") : ui("{0} 条记录", [String(recordCount)]),
                  identifier: "parenting.growth.mode.timeline", action: actions.openTimeline)
+            Divider().overlay(catColors.hairline).padding(.leading, 52)
+            door(symbol: "paintbrush.pointed", title: ui("画作电子稿"),
+                 subtitle: ui("拍照裁正，做成绘本"),
+                 identifier: "parenting.growth.mode.cartoon", action: actions.openCartoon)
         }
         .padding(.horizontal, 17)
         .background(catColors.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
