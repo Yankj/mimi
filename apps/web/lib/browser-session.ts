@@ -20,7 +20,8 @@ export type StoredSession = {
   isAnonymous: boolean;
   scopeId: string;
   provider?: "google" | "github";
-  lockedUntil?: number;
+  locked?: boolean;
+  seenAt?: number;
 };
 
 export function sessionFromCredential(credential: Credential, scopeId: string): StoredSession {

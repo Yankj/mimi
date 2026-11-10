@@ -5,12 +5,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ConversationWorkspace } from "@/components/conversation-workspace";
 import { wipeBrowserState } from "@/lib/browser-wipe";
 import { copy } from "@/lib/copy";
+import { IDLE_MS } from "@/lib/lock";
 import type { WebProfile } from "@/lib/profile";
 
 type Tab = "today" | "growth" | "family";
 type Page = "home" | "settings" | "reminders" | "timeline" | "goals";
-
-const IDLE_MS = 15 * 60 * 1000;
 
 export function AppShell() {
   const [session, setSession] = useState<WebProfile | null>(null);

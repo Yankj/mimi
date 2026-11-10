@@ -68,6 +68,27 @@ test("idle lock sends the user back to the same provider", async ({ page }) => {
   expect(url.searchParams.get("prompt")).toBe("select_account");
 });
 
+test("a lock still blocks after the old 30 minute window", async ({ page }) => {
+  await page.clock.install({ time: new Date() });
+  await mark(page, "named");
+  await page.goto("/");
+  await expect(page.getByRole("tab", { name: "今天" })).toBeVisible();
+  await page.clock.fastForward(16 * 60 * 1000);
+  const dialog = page.getByRole("dialog", { name: "重新确认登录" });
+  await expect(dialog).toBeVisible();
+  await expect.poll(async () => {
+    const cookie = (await page.context().cookies()).find((item) => item.name === "mimi_locked");
+    return Boolean(cookie?.httpOnly && cookie.expires > Date.now() / 1000 + 60 * 60);
+  }).toBe(true);
+  await page.clock.fastForward(31 * 60 * 1000);
+  await page.clock.resume();
+  await page.reload();
+  await expect(dialog).toBeVisible();
+  const edge = await page.request.get("/api/edge/catpaw/account/v1/session");
+  expect(edge.status()).toBe(401);
+  expect(await edge.json()).toEqual({ error: "locked" });
+});
+
 const secret = "橘色小猫画作七号";
 
 async function dumpStorage(page: Page) {

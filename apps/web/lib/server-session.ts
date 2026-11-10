@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { establishSession, refreshStoredSession, type StoredSession } from "./browser-session";
-import { LOCK_WINDOW_MS, lockIsActive } from "./lock";
+import { SESSION_MAX_AGE_SEC, activityDecision, lockRecorded } from "./lock";
 import { sameOriginAllowed, siteOrigin } from "./origin";
 import { decodePending, encodePending } from "./pending";
 import type { WebProfile } from "./profile";
@@ -25,7 +25,10 @@ type Meta = {
   scopeId: string;
   expiresAt: number;
   provider?: "google" | "github";
+  locked?: boolean;
+  /** Previous builds stored a timestamp. Any recorded value still means locked. */
   lockedUntil?: number;
+  seenAt?: number;
 };
 
 export function cookieSecure(request: Request) {
@@ -69,7 +72,8 @@ const E2E_PROFILE: WebProfile = {
 function metaFrom(session: StoredSession, options?: { clearLock?: boolean }): Meta {
   const meta: Meta = { userId: session.userId, email: session.email, scopeId: session.scopeId, expiresAt: session.expiresAt };
   if (session.provider === "google" || session.provider === "github") meta.provider = session.provider;
-  if (!options?.clearLock && lockIsActive(session.lockedUntil, Date.now())) meta.lockedUntil = session.lockedUntil;
+  if (typeof session.seenAt === "number" && Number.isFinite(session.seenAt)) meta.seenAt = session.seenAt;
+  if (!options?.clearLock && session.locked) meta.locked = true;
   return meta;
 }
 
@@ -78,16 +82,20 @@ function stamp(response: NextResponse, request: Request, name: string, value: st
 }
 
 export function attachSession(response: NextResponse, request: Request, session: StoredSession, options?: { clearLock?: boolean }) {
-  const maxAge = 60 * 60 * 24 * 14;
-  stamp(response, request, ACCESS, session.accessToken, maxAge);
-  stamp(response, request, REFRESH, session.refreshToken, maxAge);
-  stamp(response, request, META, JSON.stringify(metaFrom(session, options)), maxAge);
+  const stored: StoredSession = options?.clearLock ? { ...session, locked: false, seenAt: Date.now() } : session;
+  stamp(response, request, ACCESS, stored.accessToken, SESSION_MAX_AGE_SEC);
+  stamp(response, request, REFRESH, stored.refreshToken, SESSION_MAX_AGE_SEC);
+  stamp(response, request, META, JSON.stringify(metaFrom(stored, options)), SESSION_MAX_AGE_SEC);
   stamp(response, request, PENDING, "", 0);
   stamp(response, request, PROVIDER, "", 0);
   if (options?.clearLock) {
     stamp(response, request, LOCKED, "", 0);
     stamp(response, request, REAUTH, "", 0);
   }
+}
+
+export function noteActivity(response: NextResponse, request: Request, session: StoredSession) {
+  stamp(response, request, META, JSON.stringify(metaFrom({ ...session, locked: false, seenAt: Date.now() }, { clearLock: true })), SESSION_MAX_AGE_SEC);
 }
 
 export function attachPending(response: NextResponse, request: Request, session: StoredSession) {
@@ -103,10 +111,9 @@ export function attachPending(response: NextResponse, request: Request, session:
 }
 
 export function attachLock(response: NextResponse, request: Request, userId: string, session?: StoredSession | null) {
-  const lockedUntil = Date.now() + LOCK_WINDOW_MS;
-  stamp(response, request, LOCKED, userId, LOCK_WINDOW_MS / 1000);
+  stamp(response, request, LOCKED, userId, SESSION_MAX_AGE_SEC);
   if (!session) return;
-  stamp(response, request, META, JSON.stringify({ ...metaFrom(session), lockedUntil }), 60 * 60 * 24 * 14);
+  stamp(response, request, META, JSON.stringify(metaFrom({ ...session, locked: true })), SESSION_MAX_AGE_SEC);
 }
 
 export function attachReauth(response: NextResponse, request: Request, userId: string) {
@@ -154,13 +161,14 @@ export async function readProviderCookie(): Promise<"google" | "github" | null> 
   return value === "google" || value === "github" ? value : null;
 }
 
-export async function readLockedUser() {
+export async function readLockedUser(now = Date.now()) {
   const jar = await cookies();
   const marker = jar.get(LOCKED)?.value ?? "";
   if (marker) return marker;
   const session = await readSession();
-  if (session && lockIsActive(session.lockedUntil, Date.now())) return session.userId;
-  return null;
+  if (!session) return null;
+  const decision = activityDecision({ locked: session.locked === true, seenAt: session.seenAt, now });
+  return decision.locked ? session.userId : null;
 }
 
 export async function readSession(): Promise<StoredSession | null> {
@@ -181,22 +189,15 @@ export async function readSession(): Promise<StoredSession | null> {
       isAnonymous: false,
       scopeId: meta.scopeId,
       provider: meta.provider,
-      lockedUntil: meta.lockedUntil,
+      locked: lockRecorded(meta),
+      seenAt: typeof meta.seenAt === "number" && Number.isFinite(meta.seenAt) ? meta.seenAt : undefined,
     };
   } catch {
     return null;
   }
 }
 
-export async function profileFor(request: Request): Promise<WebProfile | null> {
-  const locked = Boolean(await readLockedUser());
-  if (e2eFixture(request)) {
-    const marker = await readE2EMarker();
-    if (marker === "guest") return null;
-    if (marker === "named") return { ...E2E_PROFILE, locked };
-  }
-  const session = await readSession();
-  if (!session || session.isAnonymous !== false) return null;
+function profileFrom(session: StoredSession, locked: boolean): WebProfile {
   const config = readServerConfig();
   return {
     userId: session.userId,
@@ -206,6 +207,39 @@ export async function profileFor(request: Request): Promise<WebProfile | null> {
     provider: session.provider ?? null,
     locked,
   };
+}
+
+export async function profileFor(request: Request): Promise<WebProfile | null> {
+  const now = Date.now();
+  if (e2eFixture(request)) {
+    const marker = await readE2EMarker();
+    if (marker === "guest") return null;
+    if (marker === "named") return { ...E2E_PROFILE, locked: Boolean(await readLockedUser(now)) };
+  }
+  const session = await readSession();
+  if (!session || session.isAnonymous !== false) return null;
+  const decision = activityDecision({ locked: session.locked === true, seenAt: session.seenAt, now });
+  return profileFrom(session, decision.locked);
+}
+
+/** Session read that also persists a lock or a fresh last-activity time. */
+export async function openSession(request: Request) {
+  const now = Date.now();
+  if (e2eFixture(request)) {
+    const marker = await readE2EMarker();
+    if (marker === "guest") return new NextResponse(null, { status: 401, headers: { "cache-control": "no-store" } });
+    if (marker === "named") {
+      const profile = { ...E2E_PROFILE, locked: Boolean(await readLockedUser(now)) };
+      return NextResponse.json(profile, { headers: { "cache-control": "no-store" } });
+    }
+  }
+  const session = await readSession();
+  if (!session || session.isAnonymous !== false) return new NextResponse(null, { status: 401, headers: { "cache-control": "no-store" } });
+  const decision = activityDecision({ locked: session.locked === true, seenAt: session.seenAt, now });
+  const response = NextResponse.json(profileFrom(session, decision.locked), { headers: { "cache-control": "no-store" } });
+  if (decision.locked) attachLock(response, request, session.userId, session);
+  else noteActivity(response, request, session);
+  return response;
 }
 
 export async function refreshedSession() {

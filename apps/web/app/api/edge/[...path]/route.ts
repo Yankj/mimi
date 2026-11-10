@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readServerConfig } from "@/lib/server-config";
-import { attachSession, e2eFixture, readE2EMarker, readLockedUser, readSession, refreshedSession, rejectCrossSite } from "@/lib/server-session";
+import { activityDecision } from "@/lib/lock";
+import { attachLock, attachSession, e2eFixture, noteActivity, readE2EMarker, readLockedUser, readSession, refreshedSession, rejectCrossSite } from "@/lib/server-session";
 import { upstreamRequestInit } from "@/lib/upstream";
 import { joinEndpoint, pinnedRegion } from "@/lib/wire";
 
@@ -13,7 +14,14 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
     const forbidden = rejectCrossSite(request);
     if (forbidden) return forbidden;
   }
-  if (await readLockedUser()) return new NextResponse(null, { status: 401 });
+  const opened = await readSession();
+  const now = Date.now();
+  const idle = opened ? activityDecision({ locked: opened.locked === true, seenAt: opened.seenAt, now }).locked : false;
+  if ((await readLockedUser(now)) || idle) {
+    const response = NextResponse.json({ error: "locked" }, { status: 401, headers: { "cache-control": "no-store" } });
+    if (opened) attachLock(response, request, opened.userId, opened);
+    return response;
+  }
   if (e2eFixture(request) && (await readE2EMarker()) === "named") {
     return NextResponse.json({ error: "e2e" }, { status: 401 });
   }
@@ -30,7 +38,7 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
   if (request.method !== "GET" && request.method !== "POST") {
     return NextResponse.json({ error: "method" }, { status: 405 });
   }
-  let session = await readSession();
+  let session = opened;
   if (!session) return new NextResponse(null, { status: 401 });
   let rotated: typeof session | null = null;
   if (session.expiresAt <= Date.now() + 60_000) {
@@ -73,7 +81,9 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
     }
   }
   const response = passthrough(upstream);
-  if (rotated && response.status !== 401) attachSession(response, request, rotated);
+  if (response.status === 401) return response;
+  if (rotated) attachSession(response, request, { ...rotated, provider: rotated.provider ?? opened?.provider, locked: false, seenAt: now });
+  else if (opened) noteActivity(response, request, opened);
   return response;
 }
 
