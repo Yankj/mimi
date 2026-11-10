@@ -1,6 +1,6 @@
 page {
-  background: #fbf3e8;
-  color: #3b2a1c;
+  background: #FAF9F7;
+  color: #111111;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
   font-size: 30rpx;
   line-height: 1.5;
@@ -17,7 +17,7 @@ page {
 }
 
 .brand-sub {
-  color: #8a7a6a;
+  color: #6F6D69;
   font-size: 28rpx;
 }
 
@@ -28,11 +28,11 @@ page {
 }
 
 .quiet {
-  color: #8a7a6a;
+  color: #6F6D69;
 }
 
 .error {
-  color: #b42318;
+  color: #C0352B;
 }
 
 .stack {
@@ -63,12 +63,12 @@ page {
 
 .cta,
 .primary {
-  background: #c45c1a;
-  color: #fff8f0;
+  background: #C9501A;
+  color: #FFFFFF;
 }
 
 .row-link {
-  background: #fff8f0;
+  background: #FFFFFF;
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -77,13 +77,13 @@ page {
 
 .danger {
   background: transparent;
-  color: #b42318;
+  color: #C0352B;
   padding-left: 0;
 }
 
 .text-button {
   background: transparent;
-  color: #c45c1a;
+  color: #C9501A;
   padding-left: 0;
   text-align: left;
 }
@@ -97,8 +97,8 @@ page {
 .composer input,
 .input {
   flex: 1;
-  background: #fff8f0;
-  border: 2rpx solid #ead8c4;
+  background: #FFFFFF;
+  border: 2rpx solid #E6E3DE;
   border-radius: 20rpx;
   padding: 20rpx 24rpx;
   font-size: 30rpx;
@@ -113,12 +113,12 @@ page {
 
 .bubble.user {
   margin-left: auto;
-  background: #c45c1a;
-  color: #fff8f0;
+  background: #C9501A;
+  color: #FFFFFF;
 }
 
 .bubble.assistant {
-  background: #fff8f0;
+  background: #FFFFFF;
 }
 
 .dialog-back {
@@ -136,7 +136,7 @@ page {
 }
 
 .dialog {
-  background: #fff8f0;
+  background: #FFFFFF;
   border-radius: 28rpx;
   padding: 40rpx;
   width: 100%;
@@ -150,5 +150,5 @@ page {
   bottom: 0;
   left: 0;
   z-index: 9999;
-  background: #fbf3e8;
+  background: #FAF9F7;
 }

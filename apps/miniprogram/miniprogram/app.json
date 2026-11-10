@@ -13,15 +13,15 @@
   ],
   "window": {
     "navigationBarTitleText": "小咪",
-    "navigationBarBackgroundColor": "#FBF3E8",
+    "navigationBarBackgroundColor": "#FAF9F7",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#FBF3E8",
+    "backgroundColor": "#FAF9F7",
     "backgroundTextStyle": "light"
   },
   "tabBar": {
-    "color": "#8A7A6A",
-    "selectedColor": "#C45C1A",
-    "backgroundColor": "#FFF8F0",
+    "color": "#6F6D69",
+    "selectedColor": "#C9501A",
+    "backgroundColor": "#FFFFFF",
     "borderStyle": "white",
     "list": [
       { "pagePath": "pages/today/today", "text": "今天" },
