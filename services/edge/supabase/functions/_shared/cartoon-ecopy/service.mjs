@@ -4,9 +4,10 @@ import {cartoonStructureAccepts} from './image-decode.mjs';
 import {assertCartoonRequest,cartoonChoices,renderInstructEditPrompt} from './prompt.mjs';
 
 export const CARTOON_BUCKET = 'cartoon-ecopies';
-// Two provider attempts have to finish inside the common 150s edge wall clock.
-export const CARTOON_CHAIN_BUDGET_MS = 110_000;
-export const CARTOON_ATTEMPT_TIMEOUT_MS = 50_000;
+// First model attempt is 40s, the light retry is 25s, and the whole chain stops at 70s.
+export const CARTOON_CHAIN_BUDGET_MS = 70_000;
+export const CARTOON_FIRST_ATTEMPT_MS = 40_000;
+export const CARTOON_RETRY_ATTEMPT_MS = 25_000;
 const SIGNED_URL_SECONDS = 600;
 const MAX_IMAGE = 5 * 1024 * 1024;
 const MESSAGES = {
@@ -100,23 +101,30 @@ function withDeadline(promise, ms, controller) {
 export async function runCartoonFallback({
   requestedPreset, original, edit, judge,
   budgetMs = CARTOON_CHAIN_BUDGET_MS,
-  attemptMs = CARTOON_ATTEMPT_TIMEOUT_MS,
+  firstAttemptMs = CARTOON_FIRST_ATTEMPT_MS,
+  retryAttemptMs = CARTOON_RETRY_ATTEMPT_MS,
   now = () => Date.now(),
 }) {
   const started = now();
   const attempts = requestedPreset === 'light' ? ['light', 'light'] : [requestedPreset, 'light'];
-  for (const preset of attempts) {
+  const caps = [firstAttemptMs, retryAttemptMs];
+  for (let index = 0; index < attempts.length; index++) {
+    const preset = attempts[index];
     const remaining = budgetMs - (now() - started);
-    if (remaining < Math.min(attemptMs, 1000)) break;
-    const limit = Math.min(attemptMs, remaining);
+    const attemptCap = caps[index];
+    if (remaining < Math.min(attemptCap, 1000)) break;
+    const limit = Math.min(attemptCap, remaining);
     const controller = new AbortController();
+    const attemptStarted = now();
     try {
       const image = await withDeadline(edit(preset, controller.signal), limit, controller);
-      const judgeLimit = Math.min(8_000, budgetMs - (now() - started));
-      if (judgeLimit < 50) break;
-      const judgeController = new AbortController();
-      if (await withDeadline(Promise.resolve(judge(image, original)), judgeLimit, judgeController)) {
-        return {status: 'ready', preset, image};
+      const judgeBudget = Math.min(limit - (now() - attemptStarted), budgetMs - (now() - started));
+      if (judgeBudget >= 50) {
+        const judgeController = new AbortController();
+        const judgeLimit = Math.min(8_000, judgeBudget);
+        if (await withDeadline(Promise.resolve(judge(image, original)), judgeLimit, judgeController)) {
+          return {status: 'ready', preset, image};
+        }
       }
     } catch { /* the next attempt, or the cropped original when time runs out */ }
   }
@@ -349,7 +357,8 @@ export function createCartoonECopyService(opts) {
           edit: async (preset, signal) => provider.edit({prompt: renderInstructEditPrompt(opts.spec, {...choice, preset}), image: image.bytes, mime: image.mime, signal}),
           judge,
           budgetMs: opts.budgetMs,
-          attemptMs: opts.attemptMs,
+          firstAttemptMs: opts.firstAttemptMs,
+          retryAttemptMs: opts.retryAttemptMs,
         });
         const outputPath = `${owner}/${id}/output.${ext(outcome.image.mime)}`;
         await files.put(outputPath, outcome.image.bytes, outcome.image.mime);

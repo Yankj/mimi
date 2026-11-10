@@ -112,8 +112,7 @@ final class CartoonECopyRequestTests: XCTestCase {
     }
 
     func testGenerateWaitsLongEnoughForTheLightRetry() {
-        XCTAssertGreaterThanOrEqual(CartoonECopyTimeouts.generate, 120)
-        XCTAssertLessThan(CartoonECopyTimeouts.generate, 150)
+        XCTAssertEqual(CartoonECopyTimeouts.generate, 80)
         XCTAssertGreaterThanOrEqual(CartoonECopyTimeouts.signedURLRefresh, 8 * 60)
         XCTAssertLessThan(CartoonECopyTimeouts.signedURLRefresh, 10 * 60)
     }

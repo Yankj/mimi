@@ -6,7 +6,7 @@ import {ApiError} from '../supabase/functions/_shared/core/facade-r2/src/common.
 import {cartoonStructureAccepts, decodeCartoonGray} from '../supabase/functions/_shared/cartoon-ecopy/image-decode.mjs';
 import {renderInstructEditPrompt} from '../supabase/functions/_shared/cartoon-ecopy/prompt.mjs';
 import {
-  CARTOON_ATTEMPT_TIMEOUT_MS, CARTOON_CHAIN_BUDGET_MS,
+  CARTOON_CHAIN_BUDGET_MS, CARTOON_FIRST_ATTEMPT_MS, CARTOON_RETRY_ATTEMPT_MS,
   createCartoonECopyService, createCartoonImageProvider, defaultCartoonJudge, handleCartoonECopy,
   memoryCartoonStorage, memoryCartoonStore, readCartoonProviderConfig, runCartoonFallback,
 } from '../supabase/functions/_shared/cartoon-ecopy/service.mjs';
@@ -37,7 +37,7 @@ function service(extra = {}) {
       return {sub: USER};
     },
     provider, store: rows, storage: files, judge: extra.judge, env: extra.env, fetchImpl: extra.fetchImpl,
-    budgetMs: extra.budgetMs, attemptMs: extra.attemptMs,
+    budgetMs: extra.budgetMs, firstAttemptMs: extra.firstAttemptMs, retryAttemptMs: extra.retryAttemptMs,
     now: () => '2026-11-09T00:00:00.000Z',
     newId: () => `22222222-2222-4222-8222-${String(++n).padStart(12, '0')}`,
   });
@@ -270,8 +270,10 @@ test('CARTOON_ECOPY_JUDGE_URL decides the attempt, and a dead judge uses the lin
 });
 
 test('a slow attempt falls back to the cropped original instead of exceeding the edge budget', async () => {
-  assert.ok(CARTOON_ATTEMPT_TIMEOUT_MS * 2 <= CARTOON_CHAIN_BUDGET_MS);
-  assert.ok(CARTOON_CHAIN_BUDGET_MS < 150_000);
+  assert.equal(CARTOON_FIRST_ATTEMPT_MS, 40_000);
+  assert.equal(CARTOON_RETRY_ATTEMPT_MS, 25_000);
+  assert.equal(CARTOON_CHAIN_BUDGET_MS, 70_000);
+  assert.ok(CARTOON_FIRST_ATTEMPT_MS + CARTOON_RETRY_ATTEMPT_MS <= CARTOON_CHAIN_BUDGET_MS);
   let calls = 0;
   const original = {bytes: PNG, mime: 'image/png'};
   const chain = await runCartoonFallback({
@@ -282,8 +284,9 @@ test('a slow attempt falls back to the cropped original instead of exceeding the
       return {bytes: PNG, mime: 'image/png'};
     },
     judge: async () => true,
-    budgetMs: 50,
-    attemptMs: 30,
+    budgetMs: 35,
+    firstAttemptMs: 30,
+    retryAttemptMs: 25,
   });
   assert.equal(calls, 1);
   assert.equal(chain.status, 'fallback_crop');

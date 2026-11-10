@@ -61,8 +61,8 @@ enum CartoonECopyClientError: Error, Equatable {
 }
 
 enum CartoonECopyTimeouts {
-    /// Two provider attempts, about 50s each, plus storage. Stays inside a 150s edge wall clock.
-    static let generate: TimeInterval = 140
+    /// Server chain is 70s: 40s for the first attempt and 25s for the light retry. The extra 10s covers upload and network.
+    static let generate: TimeInterval = 80
     /// Signed URLs last 10 minutes. Refresh while they are still valid.
     static let signedURLRefresh: TimeInterval = 8 * 60
 }
