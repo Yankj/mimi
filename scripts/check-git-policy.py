@@ -4,9 +4,16 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 ZERO = '0' * 40
 SHORT = re.compile(r'^(feat|fix|docs|refactor|test|chore)/[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)?$')
+# Cloud-agent delivery branches use this prefix. Short feat/fix/docs/refactor/test/chore names stay valid.
+CLOUD = re.compile(r'^cursor/[a-z0-9][a-z0-9-]*$')
+ORIGINS = {
+    'https://github.com/Yankj/cat-m',
+    'https://github.com/Yankj/mimi',
+}
 
 def git(*args):
     return subprocess.run(['git', *args], capture_output=True)
@@ -19,7 +26,19 @@ def ancestor(a, b):
     return git('merge-base', '--is-ancestor', a, b).returncode == 0
 
 def branch(name):
-    require(bool(SHORT.fullmatch(name)), 'Use a short feat/fix/docs/refactor/test/chore branch; main is integration-only.')
+    require(bool(SHORT.fullmatch(name) or CLOUD.fullmatch(name)),
+            'Use a short feat/fix/docs/refactor/test/chore branch or a cursor/ delivery branch; main is integration-only.')
+
+def origin_identity(url):
+    if url.startswith('git@'):
+        host, _, path = url.partition(':')
+        host = host.split('@', 1)[-1]
+        if path.endswith('.git'):
+            path = path[:-4]
+        return 'https://' + host + '/' + path
+    parts = urlsplit(url)
+    path = parts.path[:-4] if parts.path.endswith('.git') else parts.path
+    return urlunsplit((parts.scheme, (parts.hostname or ''), path.rstrip('/'), '', ''))
 
 def commit():
     current = git('branch', '--show-current')
@@ -39,8 +58,7 @@ def commit():
 
 def push(remote, url):
     require(remote == 'origin', 'Only origin may be pushed; legacy-local is read-only.')
-    require(url in ['https://github.com/Yankj/cat-m.git', 'https://github.com/Yankj/cat-m',
-                    'git@github.com:Yankj/cat-m.git'], 'Unexpected origin destination.')
+    require(origin_identity(url) in ORIGINS, 'Unexpected origin destination.')
     require(git('rev-parse', '--verify', 'refs/remotes/origin/main').returncode == 0,
             'Verified origin/main reference required.')
     for line in sys.stdin:

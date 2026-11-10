@@ -38,6 +38,9 @@
   "second_active_app_allowed": false,
   "component_owned_model_or_auth_allowed": false,
   "deployment_implied_by_checks": false,
-  "website": "Yankj/heydusk-site/apps/mimi (marketing site moved out; stub at apps/website/README.md)",
-  "website_role": "Static product website; independent build and deployment; no native host or backend authority"
+  "website": "apps/website",
+  "website_note": "Marketing site moved to Yankj/heydusk-site apps/mimi. This path is a stub README, not a build.",
+  "website_role": "Static product website; independent build and deployment; no native host or backend authority",
+  "web_client": "apps/web",
+  "web_client_role": "Browser client of the existing catpaw edge API. Not a second native host, not the marketing site, and not a backend. Parenting ledger sync is out of scope until family_v1 is decided."
 }
