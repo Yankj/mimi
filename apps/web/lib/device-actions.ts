@@ -92,27 +92,62 @@ export function formatDeviceDate(date: Date): string {
 export function telUrl(number: string): string {
   const digits = number.replace(/[^\d+]/g, "");
   const normalized = digits.startsWith("+") ? `+${digits.slice(1).replace(/\D/g, "")}` : digits.replace(/\D/g, "");
+  if (!normalized || normalized === "+") return "";
   return `tel:${normalized}`;
 }
 
+/** Strip injection characters, then encode a single mailbox. Empty or invalid addresses are dropped. */
+export function sanitizeEmailAddress(raw: string): string | null {
+  const cleaned = raw.replace(/[?#&]/g, "").replace(/[\u0000-\u001F\u007F]/g, "").trim();
+  if (!cleaned || !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(cleaned)) return null;
+  return cleaned;
+}
+
+function mailboxList(value: string | undefined): string[] {
+  if (!value) return [];
+  return value.replace(/[、]/g, ",").split(",").flatMap((part) => {
+    const cleaned = sanitizeEmailAddress(part);
+    return cleaned ? [cleaned] : [];
+  });
+}
+
 export function mailtoUrl(input: { to?: string; cc?: string; subject?: string; body?: string }): string {
-  const to = (input.to ?? "").replace(/[、]/g, ",").trim();
+  const to = mailboxList(input.to);
+  const cc = mailboxList(input.cc);
+  if (to.length === 0 && cc.length === 0) return "";
   const params = new URLSearchParams();
-  if (input.cc) params.set("cc", input.cc.replace(/[、]/g, ","));
+  if (cc.length > 0) params.set("cc", cc.join(","));
   if (input.subject) params.set("subject", input.subject);
   if (input.body) params.set("body", input.body);
   const query = params.toString();
-  return `mailto:${to}${query ? `?${query}` : ""}`;
+  return `mailto:${to.map((address) => encodeURIComponent(address)).join(",")}${query ? `?${query}` : ""}`;
 }
 
-export function mapsUrl(query: string, mode?: string): string {
+export function validMapCoords(coords?: { lat?: number | string | null; lng?: number | string | null } | null): { lat: number; lng: number } | null {
+  if (!coords) return null;
+  const lat = typeof coords.lat === "number" ? coords.lat : typeof coords.lat === "string" && coords.lat.trim() ? Number(coords.lat) : Number.NaN;
+  const lng = typeof coords.lng === "number" ? coords.lng : typeof coords.lng === "string" && coords.lng.trim() ? Number(coords.lng) : Number.NaN;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
+
+export function mapsUrl(query: string, mode?: string, coords?: { lat?: number | string | null; lng?: number | string | null } | null): string {
+  const point = validMapCoords(coords);
+  const label = query.trim();
+  if (!label && !point) return "";
   const params = new URLSearchParams();
   const flag = mode ? MODE_FLAG[mode.toLowerCase()] : undefined;
+  const pointText = point ? `${point.lat},${point.lng}` : "";
   if (flag) {
-    params.set("daddr", query);
+    params.set("daddr", label || pointText);
     params.set("dirflg", flag);
+    if (point) params.set("ll", pointText);
+  } else if (point) {
+    params.set("ll", pointText);
+    params.set("q", label || pointText);
   } else {
-    params.set("q", query);
+    params.set("q", label);
   }
   return `https://${MAPS_HOST}/?${params.toString()}`;
 }
@@ -120,7 +155,12 @@ export function mapsUrl(query: string, mode?: string): string {
 export function isSafeDeviceUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    if (parsed.protocol === "tel:" || parsed.protocol === "mailto:") return true;
+    if (parsed.protocol === "tel:") return /^tel:\+?\d+$/i.test(url);
+    if (parsed.protocol === "mailto:") {
+      const names = [...parsed.searchParams.keys()].map((key) => key.toLowerCase());
+      if (names.includes("bcc")) return false;
+      return /^mailto:[^/?#]+(?:[?#].*)?$/i.test(url) && !/[?#&]/.test(decodeURIComponent(parsed.pathname));
+    }
     return parsed.protocol === "https:" && parsed.hostname.toLowerCase() === MAPS_HOST && !parsed.username && !parsed.password;
   } catch {
     return false;
@@ -128,7 +168,11 @@ export function isSafeDeviceUrl(url: string): boolean {
 }
 
 export function icsEscape(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/[,;]/g, (char) => `\\${char}`);
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\r\n|\r|\n/g, "\\n")
+    .replace(/[\u0000-\u0009\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .replace(/[,;]/g, (char) => `\\${char}`);
 }
 
 export function icsDate(date: Date): string {
@@ -239,6 +283,30 @@ export const DEVICE_ICS_RECEIPT = "已下载日历文件，请在日历应用中
 export const DEVICE_HANDOFF_RECEIPT = "已请求打开";
 export const DEVICE_MAIL_NOTE = "会打开系统邮件页，由你点发送。";
 export const DEVICE_PHONE_NOTE = "系统还会再确认一次。";
+export const DEVICE_ICS_MODEL_MESSAGE = "只下载了一个日历文件（.ics），没有写入系统日历。不要对用户说「已加入日历」。";
+
+export function icsDeviceResultData() {
+  return { via: "ics" as const, message: DEVICE_ICS_MODEL_MESSAGE };
+}
+
+export function unsupportedOnWebData(tool: string) {
+  return {
+    reason: "unsupported_on_web" as const,
+    tool,
+    retryable: false,
+    message: `这台网页无法执行 ${tool}。不要重试，直接告诉用户请在手机上完成。`,
+  };
+}
+
+function argNumber(args: Record<string, unknown>, key: string): number | undefined {
+  const value = args[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
 
 export function deviceActionFromTool(tool: string, args: Record<string, unknown> = {}, now = new Date()): DeviceAction {
   const meta = TOOL_COPY[tool] ?? { title: "在这台设备上执行", confirm: "执行", fields: Object.keys(args).map((key) => ({ key, label: key })) };
@@ -247,27 +315,32 @@ export function deviceActionFromTool(tool: string, args: Record<string, unknown>
     .filter((field) => field.value);
   if (tool === "phone_call") {
     const url = telUrl(argText(args, "number"));
+    if (!url) return { kind: "phoneOnly", tool, title: meta.title, confirmLabel: meta.confirm, fields, message: DEVICE_PHONE_ONLY };
     return { kind: "link", tool, title: meta.title, confirmLabel: meta.confirm, url, fields, footnote: DEVICE_PHONE_NOTE, receipt: DEVICE_HANDOFF_RECEIPT };
   }
   if (tool === "mail_compose") {
+    const url = mailtoUrl({ to: argText(args, "to"), cc: argText(args, "cc"), subject: argText(args, "subject"), body: argText(args, "body") });
+    if (!url) return { kind: "phoneOnly", tool, title: meta.title, confirmLabel: meta.confirm, fields, message: DEVICE_PHONE_ONLY };
     return {
       kind: "link",
       tool,
       title: meta.title,
       confirmLabel: meta.confirm,
-      url: mailtoUrl({ to: argText(args, "to"), cc: argText(args, "cc"), subject: argText(args, "subject"), body: argText(args, "body") }),
+      url,
       fields,
       footnote: DEVICE_MAIL_NOTE,
       receipt: DEVICE_HANDOFF_RECEIPT,
     };
   }
   if (tool === "maps_open") {
+    const url = mapsUrl(argText(args, "query"), argText(args, "mode") || undefined, { lat: argNumber(args, "lat"), lng: argNumber(args, "lng") });
+    if (!url) return { kind: "phoneOnly", tool, title: meta.title, confirmLabel: meta.confirm, fields, message: DEVICE_PHONE_ONLY };
     return {
       kind: "link",
       tool,
       title: meta.title,
       confirmLabel: meta.confirm,
-      url: mapsUrl(argText(args, "query"), argText(args, "mode") || undefined),
+      url,
       fields,
       receipt: DEVICE_HANDOFF_RECEIPT,
     };
@@ -301,10 +374,14 @@ export function deviceActionFromTool(tool: string, args: Record<string, unknown>
 export function findEntities(text: string, now = new Date()): DetectedEntity[] {
   const found: DetectedEntity[] = [];
   for (const match of matchAll(text, PHONE_RE)) {
-    found.push({ type: "phone", text: match[0], start: match.index, end: match.index + match[0].length, url: telUrl(match[0]), label: `拨打 ${match[0]}` });
+    const url = telUrl(match[0]);
+    if (!url) continue;
+    found.push({ type: "phone", text: match[0], start: match.index, end: match.index + match[0].length, url, label: `拨打 ${match[0]}` });
   }
   for (const match of matchAll(text, EMAIL_RE)) {
-    found.push({ type: "email", text: match[0], start: match.index, end: match.index + match[0].length, url: mailtoUrl({ to: match[0] }), label: `写邮件给 ${match[0]}` });
+    const url = mailtoUrl({ to: match[0] });
+    if (!url) continue;
+    found.push({ type: "email", text: match[0], start: match.index, end: match.index + match[0].length, url, label: `写邮件给 ${match[0]}` });
   }
   for (const match of matchAll(text, ADDRESS_RE)) {
     const value = match[0].trim();

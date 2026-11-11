@@ -4,11 +4,14 @@ import {
   buildEventIcs,
   deviceActionFromTool,
   findEntities,
+  icsDeviceResultData,
+  icsEscape,
   isSafeDeviceUrl,
   mailtoUrl,
   mapsUrl,
   parseDeviceDate,
   telUrl,
+  unsupportedOnWebData,
   WEB_DEVICE_TOOLS,
 } from "../lib/device-actions.ts";
 
@@ -17,11 +20,12 @@ const now = new Date("2026-11-11T08:00:00+08:00");
 test("tel, mailto and maps URLs match the iOS schemes on the web", () => {
   assert.equal(telUrl("138-0013-8000"), "tel:13800138000");
   assert.equal(telUrl("+86 13800138000"), "tel:+8613800138000");
-  assert.equal(mailtoUrl({ to: "ada@example.com", subject: "你好", body: "在吗" }), "mailto:ada@example.com?subject=%E4%BD%A0%E5%A5%BD&body=%E5%9C%A8%E5%90%97");
+  assert.equal(mailtoUrl({ to: "ada@example.com", subject: "你好", body: "在吗" }), "mailto:ada%40example.com?subject=%E4%BD%A0%E5%A5%BD&body=%E5%9C%A8%E5%90%97");
   assert.equal(mapsUrl("望京 SOHO"), "https://maps.apple.com/?q=%E6%9C%9B%E4%BA%AC+SOHO");
   assert.equal(mapsUrl("望京 SOHO", "walk"), "https://maps.apple.com/?daddr=%E6%9C%9B%E4%BA%AC+SOHO&dirflg=w");
   assert.equal(isSafeDeviceUrl("tel:13800138000"), true);
-  assert.equal(isSafeDeviceUrl("mailto:ada@example.com"), true);
+  assert.equal(isSafeDeviceUrl("mailto:ada%40example.com"), true);
+  assert.equal(isSafeDeviceUrl("tel:"), false);
   assert.equal(isSafeDeviceUrl("https://maps.apple.com/?q=park"), true);
   assert.equal(isSafeDeviceUrl("javascript:alert(1)"), false);
   assert.equal(isSafeDeviceUrl("https://evil.example/?q=park"), false);
@@ -37,7 +41,7 @@ test("assistant text yields phone, mail, map and calendar actions", () => {
   const address = found.find((item) => item.type === "address");
   const when = found.find((item) => item.type === "datetime");
   assert.ok(phone && phone.url === "tel:+8613800138000");
-  assert.ok(email && email.url.startsWith("mailto:ada@example.com"));
+  assert.ok(email && email.url.startsWith("mailto:ada%40example.com"));
   assert.ok(address && address.type === "address" && address.url.includes("maps.apple.com"));
   assert.ok(when && when.type === "datetime");
   if (when?.type === "datetime") {
@@ -72,7 +76,7 @@ test("device tools map to confirm-then-open actions and never claim a system wri
 
   const mail = deviceActionFromTool("mail_compose", { to: "ada@example.com", subject: "周报" });
   assert.equal(mail.kind, "link");
-  if (mail.kind === "link") assert.match(mail.url, /^mailto:ada@example.com/);
+  if (mail.kind === "link") assert.match(mail.url, /^mailto:ada%40example.com/);
 
   const map = deviceActionFromTool("maps_open", { query: "望京 SOHO", mode: "transit" });
   assert.equal(map.kind, "link");
@@ -117,5 +121,69 @@ test("an ics document folds long lines and escapes commas", () => {
   for (const line of ics.split("\r\n")) {
     if (!line) continue;
     assert.ok(Buffer.from(line, "utf8").length <= 75, line);
+  }
+});
+
+test("mailto addresses cannot inject bcc via ?, & or CRLF", () => {
+  assert.equal(mailtoUrl({ to: "ada@example.com?bcc=eve@evil.com" }), "");
+  assert.equal(mailtoUrl({ to: "ada@example.com&bcc=eve@evil.com" }), "");
+  assert.equal(mailtoUrl({ to: "ada@example.com#bcc=eve@evil.com" }), "");
+  assert.equal(mailtoUrl({ to: "ada@example.com\r\nbcc:eve@evil.com" }), "");
+  assert.equal(mailtoUrl({ to: "ada@example.com\rbcc:eve@evil.com" }), "");
+  assert.equal(mailtoUrl({ to: "ada@example.com", cc: "ada@example.com?bcc=eve@evil.com" }), "mailto:ada%40example.com");
+  const many = mailtoUrl({ to: "ada@example.com、bob@example.com, cara@example.com", subject: "你好", body: "在吗" });
+  assert.equal(many, "mailto:ada%40example.com,bob%40example.com,cara%40example.com?subject=%E4%BD%A0%E5%A5%BD&body=%E5%9C%A8%E5%90%97");
+  assert.doesNotMatch(many, /bcc/i);
+  assert.ok(isSafeDeviceUrl(many));
+  assert.equal(isSafeDeviceUrl("mailto:ada@example.com?bcc=eve@evil.com"), false);
+});
+
+test("icsEscape turns CR LF into a literal newline escape and drops other controls", () => {
+  assert.equal(icsEscape("评审\r\nATTENDEE:eve@evil.com"), "评审\\nATTENDEE:eve@evil.com");
+  assert.equal(icsEscape("第一行\r第二行\n第三行"), "第一行\\n第二行\\n第三行");
+  assert.equal(icsEscape("tab\tbell\u0007end"), "tabbellend");
+  const ics = buildEventIcs({
+    title: "评审\r\nATTENDEE:eve@evil.com",
+    notes: "备注\r\nATTENDEE:eve@evil.com",
+    start: new Date("2026-11-13T10:00:00Z"),
+    stamp: new Date("2026-11-13T01:00:00Z"),
+  });
+  assert.doesNotMatch(ics, /\r\nATTENDEE:/);
+  assert.match(ics, /SUMMARY:评审\\nATTENDEE:eve@evil.com/);
+  assert.match(ics, /DESCRIPTION:备注\\nATTENDEE:eve@evil.com/);
+});
+
+test("maps URLs include validated lat/lng and tel: is omitted when empty", () => {
+  const withPoint = mapsUrl("望京 SOHO", undefined, { lat: 39.98, lng: 116.48 });
+  assert.match(withPoint, /ll=39\.98%2C116\.48/);
+  assert.match(withPoint, /q=%E6%9C%9B%E4%BA%AC\+SOHO/);
+  const onlyPoint = mapsUrl("", "driving", { lat: "39.98", lng: "116.48" });
+  assert.match(onlyPoint, /ll=39\.98%2C116\.48/);
+  assert.match(onlyPoint, /daddr=39\.98%2C116\.48/);
+  assert.match(onlyPoint, /dirflg=d/);
+  assert.equal(mapsUrl("望京", undefined, { lat: 91, lng: 116 }), "https://maps.apple.com/?q=%E6%9C%9B%E4%BA%AC");
+  assert.equal(mapsUrl("", undefined, { lat: 91, lng: 0 }), "");
+  const mapped = deviceActionFromTool("maps_open", { query: "望京 SOHO", lat: 39.98, lng: 116.48 });
+  assert.equal(mapped.kind, "link");
+  if (mapped.kind === "link") assert.match(mapped.url, /ll=39\.98%2C116\.48/);
+  assert.equal(telUrl(""), "");
+  assert.equal(telUrl("+++"), "");
+  assert.equal(telUrl("abc"), "");
+  assert.equal(deviceActionFromTool("phone_call", { number: "" }).kind, "phoneOnly");
+});
+
+test("device results tell the model an ics was only downloaded and unsupported tools must not be retried", () => {
+  const ics = icsDeviceResultData();
+  assert.equal(ics.via, "ics");
+  assert.match(ics.message, /只下载了一个日历文件（\.ics）/);
+  assert.match(ics.message, /没有写入系统日历/);
+  assert.match(ics.message, /不要对用户说「已加入日历」/);
+  for (const tool of ["sms_compose", "contacts_search", "alarm_set"] as const) {
+    const data = unsupportedOnWebData(tool);
+    assert.equal(data.reason, "unsupported_on_web");
+    assert.equal(data.tool, tool);
+    assert.equal(data.retryable, false);
+    assert.match(data.message, new RegExp(`这台网页无法执行 ${tool}`));
+    assert.match(data.message, /不要重试，直接告诉用户/);
   }
 });

@@ -8,7 +8,7 @@ import { ComposerDictationButton } from "@/components/composer-dictation";
 import { DeviceCallCard, type DeviceCallState } from "@/components/device-call-card";
 import { MessageDeviceLinks } from "@/components/message-device-links";
 import { copy, orderedStarters } from "@/lib/copy";
-import { downloadTextFile, openDeviceUrl, type DeviceAction } from "@/lib/device-actions";
+import { downloadTextFile, icsDeviceResultData, openDeviceUrl, unsupportedOnWebData, type DeviceAction } from "@/lib/device-actions";
 import { firstDroppedImage, hasFileDrag } from "@/lib/drop-files";
 import { edgeFetch, pathConfig } from "@/lib/edge-client";
 import type { WebProfile } from "@/lib/profile";
@@ -851,7 +851,7 @@ export function ConversationWorkspace({
     if (action.kind === "link") openDeviceUrl(action.url);
     const receipt = action.kind === "ics" ? copy.deviceIcsReceipt : copy.deviceHandoffReceipt;
     try {
-      await reportDevice(card, "ok", action.kind === "ics" ? { via: "ics" } : { handoff: "requested" });
+      await reportDevice(card, "ok", action.kind === "ics" ? icsDeviceResultData() : { handoff: "requested" });
       setDevice(card.id, "done", receipt);
     } catch (cause) {
       setDevice(card.id, "done", receipt);
@@ -871,7 +871,7 @@ export function ConversationWorkspace({
   async function acknowledgeDevice(card: Card) {
     setDevice(card.id, "done", copy.devicePhoneOnly);
     try {
-      await reportDevice(card, "error", { reason: "unsupported_on_web", retryable: false, message: copy.devicePhoneOnly });
+      await reportDevice(card, "error", unsupportedOnWebData(stringField(card.raw, "tool")));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : copy.connectionDown);
     }

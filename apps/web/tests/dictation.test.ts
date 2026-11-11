@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { wipeWebStorage } from "../lib/browser-wipe.ts";
 import {
   canStartDictation,
+  dictationConsentKey,
   createDictationSession,
   isDictationSupported,
   mergeDictationDraft,
@@ -23,6 +25,17 @@ test("dictation is off until the first-use privacy notice is accepted", () => {
   writeDictationConsent(storage, "user-1", "allow");
   assert.equal(readDictationConsent(storage, "user-1"), "allow");
   writeDictationConsent(storage, "user-1", "deny");
+  assert.equal(canStartDictation(readDictationConsent(storage, "user-1"), true), false);
+});
+
+test("sign-out clears the dictation consent record", () => {
+  const storage = memoryStorage();
+  writeDictationConsent(storage, "user-1", "allow");
+  assert.equal(readDictationConsent(storage, "user-1"), "allow");
+  assert.ok(storage.getItem(dictationConsentKey("user-1"))?.startsWith("allow"));
+  wipeWebStorage(storage);
+  assert.equal(storage.getItem(dictationConsentKey("user-1")), null);
+  assert.equal(readDictationConsent(storage, "user-1"), "unset");
   assert.equal(canStartDictation(readDictationConsent(storage, "user-1"), true), false);
 });
 
