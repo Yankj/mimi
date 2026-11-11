@@ -14,6 +14,7 @@ export const CONTRACTS = {
   acceptedWork: "catpaw.accepted-work-intent.v1",
   taskAction: "catpaw.task-action.v1",
   taskControl: "catpaw.task-control.v1",
+  device: "catpaw.device.v1",
 } as const;
 
 export const PAGE_SIZE = 40;
@@ -177,6 +178,7 @@ export function chatHeaders(input: {
   memory?: "0" | "1" | null;
   memoryProposal?: boolean;
   timeZone?: string;
+  deviceTools?: readonly string[];
 }) {
   if (!input.authorization.startsWith("Bearer ") || input.authorization.length <= 7) {
     throw new ClientError("登录已失效，请重新登录。");
@@ -203,6 +205,10 @@ export function chatHeaders(input: {
   if (input.memoryProposal) headers["X-Catpaw-Memory-Proposal-Contract"] = CONTRACTS.memoryProposal;
   if (input.memory) headers["X-Catpaw-Use-Memory"] = input.memory;
   if (input.timeZone) headers["X-Catpaw-Time-Zone"] = input.timeZone;
+  if (input.deviceTools?.length) {
+    headers["X-Catpaw-Device-Contract"] = CONTRACTS.device;
+    headers["X-Catpaw-Device-Tools"] = [...input.deviceTools].join(",");
+  }
   return headers;
 }
 
@@ -372,6 +378,7 @@ export function plainTurnRequest(input: {
   modelsByRoute: Record<string, string[]>;
   useMemory: boolean;
   timeZone: string;
+  deviceTools?: readonly string[];
 }) {
   return {
     url: joinEndpoint(input.config.edgeOrigin, `${conversationPath(input.scopeId, input.conversationId)}/turns`),
@@ -388,6 +395,7 @@ export function plainTurnRequest(input: {
         memory: input.useMemory ? "1" : "0",
         memoryProposal: true,
         timeZone: input.timeZone,
+        deviceTools: input.deviceTools,
       }),
       "Idempotency-Key": String(input.body.turn_id),
     },
@@ -477,6 +485,13 @@ export function controlUrl(config: PublicConfig, scopeId: string, runId: string)
 
 export function controlOperationUrl(config: PublicConfig, scopeId: string, runId: string) {
   return joinEndpoint(config.edgeOrigin, `/catpaw/controls/v1/scopes/${scopeId.toLowerCase()}/runs/${runId.toLowerCase()}/control/operations`);
+}
+
+export function deviceResultUrl(config: PublicConfig, scopeId: string, conversationId: string, turnId: string, afterSequence: number) {
+  return joinEndpoint(
+    config.edgeOrigin,
+    `${conversationPath(scopeId, conversationId)}/turns/${turnId.toLowerCase()}/device-result?after_sequence=${afterSequence}`,
+  );
 }
 
 export function approvalDecisionUrl(config: PublicConfig, scopeId: string, conversationId: string, turnId: string, interruptId: string, afterSequence: number) {

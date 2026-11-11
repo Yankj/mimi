@@ -42,10 +42,14 @@ npm run dev
 
 ## 这一批做什么
 
-对话走和 iOS 相同的 edge 路径与请求头（`X-Catpaw-Route`、`X-Catpaw-Model`、`X-Catpaw-Live-Text`、审批 / UI / 记忆合同）。不发送 `X-Catpaw-Device-Tools` 或 `X-Catpaw-Device-Contract`。
+对话走和 iOS 相同的 edge 路径与请求头（`X-Catpaw-Route`、`X-Catpaw-Model`、`X-Catpaw-Live-Text`、审批 / UI / 记忆合同）。发送精简的 `X-Catpaw-Device-Contract` / `X-Catpaw-Device-Tools`（电话、邮件、地图、日历/提醒、短信、通讯录、闹钟）。确认卡后：`tel:` / `mailto:` / 苹果地图链接，或下载 `.ics`；通讯录、短信、闹钟只提示「请在手机上完成」。不会写入系统日历或通讯录，也不把 `.ics` 说成「已加入日历」。助手回复里的电话、邮箱、地址和日期也会给出同样的链接或下载，打开前再确认一次。不调用新的地图、日历或语音服务。
+
+对话听写是可选的：仅在浏览器提供 Web Speech API 时显示入口，默认关闭。首次使用前有独立隐私说明（声音交给浏览器自带的识别服务，小咪不把录音发到自己的服务器）。未同意或拒绝后只保留打字。没有全屏语音对话。
+
+图片仍走原来的签名上传。输入框和对话区支持把 JPEG / PNG 拖进去，一次只取第一张图。
 
 今天 / 成长 / 我们家只保留外壳、导航和空态。孩子的信息只存在手机上的小咪里，网页不保存、不同步孩子资料。「添加孩子」不会写入孩子。
 
 ## Web 难以等价
 
-Live Activity、小组件、Siri、EventKit / 通讯录、仅限设备的语音识别、本机提醒排程、保存到照片。朗读使用浏览器 `speechSynthesis`。
+Live Activity、小组件、Siri、EventKit / 通讯录写入、仅限设备的语音识别、本机提醒排程、保存到系统照片。朗读使用浏览器 `speechSynthesis`。听写使用浏览器 Web Speech API（若可用）。日历替代方案是下载 `.ics`，不是写入系统日历。
