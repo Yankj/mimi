@@ -27,6 +27,7 @@ import {
   controlOperationUrl,
   controlUrl,
   deviceResultUrl,
+  WEB_DEVICE_TOOLS,
   conversationPath,
   enrollmentUrl,
   scopePath,
@@ -507,7 +508,7 @@ export function ConversationWorkspace({
         modelsByRoute,
         useMemory,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        deviceTools: true,
+        deviceTools: WEB_DEVICE_TOOLS,
       });
       const response = await edgeFetch(request.url, { method: request.method, headers: request.headers, body: request.body, signal: controller.signal });
       await consumeStream(response, chatId, turnId);
@@ -535,7 +536,7 @@ export function ConversationWorkspace({
     if (!message) return;
     setBusy(true);
     try {
-      const headers = await authedHeaders({ liveText: true, approval: true, memoryProposal: true, deviceTools: true });
+      const headers = await authedHeaders({ liveText: true, approval: true, memoryProposal: true, deviceTools: WEB_DEVICE_TOOLS });
       const url = kind === "events" ? resumeEventsUrl(config, session.scopeId, active.id, message.turnId, sequenceRef.current) : retryBusyUrl(config, session.scopeId, active.id, message.turnId);
       const response = await edgeFetch(url, { method: kind === "events" ? "GET" : "POST", headers, body: kind === "busy" ? "{}" : undefined });
       await consumeStream(response, active.id, message.turnId);
@@ -587,7 +588,7 @@ export function ConversationWorkspace({
     try {
       const opened = await ensureConversation(chatId);
       const body = turnBody({ turnId, revision: opened.revision, grantEpoch: opened.grantEpoch, messageId, text: draft.trim(), attachmentIds: [attachment] });
-      const request = plainTurnRequest({ config, accessToken: await authorize(), scopeId: session.scopeId, conversationId: chatId, body, route: choice, modelsByRoute, useMemory, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, deviceTools: true });
+      const request = plainTurnRequest({ config, accessToken: await authorize(), scopeId: session.scopeId, conversationId: chatId, body, route: choice, modelsByRoute, useMemory, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, deviceTools: WEB_DEVICE_TOOLS });
       const response = await edgeFetch(request.url, { method: "POST", headers: request.headers, body: request.body });
       await consumeStream(response, chatId, turnId);
       setDraft("");
@@ -830,7 +831,7 @@ export function ConversationWorkspace({
     if (!active) return;
     const turnId = stringField(card.raw, "turn_id") || turnRef.current || active.messages.at(-1)?.turnId;
     if (!turnId) return;
-    const headers = await authedHeaders({ liveText: true, approval: true, deviceTools: true });
+    const headers = await authedHeaders({ liveText: true, approval: true, deviceTools: WEB_DEVICE_TOOLS });
     const response = await edgeFetch(deviceResultUrl(config, session.scopeId, active.id, turnId, sequenceRef.current), {
       method: "POST",
       headers,
