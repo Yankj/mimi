@@ -1,4 +1,4 @@
-import { copy } from "../../vendor/mimi-core/index";
+import { copy } from "../../utils/mp-copy";
 import type { MimiApp } from "../../app";
 import { applySessionRoute } from "../../utils/guard";
 
@@ -27,7 +27,8 @@ Page({
     build: `${copy.build} miniprogram-skeleton`,
     signOutOpen: false,
     signOutTitle: copy.signOutTitle,
-    signOutNamed: "退出后需重新登录。这一步的模拟会话和对话草稿会从本机清掉。",
+    signOutNamed: copy.signOutNamed,
+    bindEntry: copy.bindEntry,
     cancel: copy.cancel,
   },
   onShow() {
@@ -37,6 +38,9 @@ Page({
   },
   goBack() {
     wx.navigateBack();
+  },
+  openBind() {
+    wx.navigateTo({ url: "/pages/bind/bind" });
   },
   openChat() {
     wx.navigateTo({ url: "/pages/chat/chat" });

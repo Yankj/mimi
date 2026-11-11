@@ -1,4 +1,4 @@
-import { copy } from "../../vendor/mimi-core/index";
+import { copy } from "../../utils/mp-copy";
 import type { MimiApp } from "../../app";
 
 Page({
@@ -8,9 +8,8 @@ Page({
     headline: copy.headline,
     subtitle: copy.subtitle,
     loginTitle: copy.loginTitle,
-    wechatLogin: "微信登录（模拟）",
-    loginPending:
-      "真实的微信登录还没接上，要等 AppID、已备案的转发域名和账号绑定方式定了再做。现在点按钮只会进入模拟会话，方便看界面。",
+    wechatLogin: copy.wechatLogin,
+    loginPending: copy.loginPending,
     notice: "",
   },
   onShow() {

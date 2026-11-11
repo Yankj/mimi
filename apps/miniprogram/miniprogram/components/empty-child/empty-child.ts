@@ -1,4 +1,4 @@
-import { copy } from "../../vendor/mimi-core/index";
+import { copy } from "../../utils/mp-copy";
 
 Component({
   data: {

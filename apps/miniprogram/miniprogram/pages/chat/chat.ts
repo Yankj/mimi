@@ -1,4 +1,4 @@
-import { copy } from "../../vendor/mimi-core/index";
+import { copy } from "../../utils/mp-copy";
 import type { MimiApp } from "../../app";
 import { applySessionRoute } from "../../utils/guard";
 import { sendMockTurn, type ChatMessage } from "../../utils/mock-chat";
@@ -9,7 +9,7 @@ Page({
     send: copy.send,
     draft: "",
     busy: false,
-    hint: "回复来自本机模拟流，不会发到线上。",
+    hint: copy.chatHint,
     messages: [] as ChatMessage[],
   },
   onShow() {

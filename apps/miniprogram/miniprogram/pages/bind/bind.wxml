@@ -1,0 +1,14 @@
+<view class="page stack">
+  <view class="headline">{{title}}</view>
+  <view class="quiet">{{body}}</view>
+  <view class="card stack">
+    <view>{{field}}</view>
+    <input class="input" value="{{code}}" bindinput="onInput" placeholder="{{placeholder}}" maxlength="16" confirm-type="done" bindconfirm="onSubmit" />
+    <view wx:if="{{error}}" class="error">{{error}}</view>
+    <button class="cta" bindtap="onSubmit">{{submit}}</button>
+    <view wx:if="{{notice}}" class="quiet">{{notice}}</view>
+  </view>
+  <view class="quiet">{{pending}}</view>
+</view>
+
+<view wx:if="{{privacyMask}}" class="privacy-mask"></view>

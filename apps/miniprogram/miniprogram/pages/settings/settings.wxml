@@ -6,6 +6,7 @@
     <view class="headline">{{account}}</view>
     <view>{{currentAccount}}</view>
     <view>{{displayName}}</view>
+    <button class="row-link" bindtap="openBind">{{bindEntry}}</button>
     <button class="danger" bindtap="openSignOut">{{signOut}}</button>
   </view>
   <view class="card stack">

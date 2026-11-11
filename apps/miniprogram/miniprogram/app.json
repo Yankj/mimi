@@ -9,7 +9,8 @@
     "pages/goals/goals",
     "pages/reminders/reminders",
     "pages/settings/settings",
-    "pages/lock/lock"
+    "pages/lock/lock",
+    "pages/bind/bind"
   ],
   "window": {
     "navigationBarTitleText": "小咪",
