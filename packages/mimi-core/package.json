@@ -1,0 +1,25 @@
+{
+  "name": "@mimi/core",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Shared request-header, contract and copy logic for mimi Web and the WeChat miniprogram. No browser, Next or WeChat runtime APIs.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./wire": "./src/wire.ts",
+    "./copy": "./src/copy.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "sync-miniprogram-vendor": "node scripts/sync-miniprogram-vendor.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

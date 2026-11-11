@@ -1,0 +1,154 @@
+page {
+  background: #FAF9F7;
+  color: #111111;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 30rpx;
+  line-height: 1.5;
+  min-height: 100%;
+}
+
+.page {
+  padding: 40rpx 40rpx 160rpx;
+}
+
+.brand {
+  font-size: 48rpx;
+  font-weight: 650;
+}
+
+.brand-sub {
+  color: #6F6D69;
+  font-size: 28rpx;
+}
+
+.headline {
+  font-size: 44rpx;
+  font-weight: 650;
+  white-space: pre-wrap;
+}
+
+.quiet {
+  color: #6F6D69;
+}
+
+.error {
+  color: #C0352B;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.card,
+.glass-card {
+  background: rgba(255, 248, 240, 0.92);
+  border-radius: 28rpx;
+  padding: 32rpx;
+  box-shadow: 0 8rpx 32rpx rgba(196, 92, 26, 0.06);
+}
+
+.cta,
+.primary,
+.row-link,
+.danger,
+.text-button {
+  border: none;
+  border-radius: 20rpx;
+  padding: 22rpx 28rpx;
+  font-size: 30rpx;
+  line-height: 1.4;
+}
+
+.cta,
+.primary {
+  background: #C9501A;
+  color: #FFFFFF;
+}
+
+.row-link {
+  background: #FFFFFF;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.danger {
+  background: transparent;
+  color: #C0352B;
+  padding-left: 0;
+}
+
+.text-button {
+  background: transparent;
+  color: #C9501A;
+  padding-left: 0;
+  text-align: left;
+}
+
+.composer {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+
+.composer input,
+.input {
+  flex: 1;
+  background: #FFFFFF;
+  border: 2rpx solid #E6E3DE;
+  border-radius: 20rpx;
+  padding: 20rpx 24rpx;
+  font-size: 30rpx;
+}
+
+.bubble {
+  margin: 16rpx 0;
+  padding: 20rpx 24rpx;
+  border-radius: 24rpx;
+  max-width: 85%;
+}
+
+.bubble.user {
+  margin-left: auto;
+  background: #C9501A;
+  color: #FFFFFF;
+}
+
+.bubble.assistant {
+  background: #FFFFFF;
+}
+
+.dialog-back {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(59, 42, 28, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx;
+  z-index: 20;
+}
+
+.dialog {
+  background: #FFFFFF;
+  border-radius: 28rpx;
+  padding: 40rpx;
+  width: 100%;
+}
+
+/* Covers the page before backgrounding so the multitask snapshot shows nothing (MP-P2). */
+.privacy-mask {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 9999;
+  background: #FAF9F7;
+}

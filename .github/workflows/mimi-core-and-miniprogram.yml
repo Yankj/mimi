@@ -1,0 +1,47 @@
+name: mimi-core and miniprogram
+on:
+  pull_request:
+    paths:
+      - "packages/mimi-core/**"
+      - "apps/miniprogram/**"
+      - ".github/workflows/mimi-core-and-miniprogram.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/mimi-core/**"
+      - "apps/miniprogram/**"
+      - ".github/workflows/mimi-core-and-miniprogram.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mimi-core:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/mimi-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: packages/mimi-core/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+  miniprogram:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/miniprogram
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/miniprogram/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test

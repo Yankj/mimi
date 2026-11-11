@@ -1,0 +1,17 @@
+{
+  "name": "mimi-miniprogram",
+  "private": true,
+  "version": "0.1.0",
+  "description": "mimi / 小咪 WeChat miniprogram skeleton. Mock login and mock chat only; does not connect to production.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "sync-core": "npm run sync-miniprogram-vendor --prefix ../../packages/mimi-core"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

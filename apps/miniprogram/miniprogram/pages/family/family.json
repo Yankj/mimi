@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "我们家",
+  "usingComponents": {
+    "empty-child": "../../components/empty-child/empty-child"
+  }
+}

@@ -2,7 +2,7 @@
   "name": "mimi-web",
   "private": true,
   "version": "0.1.0",
-  "description": "mimi / 小咪 browser client. Batch 1 talks to the existing catpaw edge API and does not deploy.",
+  "description": "mimi / \u5c0f\u54aa browser client. Batch 1 talks to the existing catpaw edge API and does not deploy.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -13,6 +13,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@mimi/core": "file:../../packages/mimi-core",
     "next": "^15.5.6",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

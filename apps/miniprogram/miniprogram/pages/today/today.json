@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "今天",
+  "usingComponents": {
+    "empty-child": "../../components/empty-child/empty-child"
+  }
+}

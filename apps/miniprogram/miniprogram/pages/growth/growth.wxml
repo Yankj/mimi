@@ -1,0 +1,23 @@
+<view class="page stack">
+  <view class="quiet">{{familyTodo}}</view>
+  <view class="headline">{{title}}</view>
+  <empty-child bind:add="onAddChild" />
+  <button class="row-link" bindtap="openTimeline">
+    <text>{{timelineTitle}}</text>
+    <text class="quiet">{{noRecords}}</text>
+  </button>
+  <button class="row-link" bindtap="openGoals">
+    <text>{{goalsReview}}</text>
+    <text class="quiet">{{noGoals}}</text>
+  </button>
+</view>
+<view wx:if="{{addOpen}}" class="dialog-back">
+  <view class="dialog stack">
+    <view class="headline">{{addTitle}}</view>
+    <view>{{addBody}}</view>
+    <view>{{addBlocked}}</view>
+    <button class="text-button" bindtap="onCloseAdd">{{closeLabel}}</button>
+  </view>
+</view>
+
+<view wx:if="{{privacyMask}}" class="privacy-mask"></view>

@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "成长",
+  "usingComponents": {
+    "empty-child": "../../components/empty-child/empty-child"
+  }
+}
