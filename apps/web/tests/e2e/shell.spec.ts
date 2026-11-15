@@ -35,9 +35,11 @@ test("a named OAuth session shows the parenting shell and blocks a saved child",
   await expect(page.getByRole("tab", { name: "成长" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "我们家" })).toBeVisible();
   await expect(page.getByText("孩子的信息只存在手机上")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "今日提醒" })).toBeVisible();
-  await expect(page.getByText("今天没有可在这个页面列出的提醒。")).toBeVisible();
-  await expect(page.getByText("不会申请通知权限，不会发系统通知，也不会弹出横幅。")).toBeVisible();
+  await expect(page.getByText("这台设备暂不发送提醒。安排只保存在本机，不会添加系统日历。")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "今日提醒" })).toHaveCount(0);
+  await expect(page.getByText("今天没有要提醒的安排。")).toHaveCount(0);
+  await expect(page.getByText("准时提醒请用手机。")).toHaveCount(0);
+  await expect(page.getByText("假装已经排程")).toHaveCount(0);
   await expect(page.getByText("family_v1")).toHaveCount(0);
   await expect(page.getByText("会加密保留")).toHaveCount(0);
   await expect(page.getByText("开始使用")).toHaveCount(0);
@@ -47,7 +49,7 @@ test("a named OAuth session shows the parenting shell and blocks a saved child",
   await page.getByRole("button", { name: "关闭" }).click();
   await page.getByRole("button", { name: "提醒" }).click();
   await expect(page.getByText("这台设备暂不发送提醒。安排只保存在本机，不会添加系统日历。")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "今日提醒" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "今日提醒" })).toHaveCount(0);
   await page.getByRole("button", { name: "我们家" }).click();
   await page.getByRole("button", { name: "设置" }).click();
   await expect(page.getByText("会加密保留")).toHaveCount(0);

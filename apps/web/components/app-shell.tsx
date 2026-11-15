@@ -290,7 +290,7 @@ function ParentingShell({ email, notice, onSignOut, onOpenChat }: { email: strin
             {tab === "today" ? (
               <>
                 <p className="quiet">{copy.emptyToday}</p>
-                <TodayReminders />
+                <TodayReminders hiddenNote={<p className="card reminder-note">{copy.reminderPage}</p>} />
               </>
             ) : null}
             {tab === "growth" ? (
@@ -325,7 +325,7 @@ function ParentingShell({ email, notice, onSignOut, onOpenChat }: { email: strin
           <section>
             <button className="text-button" onClick={() => setPage("home")}>{copy.family}</button>
             <h1>{copy.reminders}</h1>
-            <p>{copy.reminderPage}</p>
+            <p className="card reminder-note">{copy.reminderPage}</p>
             <TodayReminders />
           </section>
         ) : null}

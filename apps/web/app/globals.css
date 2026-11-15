@@ -116,23 +116,30 @@ a { color: var(--deep); }
   box-shadow: var(--shadow);
   backdrop-filter: blur(18px);
 }
-.today-reminders { margin-top: 16px; }
+.reminder-note, .today-reminders { margin-top: 16px; }
 .today-reminders h2 { font-size: 22px; margin: 0 0 8px; letter-spacing: -0.02em; }
 .reminder-list {
   list-style: none;
-  margin: 12px 0;
+  margin: 12px 0 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
 }
 .reminder-list li {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  justify-content: center;
+  gap: 10px;
+  align-items: flex-start;
   min-height: 44px;
-  padding: 8px 0;
+  padding: 12px 0;
   border-top: 0.5px solid var(--hairline);
+}
+.remind-bell { flex: none; margin-top: 2px; color: var(--ink-2); }
+.phone-note {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--attention) 16%, var(--card));
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .todo {

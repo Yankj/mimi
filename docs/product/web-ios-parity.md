@@ -73,7 +73,7 @@ iOS 育儿提醒的规则在 `Sources/Domain/ParentingReminderPlan.swift`：只�
 | 功能 | iOS | Web | 小程序 | Android |
 | --- | --- | --- | --- | --- |
 | 本机系统通知排程 | 已有。`ParentingReminderScheduler.swift` | 平台不做。不调用 Notification API，不申请权限，不做系统横幅。`apps/web/README.md` | 待用户定。#157 备选是微信订阅消息。`pages/reminders` 现在只写「这一步不发提醒」 | 缺。main 无目录。未合并分支 README 称 M4 用 AlarmManager 发本机通知，未进 main |
-| 页内「今日提醒」列表（W02） | 部分。没有这个标题的列表。已确认安排上有 `reminderLine`，提醒页只显示已排条数 | 部分。本草稿在「今天」和「我们家 → 提醒」放页内列表（`apps/web/lib/today-reminders.ts`）。共享来源是空的，列表说明读不到手机上的提醒，也不另记一份。`080a5181` 上还没有这段 | 缺。`pages/reminders/reminders.wxml` 只有说明，没有列表 | 缺。main 无目录。未合并分支做的是系统通知，不是这份页内列表 |
+| 页内「今日提醒」列表（W02） | 部分。没有这个标题的列表。已确认安排上有 `reminderLine`，提醒页只显示已排条数 | 部分。家庭同步未开启时，今天页和提醒页都不渲染标题和列表，只留 `reminderPage`（`apps/web/components/app-shell.tsx`）。同步开启且当天没有条目时，空态是「今天没有要提醒的安排。」，并保留标题和页脚「准时提醒请用手机。」。规则与 iOS 相同：每天最多 2 条，21:00–23:59 改到当晚 20:30，00:00–07:59 改到前一天 20:30（`apps/web/lib/today-reminders.ts`）。不写浏览器账本，不调用系统通知。`080a5181` 上还没有这段 | 缺。`pages/reminders/reminders.wxml` 只有说明，没有列表 | 缺。main 无目录。未合并分支做的是系统通知，不是这份页内列表 |
 | 到点提醒开关、提前量、锁屏隐藏内容 | 已有。`ParentingRemindersView` | 平台不做。这些开关管的是系统通知。网页不摆一套不能排程的开关 | 待用户定。#157 | 缺。main 无目录。未合并分支 README 称提醒页有这些开关，未进 main |
 
 ## 语音与朗读
@@ -99,9 +99,9 @@ edge 源码里已经有 family 命令和 `family.projection` 的 SQL。那是维
 
 ## 草稿里有、main 上没有
 
-- [#159](https://github.com/Yankj/mimi/pull/159)（base `main`，草稿）：W04 可选听写、W06 电话邮件地图与 `.ics`、W08 拖拽上传。未进 main。
+- [#159](https://github.com/Yankj/mimi/pull/159)（base `main`，草稿）：W04 可选听写、W06 电话邮件地图与 `.ics`、W08 拖拽上传。未进 main。下面四条只记决定，本草稿不实现：(1) 日历和 `reminder_create` 确认卡的标题、主按钮都是「下载日历文件」，成功回执是「已下载日历文件，请在日历应用中打开」，网页不写「加入」；(2) 不单列「转写中」，未定稿的转写留在录音中的草稿里；(3) 上传界面将增加「上传中…」「已上传，待发送」，并显示缩略图；(5) 麦克风图标的 `aria-label` 为「听写 / 停止听写」，浏览器没有 Speech API 时不显示入口，也不额外提示。
 - [#152](https://github.com/Yankj/mimi/pull/152)（base `feat/android-align-147-148`，草稿）：Android 一行双态底栏。不合 main。底栏之下的 Android 育儿代码也只在那条未合并分支上。
-- 本草稿：W02 页内列表。合并前 main 没有它。
+- 本草稿：W02 页内列表。家庭同步未开启时，今天页和提醒页都不渲染它，只留 `reminderPage`。合并前 main 没有它。
 
 ## 和 issue / PR 正文不一致的地方
 
@@ -114,7 +114,7 @@ edge 源码里已经有 family 命令和 `family.projection` 的 SQL。那是维
 
 ## 还没定、因此挡住后续的事
 
-- 家庭同步没定。它挡住 Web 和小程序上可写的今天 / 成长 / 我们家账本。不能先在浏览器或小程序里各记一份和手机对不上的账本。W02 因此只做页内空列表，不读 `family.reminders`，也不写本地账本。
+- 家庭同步没定。它挡住 Web 和小程序上可写的今天 / 成长 / 我们家账本。不能先在浏览器或小程序里各记一份和手机对不上的账本。W02 在同步未开启时不渲染列表，今天页和提醒页只留 `reminderPage`。同步开启后的空态，以及每天 2 条、21:00–23:59 改到当晚 20:30、00:00–07:59 改到前一天 20:30 的规则，写在页内列表里。不读 `family.reminders`，也不写本地账本。
 - 小程序登录、正式 AppID、已备案并配进后台白名单的 HTTPS 域名，都还没定（#157）。定之前不接真实后端。
 - Web 预览部署、Supabase 重定向允许列表里的 `/auth/callback`、测试账号，#156 列在第二批，还没做。本草稿不部署，也不改线上配置。
 - Android 进不进 main 还没定。#152 保持草稿，而且 base 不是 main。
