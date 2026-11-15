@@ -1,10 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { accountPreferenceKey, chatIndexKey, legacyChatKey } from "@/lib/chat-index";
 import { loadVault, saveVault } from "@/lib/chat-vault";
+import { ComposerDictationButton } from "@/components/composer-dictation";
+import { DeviceCallCard, type DeviceCallState } from "@/components/device-call-card";
+import { MessageDeviceLinks } from "@/components/message-device-links";
 import { copy, orderedStarters } from "@/lib/copy";
+import { downloadTextFile, icsDeviceResultData, openDeviceUrl, unsupportedOnWebData, type DeviceAction } from "@/lib/device-actions";
+import { firstDroppedImage, hasFileDrag } from "@/lib/drop-files";
 import { edgeFetch, pathConfig } from "@/lib/edge-client";
 import type { WebProfile } from "@/lib/profile";
 import {
@@ -21,6 +26,8 @@ import {
   chatHeaders,
   controlOperationUrl,
   controlUrl,
+  deviceResultUrl,
+  WEB_DEVICE_TOOLS,
   conversationPath,
   enrollmentUrl,
   scopePath,
@@ -80,6 +87,7 @@ type Chat = {
 };
 
 type Card = { id: string; kind: string; title: string; body: string; raw: Record<string, unknown> };
+type ComposerAttachment = { phase: "uploading" | "ready"; name: string; previewUrl: string };
 type RouteInfo = { id: string; display_name: string; models: { id: string }[]; status?: string };
 
 const variantKey = (subject: string, conversation: string) => `mimi.web.variants.v1.${subject}.${conversation}`;
@@ -167,6 +175,10 @@ export function ConversationWorkspace({
   const [reactions, setReactions] = useState<Record<string, string>>({});
   const [variants, setVariants] = useState<Record<string, { ids: string[]; index: number }>>({});
   const [cards, setCards] = useState<Card[]>([]);
+  const [deviceState, setDeviceState] = useState<Record<string, { state: DeviceCallState; receipt?: string }>>({});
+  const [dropping, setDropping] = useState(false);
+  const [attachmentPreview, setAttachmentPreview] = useState<ComposerAttachment | null>(null);
+  const [dictationInterim, setDictationInterim] = useState("");
   const [detail, setDetail] = useState<string>("");
   const [reduceMotion, setReduceMotion] = useState(false);
   const [speaking, setSpeaking] = useState<string | null>(null);
@@ -178,6 +190,8 @@ export function ConversationWorkspace({
   const [workText, setWorkText] = useState("");
   const hydrated = useRef(false);
   const pendingAttachment = useRef<string | null>(null);
+  const attachmentPreviewRef = useRef<ComposerAttachment | null>(null);
+  const dragDepth = useRef(0);
   const actionRunRef = useRef<string | null>(null);
   const controlRef = useRef<unknown>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -229,6 +243,11 @@ export function ConversationWorkspace({
       setVariants({});
     }
   }, [activeId, session.userId]);
+
+  useEffect(() => () => {
+    const current = attachmentPreviewRef.current;
+    if (current) URL.revokeObjectURL(current.previewUrl);
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -428,9 +447,9 @@ export function ConversationWorkspace({
       const id = stringField(data, "id");
       setCards((current) => current.map((card) => card.id === id ? { ...card, title: stringField(data, "title") || card.title, body: stringField(data, "body") || card.body, raw: { ...card.raw, ...data } } : card));
     }
-    if (type === "approval_requested" || type === "ui.block" || type === "tool_result") {
+    if (type === "approval_requested" || type === "ui.block" || type === "tool_result" || type === "device_call") {
       const data = asRecord(row?.data) ?? {};
-      const id = stringField(data, "id") || stringField(data, "interrupt_id") || stringField(data, "interruptId") || `${turnId}:${sequence}`;
+      const id = stringField(data, "id") || stringField(data, "call_id") || stringField(data, "interrupt_id") || stringField(data, "interruptId") || `${turnId}:${sequence}`;
       setCards((current) => {
         const card: Card = {
           id,
@@ -498,6 +517,7 @@ export function ConversationWorkspace({
         modelsByRoute,
         useMemory,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        deviceTools: WEB_DEVICE_TOOLS,
       });
       const response = await edgeFetch(request.url, { method: request.method, headers: request.headers, body: request.body, signal: controller.signal });
       await consumeStream(response, chatId, turnId);
@@ -525,7 +545,7 @@ export function ConversationWorkspace({
     if (!message) return;
     setBusy(true);
     try {
-      const headers = await authedHeaders({ liveText: true, approval: true, memoryProposal: true });
+      const headers = await authedHeaders({ liveText: true, approval: true, memoryProposal: true, deviceTools: WEB_DEVICE_TOOLS });
       const url = kind === "events" ? resumeEventsUrl(config, session.scopeId, active.id, message.turnId, sequenceRef.current) : retryBusyUrl(config, session.scopeId, active.id, message.turnId);
       const response = await edgeFetch(url, { method: kind === "events" ? "GET" : "POST", headers, body: kind === "busy" ? "{}" : undefined });
       await consumeStream(response, active.id, message.turnId);
@@ -536,33 +556,56 @@ export function ConversationWorkspace({
     }
   }
 
+  function showAttachment(next: ComposerAttachment | null) {
+    const previous = attachmentPreviewRef.current;
+    if (previous && previous.previewUrl !== next?.previewUrl) URL.revokeObjectURL(previous.previewUrl);
+    attachmentPreviewRef.current = next;
+    setAttachmentPreview(next);
+  }
+
   async function upload(file: File) {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const mime = imageMime(bytes);
     if (!mime) return setError(copy.attachmentType);
     if (bytes.byteLength > MAX_ATTACHMENT_BYTES) return setError(copy.attachmentTooBig);
     const id = crypto.randomUUID();
-    const headers = await authedHeaders();
-    const created = await edgeFetch(attachmentCreateUrl(config, session.scopeId), {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ attachment_id: id, mime_type: mime, size_bytes: bytes.byteLength, sha256: await sha256Bytes(bytes) }),
-    });
-    const json = asRecord(await readJson(created));
-    const upload = asRecord(json?.upload);
-    if (upload?.method === "PUT") {
-      if (typeof upload.url !== "string" || !uploadUrlAllowed(upload.url, session.uploadHosts)) {
+    const name = file.name || "图片";
+    const previewUrl = URL.createObjectURL(file);
+    pendingAttachment.current = null;
+    showAttachment({ phase: "uploading", name, previewUrl });
+    setError(null);
+    try {
+      const headers = await authedHeaders();
+      const created = await edgeFetch(attachmentCreateUrl(config, session.scopeId), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ attachment_id: id, mime_type: mime, size_bytes: bytes.byteLength, sha256: await sha256Bytes(bytes) }),
+      });
+      const json = asRecord(await readJson(created));
+      const signed = asRecord(json?.upload);
+      if (signed?.method === "PUT") {
+        if (typeof signed.url !== "string" || !uploadUrlAllowed(signed.url, session.uploadHosts)) {
+          showAttachment(null);
+          setError("暂时连不上服务，请稍后重试");
+          return;
+        }
+        const putHeaders = asRecord(signed.headers) ?? {};
+        await fetch(signed.url, { method: "PUT", headers: Object.fromEntries(Object.entries(putHeaders).map(([key, value]) => [key, String(value)])), body: bytes });
+      }
+      const ready = await edgeFetch(attachmentCompleteUrl(config, session.scopeId, id), { method: "POST", headers, body: "{}" });
+      if (!ready.ok) {
+        showAttachment(null);
         setError("暂时连不上服务，请稍后重试");
         return;
       }
-      const putHeaders = asRecord(upload.headers) ?? {};
-      await fetch(upload.url, { method: "PUT", headers: Object.fromEntries(Object.entries(putHeaders).map(([key, value]) => [key, String(value)])), body: bytes });
+      setDraft((current) => current);
+      setError(null);
+      pendingAttachment.current = id;
+      showAttachment({ phase: "ready", name, previewUrl });
+    } catch (cause) {
+      showAttachment(null);
+      setError(cause instanceof Error ? cause.message : copy.attachmentType);
     }
-    const ready = await edgeFetch(attachmentCompleteUrl(config, session.scopeId, id), { method: "POST", headers, body: "{}" });
-    if (!ready.ok) return setError("暂时连不上服务，请稍后重试");
-    setDraft((current) => current);
-    setError(null);
-    pendingAttachment.current = id;
   }
 
   async function sendWithAttachment() {
@@ -570,6 +613,7 @@ export function ConversationWorkspace({
     if (!activeId || !draft.trim()) return send(draft);
     if (!attachment) return send(draft);
     pendingAttachment.current = null;
+    showAttachment(null);
     const chatId = activeId;
     const turnId = crypto.randomUUID();
     const messageId = crypto.randomUUID();
@@ -577,7 +621,7 @@ export function ConversationWorkspace({
     try {
       const opened = await ensureConversation(chatId);
       const body = turnBody({ turnId, revision: opened.revision, grantEpoch: opened.grantEpoch, messageId, text: draft.trim(), attachmentIds: [attachment] });
-      const request = plainTurnRequest({ config, accessToken: await authorize(), scopeId: session.scopeId, conversationId: chatId, body, route: choice, modelsByRoute, useMemory, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+      const request = plainTurnRequest({ config, accessToken: await authorize(), scopeId: session.scopeId, conversationId: chatId, body, route: choice, modelsByRoute, useMemory, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, deviceTools: WEB_DEVICE_TOOLS });
       const response = await edgeFetch(request.url, { method: "POST", headers: request.headers, body: request.body });
       await consumeStream(response, chatId, turnId);
       setDraft("");
@@ -812,6 +856,95 @@ export function ConversationWorkspace({
     localStorage.setItem(feedbackKey(session.userId), JSON.stringify(next));
   }
 
+  function setDevice(id: string, state: DeviceCallState, receipt?: string) {
+    setDeviceState((current) => ({ ...current, [id]: { state, receipt } }));
+  }
+
+  async function reportDevice(card: Card, status: "ok" | "cancelled" | "denied" | "error", data?: Record<string, unknown>) {
+    if (!active) return;
+    const turnId = stringField(card.raw, "turn_id") || turnRef.current || active.messages.at(-1)?.turnId;
+    if (!turnId) return;
+    const headers = await authedHeaders({ liveText: true, approval: true, deviceTools: WEB_DEVICE_TOOLS });
+    const response = await edgeFetch(deviceResultUrl(config, session.scopeId, active.id, turnId, sequenceRef.current), {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        call_id: stringField(card.raw, "call_id"),
+        operation_id: crypto.randomUUID(),
+        args_hash: stringField(card.raw, "args_hash"),
+        status,
+        ...(data ? { data } : {}),
+      }),
+    });
+    await consumeStream(response, active.id, turnId);
+  }
+
+  async function confirmDevice(card: Card, action: DeviceAction) {
+    setDevice(card.id, "running");
+    if (action.kind === "ics") downloadTextFile(action.filename, action.ics);
+    if (action.kind === "link") openDeviceUrl(action.url);
+    const receipt = action.kind === "ics" ? copy.deviceIcsReceipt : copy.deviceHandoffReceipt;
+    try {
+      await reportDevice(card, "ok", action.kind === "ics" ? icsDeviceResultData() : { handoff: "requested" });
+      setDevice(card.id, "done", receipt);
+    } catch (cause) {
+      setDevice(card.id, "done", receipt);
+      setError(cause instanceof Error ? cause.message : copy.connectionDown);
+    }
+  }
+
+  async function cancelDevice(card: Card) {
+    try {
+      await reportDevice(card, "cancelled");
+      setDevice(card.id, "cancelled");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : copy.connectionDown);
+    }
+  }
+
+  async function acknowledgeDevice(card: Card) {
+    setDevice(card.id, "done", copy.devicePhoneOnly);
+    try {
+      await reportDevice(card, "error", unsupportedOnWebData(stringField(card.raw, "tool")));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : copy.connectionDown);
+    }
+  }
+
+  function handleDragEnter(event: DragEvent<HTMLElement>) {
+    if (!hasFileDrag(event.dataTransfer.types)) return;
+    event.preventDefault();
+    dragDepth.current += 1;
+    setDropping(true);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLElement>) {
+    if (!hasFileDrag(event.dataTransfer.types)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLElement>) {
+    if (!hasFileDrag(event.dataTransfer.types)) return;
+    event.preventDefault();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDropping(false);
+  }
+
+  function handleDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+    dragDepth.current = 0;
+    setDropping(false);
+    const picked = firstDroppedImage(event.dataTransfer.files);
+    if (!picked) {
+      setError(copy.attachmentType);
+      return;
+    }
+    if (picked.extraImages > 0) setError(copy.dropOneImage);
+    else setError(null);
+    void upload(picked.file);
+  }
+
   const lastAssistant = [...(active?.messages ?? [])].reverse().find((message) => message.role === "assistant" && visibleMessage(message));
 
   return (
@@ -841,14 +974,14 @@ export function ConversationWorkspace({
           <button className="round ink" aria-label={copy.newChat} onClick={() => { const id = crypto.randomUUID(); const chat = { id, title: copy.newChat, preview: "", updatedAt: new Date().toISOString(), revision: 0, grantEpoch: 0, messages: [] }; persist([chat, ...chats]); setActiveId(id); }}>✎</button>
         </div>
       </aside>
-      <section className="transcript">
+      <section className={dropping ? "transcript dropping" : "transcript"} onDragEnter={handleDragEnter} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
         <header style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
           <button className="text-button" aria-label={copy.openSidebar} onClick={() => setSidebar(true)}>☰</button>
           <button className="text-button" onClick={() => setPanel("routes")}>{route === "auto" ? copy.auto : route}</button>
           <span className="quiet">{connection}</span>
           <button className="text-button" onClick={onClose}>{copy.close}</button>
         </header>
-        {error ? <p className={error === copy.copied ? "ok" : "error"}>{error}</p> : null}
+        {error ? <p className={error === copy.copied ? "ok" : "error"} role="status">{error}</p> : null}
         {!active || active.messages.length === 0 ? (
           <div>
             <Image src="/mascot/idle.png" alt="" width={160} height={160} />
@@ -878,6 +1011,7 @@ export function ConversationWorkspace({
             }}>
               {message.reasoning ? <details><summary>{copy.thought}{message.thinkingMs ? ` · ${Math.round(message.thinkingMs / 1000)}s` : ""}</summary><p className="quiet">{message.reasoning}</p></details> : null}
               <p>{head}{tail ? <span className="stream-tail">{tail}</span> : null}</p>
+              {message.role === "assistant" ? <MessageDeviceLinks text={parsed.text} complete={message.complete} /> : null}
               {message.id === lastAssistant?.id && parsed.questions.length > 0 ? (
                 <div className="actions" aria-label={copy.followups}>
                   {parsed.questions.map((question) => <button key={question} disabled={busy} onClick={() => void send(question)}>{question}</button>)}
@@ -909,6 +1043,17 @@ export function ConversationWorkspace({
           );
         })}
         {cards.map((card) => (
+          card.kind === "device_call" ? (
+            <DeviceCallCard
+              key={card.id}
+              raw={card.raw}
+              state={deviceState[card.id]?.state ?? "confirming"}
+              receipt={deviceState[card.id]?.receipt}
+              onConfirm={(action) => void confirmDevice(card, action)}
+              onCancel={() => void cancelDevice(card)}
+              onAcknowledge={() => void acknowledgeDevice(card)}
+            />
+          ) : (
           <section key={card.id} className="card">
             <strong>{card.title}</strong>
             <p>{card.body}</p>
@@ -928,6 +1073,7 @@ export function ConversationWorkspace({
               </div>
             ) : null}
           </section>
+          )
         ))}
         {busy ? <button onClick={() => void stop()}>{copy.stop}</button> : null}
         {error && !busy ? (
@@ -936,12 +1082,20 @@ export function ConversationWorkspace({
             <button onClick={() => void resume("busy")}>{copy.retryNow}</button>
           </div>
         ) : null}
-        <form className="composer" onSubmit={(event) => { event.preventDefault(); if (pendingAttachment.current) void sendWithAttachment(); else void send(draft); }}>
+        <form className={dropping ? "composer drop-target" : "composer"} onSubmit={(event) => { event.preventDefault(); if (pendingAttachment.current) void sendWithAttachment(); else void send(draft); }}>
+          {dropping ? <div className="drop-overlay">{copy.dropImage}</div> : null}
+          {attachmentPreview ? <AttachmentPreview attachment={attachmentPreview} /> : null}
           <label className="icon-button" aria-label={copy.attachment}>
             +
             <input type="file" accept="image/png,image/jpeg" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }} />
           </label>
-          <textarea aria-label={busy ? copy.continueAsk : copy.ask} placeholder={busy ? copy.continueAsk : copy.ask} value={draft} rows={1} onChange={(event) => setDraft(event.target.value)} />
+          <ComposerDraft
+            label={busy ? copy.continueAsk : copy.ask}
+            draft={draft}
+            interim={dictationInterim}
+            onChange={(value) => { setDraft(value); setDictationInterim(""); }}
+          />
+          <ComposerDictationButton subject={session.userId} draft={draft} onDraftChange={setDraft} onInterimChange={setDictationInterim} />
           <button className="round ink" type="submit" disabled={busy || !draft.trim()} aria-label={copy.send}>↑</button>
         </form>
       </section>
@@ -1147,6 +1301,64 @@ function MemoryPanel({ state, conversationId, onSubmit }: { state: unknown; conv
         sensitive_consent: false,
         claim: { kind: "preference", predicate, value, conditions: {}, assertion: "explicit", evidence: { span_start: 0, span_end: text.length } },
       })} disabled={!conversationId || !text.trim()}>{copy.remember}</button>
+    </div>
+  );
+}
+
+function ComposerDraft({
+  label,
+  draft,
+  interim,
+  onChange,
+}: {
+  label: string;
+  draft: string;
+  interim: string;
+  onChange: (value: string) => void;
+}) {
+  const pending = interim && draft.endsWith(interim) ? interim : "";
+  const settled = pending ? draft.slice(0, -pending.length) : "";
+  return (
+    <div className="composer-field">
+      <textarea
+        aria-label={label}
+        placeholder={label}
+        value={draft}
+        rows={1}
+        className={pending ? "draft-mask" : undefined}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {pending ? (
+        <div className="draft-mirror" aria-hidden="true">
+          <span>{settled}</span>
+          <span className="dictation-interim">{pending}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AttachmentPreview({ attachment }: { attachment: ComposerAttachment }) {
+  const ready = attachment.phase === "ready";
+  return (
+    <div className="attach-row">
+      {ready ? (
+        // Local blob preview. The image optimizer cannot fetch an object URL.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="attach-thumb" src={attachment.previewUrl} alt={attachment.name} />
+      ) : (
+        <span className="attach-thumb" role="img" aria-label={attachment.name}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3.5" y="5" width="17" height="14" rx="2" />
+            <circle cx="9" cy="10" r="1.5" />
+            <path d="M3.8 16.5 9 12.5l3.5 3 3-2.5 4.7 3.5" />
+          </svg>
+        </span>
+      )}
+      <div className="attach-meta">
+        <div className="attach-name">{attachment.name}</div>
+        <div className={ready ? "attach-status ready" : "attach-status"}>{ready ? copy.attachmentReady : copy.attachmentUploading}</div>
+      </div>
     </div>
   );
 }

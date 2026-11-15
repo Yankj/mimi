@@ -19,6 +19,7 @@ import {
   PAGE_SIZE,
   parseOAuthCallback,
   parseSseData,
+  deviceResultUrl,
   pkceExchangeRequest,
   plainTurnRequest,
   readPublicConfig,
@@ -149,6 +150,23 @@ test("chat headers match the iOS plain-turn set and omit device tools", () => {
   assert.equal(headers["X-Catpaw-Time-Zone"], "Asia/Shanghai");
   assert.equal(headers["X-Catpaw-Device-Tools"], undefined);
   assert.equal(headers["X-Catpaw-Device-Contract"], undefined);
+  const withDevices = chatHeaders({
+    authorization: "Bearer token",
+    anonKey: anon,
+    edgeOrigin: "https://example.supabase.co/functions/v1/catpaw-api",
+    route: { route: "auto", model: null, knownRouteIds: [] },
+    modelsByRoute: {},
+    liveText: true,
+    approval: true,
+    deviceTools: ["phone", "email", "maps", "calendar"],
+  });
+  assert.equal(withDevices["X-Catpaw-Device-Contract"], "catpaw.device.v1");
+  assert.equal(withDevices["X-Catpaw-Device-Tools"], "phone,email,maps,calendar");
+  assert.ok(!withDevices["X-Catpaw-Device-Tools"].includes("calendar_list"));
+  assert.equal(
+    deviceResultUrl(config, "22222222-2222-2222-2222-222222222222", "cccccccc-cccc-cccc-cccc-cccccccccccc", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", 4),
+    `${edge}/catpaw/chat/v1/scopes/22222222-2222-2222-2222-222222222222/conversations/cccccccc-cccc-cccc-cccc-cccccccccccc/turns/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/device-result?after_sequence=4`,
+  );
   assert.equal(headerRoute({ route: "missing", model: null, knownRouteIds: ["gemini"] }), "auto");
   assert.equal(headerModel({ route: "gemini", model: "other", knownRouteIds: ["gemini"] }, { gemini: ["gemini-flash"] }), null);
 });

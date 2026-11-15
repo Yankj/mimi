@@ -38,17 +38,20 @@ export function awaitDatabaseDelete(request: DatabaseDeleteHandle, timeoutMs = W
   });
 }
 
+export const WEB_STORAGE_PREFIX = "mimi.web.";
+
+export function wipeWebStorage(storage: Pick<Storage, "length" | "key" | "removeItem">) {
+  const keys: string[] = [];
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (key?.startsWith(WEB_STORAGE_PREFIX)) keys.push(key);
+  }
+  for (const key of keys) storage.removeItem(key);
+}
+
 export async function wipeBrowserState() {
-  const drop = (storage: Storage) => {
-    const keys: string[] = [];
-    for (let index = 0; index < storage.length; index += 1) {
-      const key = storage.key(index);
-      if (key?.startsWith("mimi.web.")) keys.push(key);
-    }
-    for (const key of keys) storage.removeItem(key);
-  };
-  drop(window.localStorage);
-  drop(window.sessionStorage);
+  wipeWebStorage(window.localStorage);
+  wipeWebStorage(window.sessionStorage);
   if (typeof caches !== "undefined") {
     const names = await caches.keys();
     await Promise.all(names.filter((name) => name.startsWith("mimi.web.")).map((name) => caches.delete(name)));
