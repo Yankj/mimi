@@ -250,11 +250,11 @@ export function argText(args: Record<string, unknown> | undefined, key: string):
 }
 
 const TOOL_COPY: Record<string, { title: string; confirm: string; fields: { key: string; label: string }[] }> = {
-  calendar_create: { title: "加入日历", confirm: "加入", fields: [
+  calendar_create: { title: "下载日历文件", confirm: "下载日历文件", fields: [
     { key: "title", label: "标题" }, { key: "start", label: "开始" }, { key: "end", label: "结束" },
     { key: "location", label: "地点" }, { key: "notes", label: "备注" },
   ] },
-  reminder_create: { title: "新建提醒", confirm: "创建", fields: [
+  reminder_create: { title: "下载日历文件", confirm: "下载日历文件", fields: [
     { key: "title", label: "内容" }, { key: "due", label: "时间" }, { key: "list", label: "列表" },
   ] },
   mail_compose: { title: "写邮件", confirm: "去发送", fields: [

@@ -146,6 +146,8 @@ export const copy = {
   attachment: "添加附件",
   attachmentTooBig: "图片超过 5 MB，未上传。",
   attachmentType: "只接受 JPEG 或 PNG。",
+  attachmentUploading: "上传中…",
+  attachmentReady: "已上传，待发送",
   approve: "允许",
   deny: "拒绝",
   approveAlways: "始终允许",

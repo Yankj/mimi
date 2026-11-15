@@ -87,6 +87,7 @@ type Chat = {
 };
 
 type Card = { id: string; kind: string; title: string; body: string; raw: Record<string, unknown> };
+type ComposerAttachment = { phase: "uploading" | "ready"; name: string; previewUrl: string };
 type RouteInfo = { id: string; display_name: string; models: { id: string }[]; status?: string };
 
 const variantKey = (subject: string, conversation: string) => `mimi.web.variants.v1.${subject}.${conversation}`;
@@ -176,6 +177,8 @@ export function ConversationWorkspace({
   const [cards, setCards] = useState<Card[]>([]);
   const [deviceState, setDeviceState] = useState<Record<string, { state: DeviceCallState; receipt?: string }>>({});
   const [dropping, setDropping] = useState(false);
+  const [attachmentPreview, setAttachmentPreview] = useState<ComposerAttachment | null>(null);
+  const [dictationInterim, setDictationInterim] = useState("");
   const [detail, setDetail] = useState<string>("");
   const [reduceMotion, setReduceMotion] = useState(false);
   const [speaking, setSpeaking] = useState<string | null>(null);
@@ -187,6 +190,7 @@ export function ConversationWorkspace({
   const [workText, setWorkText] = useState("");
   const hydrated = useRef(false);
   const pendingAttachment = useRef<string | null>(null);
+  const attachmentPreviewRef = useRef<ComposerAttachment | null>(null);
   const dragDepth = useRef(0);
   const actionRunRef = useRef<string | null>(null);
   const controlRef = useRef<unknown>(null);
@@ -239,6 +243,11 @@ export function ConversationWorkspace({
       setVariants({});
     }
   }, [activeId, session.userId]);
+
+  useEffect(() => () => {
+    const current = attachmentPreviewRef.current;
+    if (current) URL.revokeObjectURL(current.previewUrl);
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -547,33 +556,56 @@ export function ConversationWorkspace({
     }
   }
 
+  function showAttachment(next: ComposerAttachment | null) {
+    const previous = attachmentPreviewRef.current;
+    if (previous && previous.previewUrl !== next?.previewUrl) URL.revokeObjectURL(previous.previewUrl);
+    attachmentPreviewRef.current = next;
+    setAttachmentPreview(next);
+  }
+
   async function upload(file: File) {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const mime = imageMime(bytes);
     if (!mime) return setError(copy.attachmentType);
     if (bytes.byteLength > MAX_ATTACHMENT_BYTES) return setError(copy.attachmentTooBig);
     const id = crypto.randomUUID();
-    const headers = await authedHeaders();
-    const created = await edgeFetch(attachmentCreateUrl(config, session.scopeId), {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ attachment_id: id, mime_type: mime, size_bytes: bytes.byteLength, sha256: await sha256Bytes(bytes) }),
-    });
-    const json = asRecord(await readJson(created));
-    const upload = asRecord(json?.upload);
-    if (upload?.method === "PUT") {
-      if (typeof upload.url !== "string" || !uploadUrlAllowed(upload.url, session.uploadHosts)) {
+    const name = file.name || "图片";
+    const previewUrl = URL.createObjectURL(file);
+    pendingAttachment.current = null;
+    showAttachment({ phase: "uploading", name, previewUrl });
+    setError(null);
+    try {
+      const headers = await authedHeaders();
+      const created = await edgeFetch(attachmentCreateUrl(config, session.scopeId), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ attachment_id: id, mime_type: mime, size_bytes: bytes.byteLength, sha256: await sha256Bytes(bytes) }),
+      });
+      const json = asRecord(await readJson(created));
+      const signed = asRecord(json?.upload);
+      if (signed?.method === "PUT") {
+        if (typeof signed.url !== "string" || !uploadUrlAllowed(signed.url, session.uploadHosts)) {
+          showAttachment(null);
+          setError("暂时连不上服务，请稍后重试");
+          return;
+        }
+        const putHeaders = asRecord(signed.headers) ?? {};
+        await fetch(signed.url, { method: "PUT", headers: Object.fromEntries(Object.entries(putHeaders).map(([key, value]) => [key, String(value)])), body: bytes });
+      }
+      const ready = await edgeFetch(attachmentCompleteUrl(config, session.scopeId, id), { method: "POST", headers, body: "{}" });
+      if (!ready.ok) {
+        showAttachment(null);
         setError("暂时连不上服务，请稍后重试");
         return;
       }
-      const putHeaders = asRecord(upload.headers) ?? {};
-      await fetch(upload.url, { method: "PUT", headers: Object.fromEntries(Object.entries(putHeaders).map(([key, value]) => [key, String(value)])), body: bytes });
+      setDraft((current) => current);
+      setError(null);
+      pendingAttachment.current = id;
+      showAttachment({ phase: "ready", name, previewUrl });
+    } catch (cause) {
+      showAttachment(null);
+      setError(cause instanceof Error ? cause.message : copy.attachmentType);
     }
-    const ready = await edgeFetch(attachmentCompleteUrl(config, session.scopeId, id), { method: "POST", headers, body: "{}" });
-    if (!ready.ok) return setError("暂时连不上服务，请稍后重试");
-    setDraft((current) => current);
-    setError(null);
-    pendingAttachment.current = id;
   }
 
   async function sendWithAttachment() {
@@ -581,6 +613,7 @@ export function ConversationWorkspace({
     if (!activeId || !draft.trim()) return send(draft);
     if (!attachment) return send(draft);
     pendingAttachment.current = null;
+    showAttachment(null);
     const chatId = activeId;
     const turnId = crypto.randomUUID();
     const messageId = crypto.randomUUID();
@@ -948,7 +981,7 @@ export function ConversationWorkspace({
           <span className="quiet">{connection}</span>
           <button className="text-button" onClick={onClose}>{copy.close}</button>
         </header>
-        {error ? <p className={error === copy.copied ? "ok" : "error"}>{error}</p> : null}
+        {error ? <p className={error === copy.copied ? "ok" : "error"} role="status">{error}</p> : null}
         {!active || active.messages.length === 0 ? (
           <div>
             <Image src="/mascot/idle.png" alt="" width={160} height={160} />
@@ -1051,12 +1084,18 @@ export function ConversationWorkspace({
         ) : null}
         <form className={dropping ? "composer drop-target" : "composer"} onSubmit={(event) => { event.preventDefault(); if (pendingAttachment.current) void sendWithAttachment(); else void send(draft); }}>
           {dropping ? <div className="drop-overlay">{copy.dropImage}</div> : null}
+          {attachmentPreview ? <AttachmentPreview attachment={attachmentPreview} /> : null}
           <label className="icon-button" aria-label={copy.attachment}>
             +
             <input type="file" accept="image/png,image/jpeg" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }} />
           </label>
-          <textarea aria-label={busy ? copy.continueAsk : copy.ask} placeholder={busy ? copy.continueAsk : copy.ask} value={draft} rows={1} onChange={(event) => setDraft(event.target.value)} />
-          <ComposerDictationButton subject={session.userId} draft={draft} onDraftChange={setDraft} />
+          <ComposerDraft
+            label={busy ? copy.continueAsk : copy.ask}
+            draft={draft}
+            interim={dictationInterim}
+            onChange={(value) => { setDraft(value); setDictationInterim(""); }}
+          />
+          <ComposerDictationButton subject={session.userId} draft={draft} onDraftChange={setDraft} onInterimChange={setDictationInterim} />
           <button className="round ink" type="submit" disabled={busy || !draft.trim()} aria-label={copy.send}>↑</button>
         </form>
       </section>
@@ -1262,6 +1301,64 @@ function MemoryPanel({ state, conversationId, onSubmit }: { state: unknown; conv
         sensitive_consent: false,
         claim: { kind: "preference", predicate, value, conditions: {}, assertion: "explicit", evidence: { span_start: 0, span_end: text.length } },
       })} disabled={!conversationId || !text.trim()}>{copy.remember}</button>
+    </div>
+  );
+}
+
+function ComposerDraft({
+  label,
+  draft,
+  interim,
+  onChange,
+}: {
+  label: string;
+  draft: string;
+  interim: string;
+  onChange: (value: string) => void;
+}) {
+  const pending = interim && draft.endsWith(interim) ? interim : "";
+  const settled = pending ? draft.slice(0, -pending.length) : "";
+  return (
+    <div className="composer-field">
+      <textarea
+        aria-label={label}
+        placeholder={label}
+        value={draft}
+        rows={1}
+        className={pending ? "draft-mask" : undefined}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {pending ? (
+        <div className="draft-mirror" aria-hidden="true">
+          <span>{settled}</span>
+          <span className="dictation-interim">{pending}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AttachmentPreview({ attachment }: { attachment: ComposerAttachment }) {
+  const ready = attachment.phase === "ready";
+  return (
+    <div className="attach-row">
+      {ready ? (
+        // Local blob preview. The image optimizer cannot fetch an object URL.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="attach-thumb" src={attachment.previewUrl} alt={attachment.name} />
+      ) : (
+        <span className="attach-thumb" role="img" aria-label={attachment.name}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3.5" y="5" width="17" height="14" rx="2" />
+            <circle cx="9" cy="10" r="1.5" />
+            <path d="M3.8 16.5 9 12.5l3.5 3 3-2.5 4.7 3.5" />
+          </svg>
+        </span>
+      )}
+      <div className="attach-meta">
+        <div className="attach-name">{attachment.name}</div>
+        <div className={ready ? "attach-status ready" : "attach-status"}>{ready ? copy.attachmentReady : copy.attachmentUploading}</div>
+      </div>
     </div>
   );
 }

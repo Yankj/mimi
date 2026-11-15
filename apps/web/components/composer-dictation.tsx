@@ -16,10 +16,12 @@ export function ComposerDictationButton({
   subject,
   draft,
   onDraftChange,
+  onInterimChange,
 }: {
   subject: string;
   draft: string;
   onDraftChange: (value: string) => void;
+  onInterimChange?: (value: string) => void;
 }) {
   const [supported, setSupported] = useState(false);
   const [consent, setConsent] = useState<DictationConsent>("unset");
@@ -63,12 +65,19 @@ export function ComposerDictationButton({
     if (!ctor || !canStartDictation("allow", true)) return;
     sessionRef.current?.abort();
     const session = createDictationSession(ctor, {
-      onTranscript: (value) => onDraftChange(value.draft),
+      onTranscript: (value) => {
+        onDraftChange(value.draft);
+        onInterimChange?.(value.interim);
+      },
       onError: (error) => {
         setListening(false);
+        onInterimChange?.("");
         showNotice(error === "not-allowed" ? copy.dictationPermission : copy.dictationFailed);
       },
-      onEnd: () => setListening(false),
+      onEnd: () => {
+        setListening(false);
+        onInterimChange?.("");
+      },
     });
     sessionRef.current = session;
     try {
@@ -77,6 +86,7 @@ export function ComposerDictationButton({
       setNotice(null);
     } catch {
       setListening(false);
+      onInterimChange?.("");
       showNotice(copy.dictationFailed);
     }
   }
@@ -85,6 +95,7 @@ export function ComposerDictationButton({
     if (listening) {
       sessionRef.current?.stop();
       setListening(false);
+      onInterimChange?.("");
       return;
     }
     if (consent !== "allow") {
@@ -104,7 +115,7 @@ export function ComposerDictationButton({
           aria-pressed={listening}
           onClick={toggle}
         >
-          <span aria-hidden="true">{listening ? "■" : "◎"}</span>
+          {listening ? <StopIcon /> : <MicIcon />}
         </button>
         {notice ? <p className="error dictation-notice" role="status">{notice}</p> : null}
       </span>
@@ -121,5 +132,22 @@ export function ComposerDictationButton({
         </div>
       ) : null}
     </>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="9" y="3.5" width="6" height="10" rx="3" />
+      <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v3.5M9 20.5h6" />
+    </svg>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" />
+    </svg>
   );
 }

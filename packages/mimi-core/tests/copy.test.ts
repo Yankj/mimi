@@ -10,8 +10,16 @@ test("shared copy keeps the iOS parenting tab and empty-state wording", () => {
   assert.match(copy.addChildBlocked, /不保存、不同步任何孩子资料/);
   assert.equal(copy.emptyToday, "今天还没有安排。直接对小咪说一件事就行。");
   assert.equal(copy.dictation, "听写");
+  assert.equal(copy.dictationStop, "停止听写");
   assert.match(copy.dictationPrivacyBody, /小咪不会把录音发到自己的服务器/);
+  assert.equal(copy.attachmentUploading, "上传中…");
+  assert.equal(copy.attachmentReady, "已上传，待发送");
+  assert.equal(copy.deviceIcsFootnote, "在网页上会下载一个日历文件，不会直接写入系统日历。");
   assert.equal(copy.deviceIcsReceipt, "已下载日历文件，请在日历应用中打开");
+  assert.equal(copy.deviceDownloadIcs, "下载日历文件");
+  const visible = Object.values(copy).join("\n");
+  assert.doesNotMatch(visible, /转写中/);
+  assert.doesNotMatch(visible, /加入/);
   assert.equal(starters.length, 6);
   assert.deepEqual(orderedStarters(8).map((item) => item.id), ["schedule", "reminder", "meeting", "nearby", "breakdown", "writing"]);
   assert.deepEqual(orderedStarters(14).map((item) => item.id), ["meeting", "schedule", "nearby", "reminder", "breakdown", "writing"]);

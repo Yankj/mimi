@@ -5,6 +5,7 @@ import {
   canStartDictation,
   dictationConsentKey,
   createDictationSession,
+  dictationPartsFromResult,
   isDictationSupported,
   mergeDictationDraft,
   readDictationConsent,
@@ -73,9 +74,26 @@ test("recognition results concatenate and merge with a draft prefix", () => {
     ],
   };
   assert.equal(transcriptFromResult(event), "今天去公园");
+  assert.deepEqual(dictationPartsFromResult(event), { finalText: "今天", interimText: "去公园", transcript: "今天去公园" });
   assert.equal(mergeDictationDraft("", "今天"), "今天");
   assert.equal(mergeDictationDraft("已有", "补充"), "已有 补充");
   assert.equal(mergeDictationDraft("已有 ", "补充"), "已有 补充");
+});
+
+test("interim text is written into the draft and there is no separate transcribing phase", () => {
+  const seen: { draft: string; interim: string }[] = [];
+  const session = createDictationSession(FakeRecognition, {
+    onTranscript: (value) => seen.push({ draft: value.draft, interim: value.interim }),
+    onError: () => undefined,
+    onEnd: () => undefined,
+  });
+  session.start("周六春游要带");
+  (session.recognition as FakeRecognition).emitParts([
+    { transcript: "水壶", isFinal: true },
+    { transcript: "和帽子", isFinal: false },
+  ]);
+  assert.deepEqual(seen.at(-1), { draft: "周六春游要带 水壶和帽子", interim: "和帽子" });
+  assert.equal("transcribing" in session, false);
 });
 
 class FakeRecognition implements SpeechRecognitionLike {
@@ -90,9 +108,12 @@ class FakeRecognition implements SpeechRecognitionLike {
   stop() { this.started = false; this.onend?.(); }
   abort() { this.started = false; this.onend?.(); }
   emit(transcript: string, isFinal = false) {
+    this.emitParts([{ transcript, isFinal }]);
+  }
+  emitParts(parts: { transcript: string; isFinal: boolean }[]) {
     this.onresult?.({
       resultIndex: 0,
-      results: [Object.assign([{ transcript }], { isFinal, length: 1 })],
+      results: parts.map((part) => Object.assign([{ transcript: part.transcript }], { isFinal: part.isFinal, length: 1 })),
     });
   }
 }

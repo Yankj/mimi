@@ -56,12 +56,20 @@ export function canStartDictation(consent: DictationConsent, supported: boolean)
 }
 
 export function transcriptFromResult(event: SpeechRecognitionResultEventLike, fromIndex = 0) {
-  let text = "";
+  return dictationPartsFromResult(event, fromIndex).transcript;
+}
+
+/** Finalized text stays in the draft; interim text is only the not-yet-final suffix. There is no separate transcribing phase. */
+export function dictationPartsFromResult(event: SpeechRecognitionResultEventLike, fromIndex = 0) {
+  let finalText = "";
+  let interimText = "";
   for (let index = fromIndex; index < event.results.length; index += 1) {
     const result = event.results[index];
-    text += result[0]?.transcript ?? "";
+    const text = result[0]?.transcript ?? "";
+    if (result.isFinal) finalText += text;
+    else interimText += text;
   }
-  return text;
+  return { finalText, interimText, transcript: `${finalText}${interimText}` };
 }
 
 export function mergeDictationDraft(prefix: string, transcript: string) {
@@ -75,7 +83,7 @@ export function createDictationSession(
   ctor: new () => SpeechRecognitionLike,
   options: {
     lang?: string;
-    onTranscript: (text: { prefix: string; transcript: string; draft: string; isFinal: boolean }) => void;
+    onTranscript: (text: { prefix: string; transcript: string; draft: string; interim: string; isFinal: boolean }) => void;
     onError: (error: string) => void;
     onEnd: () => void;
   },
@@ -86,12 +94,13 @@ export function createDictationSession(
   recognition.interimResults = true;
   const prefix = { value: "" };
   recognition.onresult = (event) => {
-    const transcript = transcriptFromResult(event, 0);
+    const parts = dictationPartsFromResult(event, 0);
     const last = event.results[event.results.length - 1];
     options.onTranscript({
       prefix: prefix.value,
-      transcript,
-      draft: mergeDictationDraft(prefix.value, transcript),
+      transcript: parts.transcript,
+      draft: mergeDictationDraft(prefix.value, parts.transcript),
+      interim: parts.interimText,
       isFinal: last?.isFinal === true,
     });
   };

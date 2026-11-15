@@ -221,6 +221,7 @@ a { color: var(--deep); }
   position: sticky;
   bottom: 0;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: flex-end;
   padding: 10px;
@@ -230,6 +231,49 @@ a { color: var(--deep); }
   backdrop-filter: blur(18px);
 }
 .composer textarea { resize: none; min-height: 44px; max-height: 140px; }
+.composer-field { position: relative; flex: 1; min-width: 0; }
+.composer-field textarea { display: block; width: 100%; padding: 10px 2px; line-height: 1.45; }
+.composer-field textarea.draft-mask { color: transparent; caret-color: var(--ink); }
+.draft-mirror {
+  position: absolute;
+  inset: 0;
+  padding: 10px 2px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--ink);
+}
+.dictation-interim { color: var(--ink-3); }
+.attach-row {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 2px 6px 6px;
+}
+.attach-thumb {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+  overflow: hidden;
+}
+.attach-meta { min-width: 0; }
+.attach-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+}
+.attach-status { color: var(--ink-2); font-size: 13px; }
+.attach-status.ready { color: var(--success); }
 .composer.drop-target,
 .transcript.dropping {
   outline: 2px dashed var(--accent);

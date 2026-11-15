@@ -90,17 +90,30 @@ test("device tools map to confirm-then-open actions and never claim a system wri
   }, now);
   assert.equal(calendar.kind, "ics");
   if (calendar.kind === "ics") {
-    assert.equal(calendar.title, "加入日历");
-    assert.equal(calendar.confirmLabel, "加入");
-    assert.match(calendar.footnote, /不会直接写入系统日历/);
+    assert.equal(calendar.title, "下载日历文件");
+    assert.equal(calendar.confirmLabel, "下载日历文件");
+    assert.equal(calendar.footnote, "在网页上会下载一个日历文件，不会直接写入系统日历。");
     assert.equal(calendar.receipt, "已下载日历文件，请在日历应用中打开");
     assert.match(calendar.ics, /SUMMARY:评审会/);
     assert.match(calendar.ics, /LOCATION:望京 SOHO/);
-    assert.doesNotMatch(calendar.receipt, /已加入日历|已写入系统/);
+    assert.doesNotMatch(`${calendar.title}\n${calendar.confirmLabel}\n${calendar.footnote}\n${calendar.receipt}`, /加入|新建提醒|创建/);
   }
 
   const reminder = deviceActionFromTool("reminder_create", { title: "回电话", due: "2026-11-12T10:00:00+08:00" }, now);
   assert.equal(reminder.kind, "ics");
+  if (reminder.kind === "ics") {
+    assert.equal(reminder.title, "下载日历文件");
+    assert.equal(reminder.confirmLabel, "下载日历文件");
+    assert.equal(reminder.footnote, calendar.kind === "ics" ? calendar.footnote : "");
+    assert.equal(reminder.receipt, "已下载日历文件，请在日历应用中打开");
+    assert.doesNotMatch(`${reminder.title}\n${reminder.confirmLabel}\n${reminder.footnote}\n${reminder.receipt}`, /加入|新建提醒|创建/);
+  }
+  assert.equal(call.title, "打电话");
+  assert.equal(call.confirmLabel, "呼叫");
+  assert.equal(mail.title, "写邮件");
+  assert.equal(mail.confirmLabel, "去发送");
+  assert.equal(map.title, "打开地图");
+  assert.equal(map.confirmLabel, "打开");
 
   for (const tool of ["sms_compose", "contacts_search", "alarm_set"] as const) {
     const action = deviceActionFromTool(tool, { to: "10086", query: "Ada", time: "2026-11-12T07:00:00+08:00", label: "起床" });
