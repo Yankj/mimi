@@ -8,6 +8,8 @@ FINAL-G1的对话必需细分：[CGUI-1](../design/conversation-generative-ui-sp
 
 当前执行按 [AF-1 Goal/计划](../planning/AF-1/goal.md)、[18项功能验收](../acceptance/agent-foundation-acceptance.md)、[12项体验验收](../acceptance/ios-codex-experience-acceptance.md)和 CP-01–03。旧 R1–R3 规格、一页说明与 v1/r2/r3 能力表已退出当前开工入口，集中见 [历史归档索引](../archive/README.md)。原件、冻结规格和证据仍保留。
 
+用户已决定打开家庭同步。方案草案（未实施、未部署、未合并即不生效）：[家庭同步设计](family-sync-design.md)。今天 / 成长 / 我们家在 Web 与小程序上仍是只读外壳，直到该草案获批后的后续 PR。实时进度仍只在主计划。
+
 <details>
 <summary>历史产品规格与 v1/r2/r3 能力边界</summary>
 

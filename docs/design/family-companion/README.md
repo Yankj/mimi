@@ -11,6 +11,7 @@
 5. [技术架构图](assets/technical-architecture.png)：现有原生宿主 + 模块化 Edge 后端 + 一个 Postgres；未新建云服务。
 6. [决策记录](decisions.md)：已确认方向、工程建议和待确认项分开。
 7. [家庭 API v1](api-v1.md)：冻结协议 `catpaw.family.v1`。iOS 与后端按该文件对齐；文件本身不是部署或验收。
+8. [家庭同步设计草案](../../product/family-sync-design.md)（2026-11-15）：用户决定打开同步后的产品草案。不改写本目录已冻结的 `catpaw.family.v1`，也不表示迁移或部署已获批。
 
 ## 延后执行计划
 
