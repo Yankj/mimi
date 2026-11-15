@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LoggedOutLogin, SessionChecking } from "@/components/auth-gate";
 import { ConversationWorkspace } from "@/components/conversation-workspace";
 import { noteLocalActivity } from "@/lib/activity-ping";
+import type { BrandAssets } from "@/lib/brand";
 import { BrowserWipeError, wipeBrowserState } from "@/lib/browser-wipe";
 import { copy } from "@/lib/copy";
 import { IDLE_MS } from "@/lib/lock";
@@ -19,7 +20,7 @@ async function loadProfile(signal: AbortSignal): Promise<WebProfile | null> {
   return (await response.json()) as WebProfile;
 }
 
-export function AppShell() {
+export function AppShell({ brand }: { brand: BrandAssets }) {
   const [session, setSession] = useState<WebProfile | null>(null);
   const [phase, setPhase] = useState<"boot" | "login" | "home">("boot");
   const [notice, setNotice] = useState<string | null>(null);
@@ -166,12 +167,13 @@ export function AppShell() {
   }
 
   if (phase === "boot") {
-    return <SessionChecking />;
+    return <SessionChecking brand={brand} />;
   }
 
   if (phase === "login" || !session) {
     return (
       <LoggedOutLogin
+        brand={brand}
         notice={notice}
         busy={busy}
         onGoogle={() => void startOAuth("google")}

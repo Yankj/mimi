@@ -3,17 +3,21 @@
 // Node tests compile this module with the classic JSX runtime.
 import React from "react";
 import Image from "next/image";
+import type { BrandAssets } from "@/lib/brand";
 import { copy } from "@/lib/copy";
 
-/** Wordmark, cat mark, and mascot shared by the session check and the logged-out gate.
- *  The mark is the existing asset at docs/brand/mark.svg, served unchanged.
- *  The mascot is the same /mascot/idle.png the login page already uses.
+/** Wordmark, inlined cat mark, and inlined mascot.
+ *  A hard refresh paints text before a second image response. The mark is the
+ *  SVG path itself, and the mascot bytes sit on the img, so neither waits on
+ *  /brand/mark.svg or the image optimizer.
  */
-export function BrandLockup() {
+export function BrandLockup({ brand }: { brand: BrandAssets }) {
   return (
     <div>
       <div className="brand-row">
-        <Image className="brand-mark" src="/brand/mark.svg" alt="" width={40} height={40} priority />
+        <svg className="brand-mark" viewBox="0 0 512 512" width="40" height="40" aria-hidden="true">
+          <path fill={brand.markFill} fillRule="evenodd" d={brand.markPath} />
+        </svg>
         <p className="brand">{copy.brand} <span className="brand-sub">小咪</span></p>
       </div>
       <p className="brand-sub">{copy.brandSubtitle}</p>
@@ -21,22 +25,22 @@ export function BrandLockup() {
   );
 }
 
-function BrandMascot() {
+function BrandMascot({ brand }: { brand: BrandAssets }) {
   return (
     <div className="mascot-wrap">
       <div className="mascot-orb">
-        <Image src="/mascot/idle.png" alt="" width={180} height={180} priority />
+        <Image src={brand.mascotSrc} alt="" width={180} height={180} decoding="sync" />
       </div>
     </div>
   );
 }
 
-export function SessionChecking() {
+export function SessionChecking({ brand }: { brand: BrandAssets }) {
   return (
     <main className="login" aria-busy="true">
-      <BrandLockup />
+      <BrandLockup brand={brand} />
       <div>
-        <BrandMascot />
+        <BrandMascot brand={brand} />
       </div>
       <p role="status">{copy.restoring}</p>
     </main>
@@ -44,11 +48,13 @@ export function SessionChecking() {
 }
 
 export function LoggedOutLogin({
+  brand,
   notice,
   busy,
   onGoogle,
   onGitHub,
 }: {
+  brand: BrandAssets;
   notice: string | null;
   busy: boolean;
   onGoogle: () => void;
@@ -56,9 +62,9 @@ export function LoggedOutLogin({
 }) {
   return (
     <main className="login">
-      <BrandLockup />
+      <BrandLockup brand={brand} />
       <div>
-        <BrandMascot />
+        <BrandMascot brand={brand} />
         <h1 className="headline">{copy.headline}</h1>
         <p className="quiet">{copy.subtitle}</p>
       </div>
