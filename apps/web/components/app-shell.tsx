@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ConversationWorkspace } from "@/components/conversation-workspace";
+import { TodayReminders } from "@/components/today-reminders";
 import { noteLocalActivity } from "@/lib/activity-ping";
 import { BrowserWipeError, wipeBrowserState } from "@/lib/browser-wipe";
 import { copy } from "@/lib/copy";
@@ -286,7 +287,12 @@ function ParentingShell({ email, notice, onSignOut, onOpenChat }: { email: strin
           <>
             <h1>{tab === "today" ? copy.today : tab === "growth" ? copy.growth : copy.family}</h1>
             <EmptyChild onAdd={() => setAddOpen(true)} />
-            {tab === "today" ? <p className="quiet">{copy.emptyToday}</p> : null}
+            {tab === "today" ? (
+              <>
+                <p className="quiet">{copy.emptyToday}</p>
+                <TodayReminders />
+              </>
+            ) : null}
             {tab === "growth" ? (
               <div className="stack">
                 <button className="row-link" onClick={() => setPage("timeline")}><strong>{copy.timelineTitle}</strong><span className="quiet">{copy.noRecords}</span></button>
@@ -320,6 +326,7 @@ function ParentingShell({ email, notice, onSignOut, onOpenChat }: { email: strin
             <button className="text-button" onClick={() => setPage("home")}>{copy.family}</button>
             <h1>{copy.reminders}</h1>
             <p>{copy.reminderPage}</p>
+            <TodayReminders />
           </section>
         ) : null}
         {page === "settings" ? (
