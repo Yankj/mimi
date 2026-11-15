@@ -1,18 +1,26 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { LoggedOutLogin, SessionChecking } from "@/components/auth-gate";
 import { ConversationWorkspace } from "@/components/conversation-workspace";
 import { noteLocalActivity } from "@/lib/activity-ping";
+import type { BrandAssets } from "@/lib/brand";
 import { BrowserWipeError, wipeBrowserState } from "@/lib/browser-wipe";
 import { copy } from "@/lib/copy";
 import { IDLE_MS } from "@/lib/lock";
 import type { WebProfile } from "@/lib/profile";
+import { probeSession } from "@/lib/session-probe";
 
 type Tab = "today" | "growth" | "family";
 type Page = "home" | "settings" | "reminders" | "timeline" | "goals";
 
-export function AppShell() {
+async function loadProfile(signal: AbortSignal): Promise<WebProfile | null> {
+  const response = await fetch("/api/session", { cache: "no-store", signal });
+  if (!response.ok) return null;
+  return (await response.json()) as WebProfile;
+}
+
+export function AppShell({ brand }: { brand: BrandAssets }) {
   const [session, setSession] = useState<WebProfile | null>(null);
   const [phase, setPhase] = useState<"boot" | "login" | "home">("boot");
   const [notice, setNotice] = useState<string | null>(null);
@@ -28,6 +36,8 @@ export function AppShell() {
     if (params.get("notice") === "invalid") setNotice(copy.invalidResponse);
     const switching = params.get("switch") === "1";
     const switchedAccount = params.get("reauth") === "switched";
+    const controller = new AbortController();
+    let cancelled = false;
     void (async () => {
       if (switchedAccount) {
         try {
@@ -36,17 +46,21 @@ export function AppShell() {
           if (error instanceof BrowserWipeError) setNotice(copy.wipeBlocked);
         }
       }
-      const response = await fetch("/api/session", { cache: "no-store" });
-      if (!response.ok) {
+      const result = await probeSession(loadProfile, { signal: controller.signal });
+      if (cancelled) return;
+      if (!result.ok) {
         setPhase("login");
         return;
       }
-      const profile = (await response.json()) as WebProfile;
-      setSession(profile);
-      setLocked(profile.locked);
+      setSession(result.profile);
+      setLocked(result.profile.locked);
       setPhase("home");
       if (switching && !switchedAccount) setSwitchOpen(true);
-    })().catch(() => setPhase("login"));
+    })();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, []);
 
   async function startOAuth(provider: "google" | "github") {
@@ -153,29 +167,18 @@ export function AppShell() {
   }
 
   if (phase === "boot") {
-    return <main className="login"><p>{copy.restoring}</p></main>;
+    return <SessionChecking brand={brand} />;
   }
 
   if (phase === "login" || !session) {
     return (
-      <main className="login">
-        <div>
-          <p className="brand">mimi <span className="brand-sub">小咪</span></p>
-          <p className="brand-sub">{copy.brandSubtitle}</p>
-        </div>
-        <div>
-          <div className="mascot-wrap"><div className="mascot-orb"><Image src="/mascot/idle.png" alt="" width={180} height={180} priority /></div></div>
-          <h1 className="headline">{copy.headline}</h1>
-          <p className="quiet">{copy.subtitle}</p>
-        </div>
-        <div className="stack">
-          <h2>{copy.loginTitle}</h2>
-          <p className="quiet">{copy.oauthOnly}</p>
-          {notice ? <p className="error">{notice}</p> : null}
-          <button className="cta" disabled={busy} onClick={() => void startOAuth("google")}>{copy.google}</button>
-          <button className="cta" disabled={busy} onClick={() => void startOAuth("github")}>{copy.github}</button>
-        </div>
-      </main>
+      <LoggedOutLogin
+        brand={brand}
+        notice={notice}
+        busy={busy}
+        onGoogle={() => void startOAuth("google")}
+        onGitHub={() => void startOAuth("github")}
+      />
     );
   }
 

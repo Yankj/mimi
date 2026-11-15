@@ -66,6 +66,9 @@ a { color: var(--deep); }
   margin: 0 auto;
 }
 .brand { font-weight: 650; letter-spacing: 0.01em; }
+.brand-row { display: flex; align-items: center; gap: 10px; }
+.brand-row .brand { margin: 0; }
+.brand-mark { width: 40px; height: 40px; flex: none; display: block; }
 .brand-sub, .quiet { color: var(--ink-2); }
 .headline {
   font-family: var(--serif);
