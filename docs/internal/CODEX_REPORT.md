@@ -1,5 +1,7 @@
 # Workspace connection recovery
 
+> 这是 2026-10-16 的内部实现过程记录，不是当前对外产品说明。实时进展见 [主计划](../status/master-plan.md)。
+
 Implementation on `fix/workspace-connect`, 2026-10-16. Continued the existing auth WIP; the existing PRD edit is preserved outside this commit. No PRD or design document was written.
 
 ## Root cause

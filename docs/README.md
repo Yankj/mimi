@@ -1,13 +1,13 @@
 # 文档索引（Diátaxis）
 
-[← 返回项目 README](../README.md) · 当前进展只维护在 [主交付计划](status/master-plan.md)
+[← 返回项目 README](../README.md) · 当前进展只维护在 [主交付计划](status/master-plan.md) · [内部过程记录](internal/README.md)
 
 本索引按 [Diátaxis](https://diataxis.fr/) 四象限组织。旧文档是其日期 / 源码范围的证据，保留原文，不把历史计数改成当前通过。
 
 | 象限 | 读者目标 | 入口 |
 |---|---|---|
-| **Tutorials 教程** | 第一次跑起来 | [README · Quick Start](../README.md#quick-start)、[接手说明](../handoff.md)、[iOS 工程说明](../apps/ios-conversation/README.md) |
-| **How-to 操作指南** | 完成具体任务 | [下载与安装](../README.md#下载与安装)、[使用场景](../README.md#使用)、[录屏分镜](demo-script.md)、[开发与测试](../README.md#开发与测试)、[Edge 离线验证](../services/edge/README.md)、[分支规范](development/branch-management.md)、[贡献指南](../CONTRIBUTING.md)、[长任务开发启动合同](planning/AF-1/development-start-contract.md) |
+| **Tutorials 教程** | 第一次跑起来 | [README · Quick Start](../README.md#quick-start)、[接手说明](internal/handoff.md)、[iOS 工程说明](../apps/ios-conversation/README.md) |
+| **How-to 操作指南** | 完成具体任务 | [版本与体验](../README.md#版本与体验)、[使用场景](../README.md#使用)、[录屏分镜](demo-script.md)、[开发与测试](../README.md#开发与测试)、[Edge 离线验证](../services/edge/README.md)、[分支规范](development/branch-management.md)、[贡献指南](../CONTRIBUTING.md)、[长任务开发启动合同](planning/AF-1/development-start-contract.md) |
 | **Reference 参考** | 查准确信息 | [配置参考](../README.md#配置参考)、[CHANGELOG](../CHANGELOG.md)、[iOS 版本规范](development/ios-versioning.md)、[目录角色](development/repository-layout.json)、[AF-1 底座 spec](product/agent-foundation-spec.md)、[CGUI-1](design/conversation-generative-ui-spec.md)、[设计 tokens](design/design-tokens.json)、[验收索引](acceptance/README.md)、[执行切片](status/delivery-slices.json)、[冻结合同](../services/facade/contract/native-contract-v1.json) |
 | **Explanation 原理** | 理解为什么 | [架构总览](architecture.md)、[架构索引](architecture/README.md)、[最新代码与分支复核](architecture/repository-review-2026-10-15.md)、[ADR-005](architecture/adr-005-runtime-reuse-and-hosting.md)、[研究索引](research/README.md)、[云电脑提案](architecture/cloud-computer-proposal.md) |
 

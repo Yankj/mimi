@@ -49,7 +49,7 @@
 主要用户是在手机上短暂交代、途中调整、稍后查收的个人。自然对话提出目标，原生交互作决定，实际成果验收工作；离开后已受理云端工作继续，回来接同事项。普通问题直接回答，通用性用同一底座组合不同工作证明。
 AF-G5基础门要求同一发布候选AF-A01–18、AF-U01–12、CP-01–03全部通过；FINAL-G1在基础门上再通过FQ-01–09、CG-A01–10和7天真实日用；FINAL-G2要求BP-01–08具名竞品记录齐备并满足每个参照的比较规则；FINAL-G3只有G1/G2同候选成立、源码/包/部署/证据可追溯且无必需阻断才完成。可以交付已通过阶段，缺少比较证据就保留长期未完成条件和限制，不偷删必需项。
 
-先读 AGENTS.md、README.md、handoff.md、docs/status/master-plan.md、docs/planning/AF-1/development-start-contract.md 和 docs/design/product-experience-review-2026-10-13.md；沿链接读 AF-1、UX-1设计修订R5以及 docs/design/taste-visual-motion-r2.md、docs/design/taste-visual-motion-r2.json、FINAL-1、CGUI-1 的规格、验收、W/D依赖与来源。检查当前工作区、活跃owner和运行Goal实际状态，保留未提交工作。已有Goal按其合同继续，不覆盖、偷换或重复创建；AF-1-G3-UX1基础门与FINAL-G3终版门分开，usageLimited等受限状态不能绕过。
+先读 AGENTS.md、README.md、docs/internal/handoff.md、docs/status/master-plan.md、docs/planning/AF-1/development-start-contract.md 和 docs/design/product-experience-review-2026-10-13.md；沿链接读 AF-1、UX-1设计修订R5以及 docs/design/taste-visual-motion-r2.md、docs/design/taste-visual-motion-r2.json、FINAL-1、CGUI-1 的规格、验收、W/D依赖与来源。检查当前工作区、活跃owner和运行Goal实际状态，保留未提交工作。已有Goal按其合同继续，不覆盖、偷换或重复创建；AF-1-G3-UX1基础门与FINAL-G3终版门分开，usageLimited等受限状态不能绕过。
 
 同时读docs/README.md、docs/status/local-integration-source.json、docs/acceptance/local-fixed-directory.md、docs/development/branch-management.md和docs/architecture/repository-review-2026-10-13.md。盘点现有docs，区分当前规格、验收合同、日期证据、历史来源和待确认提案，沿索引读相关全文。最新人类决定优先；AF-1管领域与协议，FINAL-1管产品和质量，UX-1及附录管呈现，CGUI管受控交互，验收合同裁决完成，master-plan管当前状态。R3状态、R4连续机制、R5移动视觉／过程／菜单按职责组合，R4.1保留日期输入，不按日期全盘覆盖旧合同。未Accepted的runtime/托管方案不当成已决定，参考图不当官方tokens；范围或阈值变更先版本化。历史PASS与交接快照不能沿用成当前事实。
 

@@ -2,47 +2,45 @@
 
 <div align="center">
 
-# mimi
+# 小咪 / Mimi
 
-本次育儿核心改造以“今天的孩子安排、家长自定小目标、成长记录”为主入口，聊天辅助整理具体事情。设计与状态约定见 [育儿核心规格](docs/design/family-companion/parenting-core.md)，当前实现与验收边界见 [主计划](docs/status/master-plan.md)。本机加密账本与既有云端 Agent 任务分开；保存本机安排不代表云同步、日历写入或通知成功。
+**先你一步，把事办妥。**
 
-本地品牌迁移与保留身份见 [兼容说明](docs/development/cat-brand-migration.md)，验证范围见 [本地记录](docs/acceptance/cat-brand-2026-10-22.md)。
+面向家庭育儿的 iOS 助理。家里的事，交给小咪记着。拍一张、说一句，它整理成待你确认的卡片；今天要办的一目了然，我们家的事它都记得，你点头之前什么都不改。
 
-家庭成长助理入口：[主计划与当前范围](docs/status/master-plan.md) · [本地与云端总交接](docs/acceptance/family-companion/handoff-2026-10-23.md) · [独立官网候选及验证说明](https://github.com/Yankj/mimi/tree/7ca0c4535dbfb6419a5000eab8275d08be051ceb/apps/website/family)。
-
-**把今天安排好，把成长点滴留下。**
-
-面向宝妈育儿与孩子长期成长的 iOS App：交代一件事 → 整理可编辑草稿 → 明确确认安排 → 今天调整与完成 → 关联目标回顾。聊天和多模态输入服务具体事情；本轮候选与已发布版本的能力边界分别记录。
+[产品站](https://mimi.heydusk.com) · [v1.2.0](https://github.com/Yankj/mimi/releases/tag/v1.2.0)（2026-10-18 已发布） · [安全与隐私](https://mimi.heydusk.com/#privacy)
 
 ![Swift 5](https://img.shields.io/badge/Swift-5-F05138?logo=swift&logoColor=white)
 ![iOS 17+](https://img.shields.io/badge/iOS-17%2B-000000?logo=apple&logoColor=white)
 ![SwiftUI](https://img.shields.io/badge/SwiftUI-SwiftData-0D96F6?logo=swift&logoColor=white)
 ![Supabase Edge](https://img.shields.io/badge/Supabase-Edge%20Functions-3ECF8E?logo=supabase&logoColor=white)
-![Deno](https://img.shields.io/badge/Deno-tests-000000?logo=deno&logoColor=white)
-![Backend](https://img.shields.io/badge/catpaw--api-v55%20(prod)-3ECF8E)
-![App](https://img.shields.io/badge/App-v1.2.0%20on%20main-brightgreen)
-[![下载](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Releases-2EA44F?logo=github&logoColor=white)](https://github.com/Yankj/mimi/releases/latest)
-![License](https://img.shields.io/badge/license-TBD-lightgrey)
+![Version](https://img.shields.io/badge/version-v1.2.0-brightgreen)
+![License](https://img.shields.io/badge/license-All%20Rights%20Reserved%20·%20仅供查阅-lightgrey)
+
+源码仅供查阅，未授权使用。详见 [LICENSE](LICENSE)。
 
 <img src="docs/assets/slides/slide-01.png" alt="小咪介绍图" width="720">
 
 <sub>设计示意（演示幻灯片封面），非 App 实拍。</sub>
 
-[产品官网](#产品官网) · [快速开始](#quick-start) · [下载与安装](#下载与安装) · [功能](#核心功能) · [演示](#演示) · [架构](#架构) · [文档索引](docs/README.md) · [详细架构](docs/architecture.md) · [贡献指南](CONTRIBUTING.md)
-
 </div>
 
-> [!NOTE]
-> **版本状态（2026-10-18）**：iOS **v1.2.0**（2026-10-18）已发布，见 [Releases](https://github.com/Yankj/mimi/releases/latest)，下表所有能力都在 `main` 上；版本记录见 [CHANGELOG](CHANGELOG.md)。线上后端为 `catpaw-api` **v55**（#104）、`catpaw-proactive` **v10**（#101）。逐项进展以 [主计划](docs/status/master-plan.md) 为准。
+- **主动**：到点之前，先来找你。
+- **有记忆**：记住偏好，也真正用上。
+- **能执行**：写进日历，留下回执。
+- **可信**：先问你，再动手。
+
+想从源码理解这个项目，先读本页的能力说明和 [Quick Start](#quick-start)，再按需查看 [文档索引](docs/README.md) 与 [架构](docs/architecture.md)。本仓库包含可运行的 iOS App、后端源码与产品文档。
+
+[快速开始](#quick-start) · [核心功能](#核心功能) · [版本与体验](#版本与体验) · [架构](#架构) · [文档索引](docs/README.md) · [贡献指南](CONTRIBUTING.md)
 
 <details>
 <summary><b>目录</b></summary>
 
-- [产品官网](#产品官网)
 - [背景](#背景)
 - [核心功能](#核心功能)
 - [Quick Start](#quick-start)
-- [下载与安装](#下载与安装)
+- [版本与体验](#版本与体验)
 - [使用](#使用)
 - [演示](#演示)
 - [架构](#架构)
@@ -57,20 +55,12 @@
 
 </details>
 
-<!-- CATPAW-WEBSITE:START -->
-## 产品官网
+<details>
+<summary>内部规格、主计划与过程记录</summary>
 
-**先你一步，把事办妥。** 家里的事，交给小咪记着。拍一张、说一句，它整理成待你确认的卡片；今天要办的一目了然，我们家的事它都记得，你点头之前什么都不改。
+设计与状态约定见 [育儿核心规格](docs/design/family-companion/parenting-core.md)，当前实现与验收边界见 [主计划](docs/status/master-plan.md)。接手说明与日期过程记录在 [docs/internal](docs/internal/README.md)。完整文档索引见 [docs/README.md](docs/README.md)。
 
-[浏览官网](https://mimi.heydusk.com/) · [观看产品视频](https://mimi.heydusk.com/#film) · [25 页产品介绍](https://mimi.heydusk.com/assets/catpaw-product-deck.pdf) · [安全与隐私](https://mimi.heydusk.com/trust.html) · [技术设计](https://mimi.heydusk.com/technology.html)
-
-- **主动**：到点之前，先来找你。
-- **有记忆**：记住偏好，也真正用上。
-- **能执行**：写进日历，留下回执。
-- **可信**：先问你，再动手。
-
-官网源码位于公司站仓库 [Yankj/heydusk-site/apps/mimi](https://github.com/Yankj/heydusk-site/tree/main/apps/mimi)，与 heydusk.com 同仓分目录部署；本仓库 [apps/website](apps/website) 仅保留迁出说明。演示素材保留 v1.1 版本；当前入口、状态与限制以 [能力清单](docs/product/capabilities/catpaw-capabilities.json) 和 [CHANGELOG](CHANGELOG.md) 为准。
-<!-- CATPAW-WEBSITE:END -->
+</details>
 
 ## 背景
 
@@ -142,56 +132,19 @@ open apps/ios-conversation/cat.xcodeproj
 2. `⌘R` 运行。未配置 Supabase / 模型时 App 走离线合成路径：可以浏览界面和组件，但**不会产生真实模型回答**。
 3. 真实产品构建用 scheme **`DeviceTrial`**，需在本地提供公开配置与签名（见[配置参考](#配置参考)），仓库里这些值是空的。
 
-不想自己编译时，可以直接装打包好的构建，见[下载与安装](#下载与安装)。
+当前没有可直接安装的发行包。版本说明见[版本与体验](#版本与体验)；如需在模拟器中运行，按上面的步骤从源码构建。
 
 <p align="right">(<a href="#readme-top">返回顶部</a>)</p>
 
-## 下载与安装
+## 版本与体验
 
-> **操作指南（How-to）**：安装已打包的构建。所有构建都在 [Releases](https://github.com/Yankj/mimi/releases/latest) 页面；仓库目前是私有的，需要有仓库访问权限才能下载。
+> **说明**：当前版本与如何从源码运行。
 
-> [!TIP]
-> 最新版本：[mimi v1.2.0](https://github.com/Yankj/mimi/releases/tag/v1.2.0)（2026-10-18），文件为 `Catpaw-1.2.0-simulator.zip` 和 `Catpaw-1.2.0.ipa`（历史发行物，保留原名）。
+当前版本为 [v1.2.0](https://github.com/Yankj/mimi/releases/tag/v1.2.0)（2026-10-18），版本记录见 [CHANGELOG](CHANGELOG.md)。
 
-| 方式 | 文件 | 适合 | 限制 |
-|---|---|---|---|
-| A. 模拟器 | `Catpaw-<版本>-simulator.zip` | 在 Mac 上快速体验 | 只能装在 iOS 模拟器上，不能装真机 |
-| B. 真机（开发签名） | `Catpaw-<版本>.ipa` | 已登记的测试设备 | **只能装在开发者描述文件（provisioning profile）里登记过 UDID 的设备上** |
-| C. 从源码构建 | — | 开发、评审 | 需要 Xcode 26 |
+该 Release 提供版本说明。目前没有 App Store、TestFlight 或可直接下载的安装包；如需体验，请按 [Quick Start](#quick-start) 从源码在模拟器中构建。面向公众的分发需要走 TestFlight 或 App Store，目前还没有。
 
-**A. 模拟器构建**
-
-1. 从 Releases 下载 `Catpaw-<版本>-simulator.zip`，打开任意 iOS 17+ 模拟器（Xcode › Open Developer Tool › Simulator）。
-2. 解压并安装，bundle id 从安装包自己的 `Info.plist` 读取：
-
-```sh
-unzip Catpaw-<版本>-simulator.zip -d catpaw-sim
-APP=$(find catpaw-sim -maxdepth 2 -name '*.app' | head -1)
-xcrun simctl install booted "$APP"
-BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
-xcrun simctl launch booted "$BUNDLE_ID"
-```
-
-也可以直接把解压出来的 `.app` 拖进模拟器窗口安装。仓库里的默认 bundle id 是 `com.example.CatpawM.ConversationFirst.Auth`（Debug / Release）和 `com.example.CatpawM.OpenMuseDemo`（DeviceTrial）；正式包可能在本地签名配置里改过，以 `Info.plist` 为准。
-
-**B. 真机 ipa（开发签名）**
-
-> [!WARNING]
-> 这个 ipa 用开发证书签名，**只能安装在开发者描述文件里登记过的设备上**，其他设备会安装失败。如需加入测试设备，请把设备 UDID 发给维护者重新签名。面向公众的分发需要走 TestFlight 或 App Store，目前还没有。
-
-1. 下载 `Catpaw-<版本>.ipa`，用数据线连接 iPhone 并信任这台电脑。
-2. 安装（二选一）：
-   - **Xcode**：Window › Devices and Simulators › 选中设备 › 「Installed Apps」下的「+」› 选 ipa。
-   - **Apple Configurator**：选中设备 › 添加 › App › 选 ipa（也可以把 ipa 拖到设备上）。
-3. iOS 16 及以上运行开发签名的 App 需要先打开 设置 › 隐私与安全性 › 开发者模式（按提示重启）。如提示未受信任的开发者，在 设置 › 通用 › VPN与设备管理 里信任该开发者。
-
-**C. 从源码构建**
-
-见 [Quick Start](#quick-start)；真机构建用 `DeviceTrial` scheme 并在本地提供签名与公开配置（见[配置参考](#配置参考)）。
-
-**确认版本**
-
-装好后打开 App 的 设置 › 关于，应显示「版本 X.Y.Z (build N) · 发布于 日期 时间」，和 Release 页面、[CHANGELOG](CHANGELOG.md) 里的版本一致。轻点这一行可以看到提交号。
+从源码构建并用 `DeviceTrial` scheme 跑真机时，需在本地提供签名与公开配置（见[配置参考](#配置参考)）。装好后可在 App 的 设置 › 关于 核对版本号，应与 Release 页面和 CHANGELOG 一致。
 
 <p align="right">(<a href="#readme-top">返回顶部</a>)</p>
 
@@ -355,8 +308,7 @@ mimi/
 ├── design/ · research/          # 设计与研究输入
 ├── vendor/openmuse/             # 固定版本上游（MIT）
 ├── CHANGELOG.md                 # iOS 版本记录（Keep a Changelog + SemVer）
-├── AGENTS.md                    # 人机共读的仓库约定
-└── handoff.md                   # 接手说明
+└── AGENTS.md                    # 人机共读的仓库约定
 ```
 
 目录角色以 [`docs/development/repository-layout.json`](docs/development/repository-layout.json) 为准。
@@ -449,7 +401,7 @@ CATPAW_DENO_BIN=<Deno路径> CATPAW_PUBLIC_NPM_CACHE=<公开cache目录> sh scri
 - [x] **v1.1.0 发版**：已通过 #98 合入 `main`（OAuth 登录与账号下拉、iOS live text、语音对话、记忆工具调用、版本管理等）
 - [x] 版本号自动化：构建号自动递增，设置 › 关于显示发布时间与提交号
 - [x] [CHANGELOG](CHANGELOG.md) 记录 1.1.0 发布日期（2026-10-18）
-- [ ] 打 `v1.1.0` 标签，发布首个 GitHub Release（模拟器 zip + 开发签名 ipa），见[下载与安装](#下载与安装)
+- [x] [v1.2.0](https://github.com/Yankj/mimi/releases/tag/v1.2.0) 已于 2026-10-18 发布（源码版本说明）；当前没有可下载的安装包，见[版本与体验](#版本与体验)
 - [ ] 1.1.1 修复版：标题溢出、时间格式（见 [CHANGELOG](CHANGELOG.md)）
 - [ ] App 实拍录屏 / GIF 与演示视频
 - [ ] v1.2：EventKit CI 测试、Release / ipa 自动分发
@@ -469,8 +421,8 @@ CATPAW_DENO_BIN=<Deno路径> CATPAW_PUBLIC_NPM_CACHE=<公开cache目录> sh scri
 
 | 类型 | 适合 | 入口 |
 |---|---|---|
-| Tutorials 教程 | 第一次跑起来 | [Quick Start](#quick-start)、[接手说明](handoff.md)、[iOS 工程说明](apps/ios-conversation/README.md) |
-| How-to 操作指南 | 完成具体任务 | [下载与安装](#下载与安装)、[使用](#使用)、[录屏分镜](docs/demo-script.md)、[Edge 离线验证](services/edge/README.md)、[部署清单](services/edge/docs/deploy-checklist.md)、[贡献指南](CONTRIBUTING.md) |
+| Tutorials 教程 | 第一次跑起来 | [Quick Start](#quick-start)、[接手说明](docs/internal/handoff.md)、[iOS 工程说明](apps/ios-conversation/README.md) |
+| How-to 操作指南 | 完成具体任务 | [版本与体验](#版本与体验)、[使用](#使用)、[录屏分镜](docs/demo-script.md)、[Edge 离线验证](services/edge/README.md)、[部署清单](services/edge/docs/deploy-checklist.md)、[贡献指南](CONTRIBUTING.md) |
 | Reference 参考 | 查准确信息 | [配置参考](#配置参考)、[CHANGELOG](CHANGELOG.md)、[iOS 版本规范](docs/development/ios-versioning.md)、[Edge 接口契约](services/edge/docs/)、[目录角色](docs/development/repository-layout.json) |
 | Explanation 原理 | 理解为什么 | [架构总览](docs/architecture.md)、[架构索引](docs/architecture/README.md)、[研究索引](docs/research/README.md) |
 
@@ -484,7 +436,7 @@ CATPAW_DENO_BIN=<Deno路径> CATPAW_PUBLIC_NPM_CACHE=<公开cache目录> sh scri
 
 | 仓库 | 内容 | 部署 |
 |---|---|---|
-| [Yankj/mimi](https://github.com/Yankj/mimi)（本仓库） | iOS App、Supabase 后端、协议与产品文档、品牌源（`docs/brand/`） | App 走 TestFlight / 签名包；后端由维护者按批准流程部署 |
+| [Yankj/mimi](https://github.com/Yankj/mimi)（本仓库） | iOS App、Supabase 后端、协议与产品文档、品牌源（`docs/brand/`） | 客户端以本仓库源码为准；后端由维护者按批准流程部署 |
 | [Yankj/heydusk-site](https://github.com/Yankj/heydusk-site) | 官网：`apps/company` → heydusk.com，`apps/mimi` → mimi.heydusk.com | 两个独立 Vercel 项目，同一仓库、不同 Root Directory |
 
 **官网已迁出**：mimi 产品站和公司站都在 heydusk-site 维护，改文案、改页面请去那个仓库提 PR。本仓库 [apps/website](apps/website) 只保留迁出说明，不再放官网源码。
@@ -506,7 +458,7 @@ CATPAW_DENO_BIN=<Deno路径> CATPAW_PUBLIC_NPM_CACHE=<公开cache目录> sh scri
 
 ## License
 
-开源协议待定，仓库根目录暂无 LICENSE 文件。第三方声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；`vendor/openmuse` 保留上游 MIT 原文。
+本仓库为专有源码，版权所有，保留一切权利（All Rights Reserved）。源码仅供查阅，未授权使用。详见 [LICENSE](LICENSE)。第三方声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；`vendor/openmuse` 保留上游 MIT 原文。
 
 <p align="right">(<a href="#readme-top">返回顶部</a>)</p>
 

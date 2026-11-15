@@ -1,6 +1,8 @@
 # 小咪接手交接
 
-交接快照：2026-10-15 18:44（Asia/Shanghai）。用户中断开发后要求整理交接；本次只核对、保存文档和同步代码，不继续模型检查、部署、安装或系统动作。实时进度唯一维护在 [master-plan](docs/status/master-plan.md)；本文与[机器快照](docs/status/handoff-snapshot-2026-10-15.json)是日期快照。
+> 这是 2026-10-15 的内部交接快照，不是当前对外产品说明。实时进展见 [主计划](../status/master-plan.md)。
+
+交接快照：2026-10-15 18:44（Asia/Shanghai）。用户中断开发后要求整理交接；本次只核对、保存文档和同步代码，不继续模型检查、部署、安装或系统动作。实时进度唯一维护在 [master-plan](../status/master-plan.md)；本文与[机器快照](../status/handoff-snapshot-2026-10-15.json)是日期快照。
 
 ## 接手先看
 
@@ -13,7 +15,7 @@
 
 ## 权威、约束与接手顺序
 
-先读 AGENTS.md、README、本文、master-plan，再按 [development-start-contract](docs/planning/AF-1/development-start-contract.md) 与 [long-task-development-prompt](docs/planning/AF-1/long-task-development-prompt.md) 开发。基础目标是 AF-1-G3-UX1；工作单元、依赖和证据边界分别见 goal.md / plan.md / contract.json、delivery-slices.json、goal-evidence-map.json。
+先读 AGENTS.md、README、本文、master-plan，再按 [development-start-contract](../planning/AF-1/development-start-contract.md) 与 [long-task-development-prompt](../planning/AF-1/long-task-development-prompt.md) 开发。基础目标是 AF-1-G3-UX1；工作单元、依赖和证据边界分别见 goal.md / plan.md / contract.json、delivery-slices.json、goal-evidence-map.json。
 
 领域和执行不变量由 agent-foundation-spec 裁决，完整终版体验由 catpaw-final-product-spec 裁决。用户已明确选择 **R5中性阅读面＋蓝色动作和本人消息**；与原生页面、R3状态、R4连续手势和GenUI合同组合使用，不退回R4.1紫色方案。保持A1图标、现有Supabase/用户数据、零新增计算预算和原默认模型路由。
 
@@ -40,8 +42,8 @@ r8 backend本地7534a9d→远端aafd6db，client本地371be02→远端bb02476；
 38共用许可presenter按真实dismiss衔接、绑定原review token；主决定区与图片确认独立，允许全文多行可达。侧栏是**底层揭示＋全宽对话整体平移**；每轮过程收敛成稳定可展开事实摘要；普通无环境冷启动可恢复明确离线审查配置，期限不续。R11同包57单元、6实际UI及最大系统字号重复许可通过；原29按钮症状仍NOT_REPRODUCED，旧失败保留，不宣称已证明唯一根因。图标精致度、连续动作和真实流观感仍需用户复验，不能凭静态截图关闭全部UX门。
 
 - 用户设备：BE5C60E0-B415-4BF4-8F36-8975FB5314AA；固定名称“小咪最新体验”，bundle com.example.CatpawM.ConversationFirst.Auth；交接只读包Info.plist再核为0.3.0(38)。
-- 38包指纹：872197b49d39f94299b6f1b73d4e3e13bd05308e216bb306fcacb752f410f855；见 [38验收](docs/acceptance/restart-native-consent-build38-2026-10-15.md)。
-- 39包：managed内 build/trigger-device-20261015/r3/CatpawM.app；指纹 a0fe18f8590ef327ab56f2eb1aafc0f3c7938f6db2175638d16a96c3b6f088ed；**未安装**。见 [39验收](docs/acceptance/restart-trigger-device-image-build39-2026-10-15.md)。
+- 38包指纹：872197b49d39f94299b6f1b73d4e3e13bd05308e216bb306fcacb752f410f855；见 [38验收](../acceptance/restart-native-consent-build38-2026-10-15.md)。
+- 39包：managed内 build/trigger-device-20261015/r3/CatpawM.app；指纹 a0fe18f8590ef327ab56f2eb1aafc0f3c7938f6db2175638d16a96c3b6f088ed；**未安装**。见 [39验收](../acceptance/restart-trigger-device-image-build39-2026-10-15.md)。
 - QA复用9A4BC49A-CCE4-45D6-A1DC-6F072236DAB6（iPhone18Pro），当前仍Booted，不新增模拟器或与体验设备并发抢状态。
 - 主目录 build/device-hub-latest/open-latest.command / launch.py 是原入口，保留原store/端口/到期，不静默续权。原审查到期时间1792059759，约18:22 Shanghai；交接时已到期。
 - 8772（PID75165）是用户离线体验服务，8773（PID805）是QA服务，仍监听；本次未停止。其他Deno进程仅记录，不认领或终止；未发现xcodebuild或r8操作进程仍运行。
@@ -68,7 +70,7 @@ services/edge/build/model-route-review-20261015/packages-r8/。
 
 新检查固定Reply only: received.，OpenRouter→google/gemma-4-31b-it:free→Google AI Studio；最多1次provider、512token/30秒、四项max_price均0、deny、require_parameters、禁fallback/retry，history/context/tools/attachments/memory均0。必须实际model/provider、cost=0、完整终态和逐帧证据才能PASS；成功仍不是App→SSE→保存/重开的验收。
 
-首次部署曾被自动审批拒绝，认为旧r7授权不覆盖精确r8；用户随后直接批准该精确归档更新及必要回退，重核基线后部署API22，55文件读回一致。旧[准备记录](docs/research/model-route-review-next-2026-10-15.md)保留批准前事实，不改写；本次实际状态见机器快照和master-plan。
+首次部署曾被自动审批拒绝，认为旧r7授权不覆盖精确r8；用户随后直接批准该精确归档更新及必要回退，重核基线后部署API22，55文件读回一致。旧[准备记录](../research/model-route-review-next-2026-10-15.md)保留批准前事实，不改写；本次实际状态见机器快照和master-plan。
 
 用户另直接批准一次同身份刷新；**已消耗1/1**。原journal锁覆盖整段标准Supabase刷新，新独立journal在请求前持久claim，仅原位更新原vault，返回确认同身份/同scope，未输出或复制凭据。失败未知不可重试，后续再次过期不能复用这一次批准。
 
